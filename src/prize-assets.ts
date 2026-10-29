@@ -1,9 +1,12 @@
 import express from 'express';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 const svg=(title:string,subtitle:string,accent='#8b5cf6')=>`<svg xmlns="http://www.w3.org/2000/svg" width="800" height="480" viewBox="0 0 800 480"><defs><radialGradient id="g"><stop stop-color="${accent}" stop-opacity=".28"/><stop offset="1" stop-color="#100b18" stop-opacity="0"/></radialGradient></defs><rect width="800" height="480" fill="#100b18"/><rect width="800" height="480" fill="url(#g)"/><text x="400" y="225" fill="#fff" font-family="Arial,sans-serif" font-size="38" font-weight="700" text-anchor="middle">${title}</text><text x="400" y="275" fill="#c4b5fd" font-family="Arial,sans-serif" font-size="24" text-anchor="middle">${subtitle}</text></svg>`;
+const load=(name:string,fallback:string)=>{try{return readFileSync(join(process.cwd(),'assets','prizes',name),'utf8')}catch{return fallback}};
 const assets:Record<string,string>={
-'paris-2023':svg('BLAST.TV Major','Paris 2023','#eab308'),
-'graffiti-crown':svg('Sealed Graffiti','Crown','#eab308'),
+'paris-2023':load('paris-2023-user.svg',svg('BLAST.TV Major','Paris 2023','#eab308')),
+'graffiti-crown':load('graffiti-crown-user.svg',svg('Sealed Graffiti','Crown','#eab308')),
 'p250-sleet':svg('P250 | Sleet','Ледяная корка','#38bdf8'),
 'xm1014-irezumi':svg('XM1014 | Irezumi','Ирэдзуми'),
 'm249-sleet':svg('M249','Ледяная корка','#38bdf8'),
