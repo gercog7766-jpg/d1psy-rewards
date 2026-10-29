@@ -2,9 +2,9 @@ import { installAccountHotfix } from './account-hotfix.js';
 import { installObsHotfix } from './obs-hotfix.js';
 import { installAdminDashboardHotfix } from './admin-dashboard-hotfix.js';
 import { installHomeHotfix } from './home-hotfix.js';
-import { installPrizeImageHotfix } from './prize-image-hotfix.js';
+import { installPrizeAssets } from './prize-assets.js';
 
-installPrizeImageHotfix();
+installPrizeAssets();
 installAccountHotfix();
 installObsHotfix();
 installAdminDashboardHotfix();
