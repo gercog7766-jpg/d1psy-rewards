@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 
 const db=createClient(process.env.SUPABASE_URL||'',process.env.SUPABASE_SECRET_KEY||'',{auth:{persistSession:false}});
@@ -8,7 +9,18 @@ async function startNextRound(){
   if(!s?.enabled || s.twitch_connection_status!=='connected') return;
   const {data:active}=await db.from('rewards_rounds').select('id').eq('status','active').maybeSingle();
   if(active) return;
-  await db.from('rewards_rounds').insert({mode:s.mode,interval_seconds:s.interval_seconds,message_threshold:s.message_threshold,status:'active'});
+
+  const {data:prizes,error:pErr}=await db.from('rewards_prizes').select('id,name').eq('status','available');
+  if(pErr) throw pErr;
+  if(!prizes?.length){
+    await db.from('rewards_audit_log').insert({action:'round_start_failed',entity_type:'rewards_rounds',details:{reason:'no_available_prizes'}});
+    return;
+  }
+  const prize=prizes[crypto.randomInt(prizes.length)];
+  const {data:round,error}=await db.from('rewards_rounds').insert({mode:s.mode,interval_seconds:s.interval_seconds,message_threshold:s.message_threshold,status:'active',prize_id:prize.id}).select('id').single();
+  if(error) throw error;
+  await db.from('rewards_settings').update({selected_prize_id:prize.id,updated_at:new Date().toISOString()}).eq('id',true);
+  await db.from('rewards_audit_log').insert({action:'round_prize_randomized',entity_type:'rewards_rounds',entity_id:round.id,details:{prize_id:prize.id,prize_name:prize.name,source:'automatic_next_round'}});
 }
 
 export async function checkGiveawayRound(){
