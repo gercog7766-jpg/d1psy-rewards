@@ -23,4 +23,24 @@ const assets:Record<string,string>={
 'm4a1-electrum':svg('M4A1-S','Electrum','#facc15'),
 'aug-creep':svg('AUG','Жуть','#22c55e'),
 'm4a1-emphorosaur':svg('M4A1-S','Эмфорозавр-S','#84cc16')};
-export function installPrizeAssets(){const proto:any=(express as any).application;const originalGet=proto.get;proto.get=function(path:any,...handlers:any[]){if(path!=='/assets/prizes/:slug.svg')return originalGet.call(this,path,...handlers);return originalGet.call(this,path,(req:any,res:any)=>{const body=assets[req.params.slug];if(!body)return res.status(404).end();res.set('Content-Type','image/svg+xml; charset=utf-8');res.set('Cache-Control','public, max-age=3600');return res.send(body)})}}
+
+// server-next registers its Express routes only after this module is installed.
+// Intercept the first route registration and add the asset endpoint to the real app instance.
+export function installPrizeAssets(){
+ const proto:any=(express as any).application;
+ const originalGet=proto.get;
+ let installed=false;
+ proto.get=function(path:any,...handlers:any[]){
+  if(!installed){
+   installed=true;
+   originalGet.call(this,'/assets/prizes/:slug.svg',(req:any,res:any)=>{
+    const body=assets[String(req.params.slug||'')];
+    if(!body)return res.status(404).end();
+    res.set('Content-Type','image/svg+xml; charset=utf-8');
+    res.set('Cache-Control','public, max-age=300');
+    return res.status(200).send(body);
+   });
+  }
+  return originalGet.call(this,path,...handlers);
+ };
+}
