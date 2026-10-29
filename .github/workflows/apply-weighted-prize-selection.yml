@@ -1,0 +1,50 @@
+name: Apply weighted prize selection
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-weighted-prize-selection.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch server prize selection
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('src/server-next.ts')
+          s = p.read_text()
+          old_import = "import { eventSubRouter, subscribeToChat } from './eventsub.js';"
+          new_import = old_import + "\nimport { pickWeightedPrize } from './prize-weighting.js';"
+          old_select = "db.from('rewards_prizes').select('id,name').eq('status','available')"
+          new_select = "db.from('rewards_prizes').select('id,name,draw_weight').eq('status','available')"
+          old_pick = "const prize=prizes[randomIndex(prizes.length)];"
+          new_pick = "const prize=pickWeightedPrize(prizes);"
+          old_rng = "rng:'node_crypto_randomInt'"
+          new_rng = "rng:'node_crypto_weighted_randomInt',draw_weight:prize.draw_weight,total_weight:prizes.reduce((sum,p)=>sum+Number(p.draw_weight||0),0)"
+          for old in (old_import, old_select, old_pick, old_rng):
+              if old not in s:
+                  raise SystemExit(f'Expected source fragment not found: {old}')
+          s = s.replace(old_import, new_import, 1)
+          s = s.replace(old_select, new_select, 1)
+          s = s.replace(old_pick, new_pick, 1)
+          s = s.replace(old_rng, new_rng, 1)
+          p.write_text(s)
+      - name: Verify patch
+        run: |
+          grep -F "pickWeightedPrize" src/server-next.ts
+          grep -F "id,name,draw_weight" src/server-next.ts
+          grep -F "node_crypto_weighted_randomInt" src/server-next.ts
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/server-next.ts
+          git commit -m "Use weighted prize probabilities on server"
+          git push
