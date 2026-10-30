@@ -9,6 +9,7 @@ import { installEconomyWinsHotfix } from './economy-wins-hotfix.js';
 import { installAdminUserControlsHotfix } from './admin-user-controls-hotfix.js';
 import { installAccountChoiceUiHotfix } from './account-choice-ui-hotfix.js';
 import { installAccountFinalUiHotfix } from './account-final-ui-hotfix.js';
+import { installOrdersHotfix } from './orders-hotfix.js';
 
 installPrizeAssets();
 installEconomyHotfix();
@@ -19,6 +20,7 @@ installAccountHotfix();
 installAccountFinalUiHotfix();
 installObsHotfix();
 installAdminHistoryHotfix();
+installOrdersHotfix();
 installAdminDashboardHotfix();
 installHomeHotfix();
 await import('./server-next.js');
