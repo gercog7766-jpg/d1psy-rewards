@@ -7,11 +7,13 @@ import { installPrizeAssets } from './prize-assets.js';
 import { installEconomyHotfix } from './economy-hotfix.js';
 import { installEconomyWinsHotfix } from './economy-wins-hotfix.js';
 import { installAdminUserControlsHotfix } from './admin-user-controls-hotfix.js';
+import { installAccountChoiceUiHotfix } from './account-choice-ui-hotfix.js';
 
 installPrizeAssets();
 installEconomyHotfix();
 installEconomyWinsHotfix();
 installAdminUserControlsHotfix();
+installAccountChoiceUiHotfix();
 installAccountHotfix();
 installObsHotfix();
 installAdminHistoryHotfix();
