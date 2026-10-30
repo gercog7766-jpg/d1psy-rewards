@@ -8,7 +8,7 @@ import { installPrizeAssets } from './prize-assets.js';
 installPrizeAssets();
 installAccountHotfix();
 installObsHotfix();
-installAdminDashboardHotfix();
 installAdminHistoryHotfix();
+installAdminDashboardHotfix();
 installHomeHotfix();
 await import('./server-next.js');
