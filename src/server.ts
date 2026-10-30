@@ -6,12 +6,14 @@ import { installHomeHotfix } from './home-hotfix.js';
 import { installPrizeAssets } from './prize-assets.js';
 import { installEconomyHotfix } from './economy-hotfix.js';
 import { installEconomyWinsHotfix } from './economy-wins-hotfix.js';
+import { installEconomyActionsHotfix } from './economy-actions-hotfix.js';
 import { installAdminUserControlsHotfix } from './admin-user-controls-hotfix.js';
 import { installAccountChoiceUiHotfix } from './account-choice-ui-hotfix.js';
 
 installPrizeAssets();
 installEconomyHotfix();
 installEconomyWinsHotfix();
+installEconomyActionsHotfix();
 installAdminUserControlsHotfix();
 installAccountHotfix();
 installAccountChoiceUiHotfix();
