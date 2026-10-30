@@ -5,9 +5,11 @@ import { installAdminHistoryHotfix } from './admin-history-hotfix.js';
 import { installHomeHotfix } from './home-hotfix.js';
 import { installPrizeAssets } from './prize-assets.js';
 import { installEconomyHotfix } from './economy-hotfix.js';
+import { installEconomyWinsHotfix } from './economy-wins-hotfix.js';
 
 installPrizeAssets();
 installEconomyHotfix();
+installEconomyWinsHotfix();
 installAccountHotfix();
 installObsHotfix();
 installAdminHistoryHotfix();
