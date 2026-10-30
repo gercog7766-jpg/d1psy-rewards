@@ -1,0 +1,41 @@
+name: Direct economy routes
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/direct-economy-routes.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Patch server-next
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('src/server-next.ts')
+          s=p.read_text()
+          marker="app.get('/api/public/state'"
+          if "app.post('/api/me/wins/:id/sell',requireUser" not in s:
+              routes="""app.post('/api/me/wins/:id/claim',requireUser,async(req,res)=>{const s=res.locals.session as Session;const {data:u,error:uErr}=await db.from('rewards_users').select('id').eq('twitch_user_id',s.twitchUserId).single();if(uErr||!u)return res.status(404).json({error:'user_not_found'});const {data,error}=await db.rpc('rewards_claim_win',{p_win_id:req.params.id,p_user_id:u.id});if(error){console.error('claim_win_failed',error);return res.status(409).json({error:'claim_failed',detail:error.message})}res.json({ok:true,result:data})});\napp.post('/api/me/wins/:id/sell',requireUser,async(req,res)=>{const s=res.locals.session as Session;const {data:u,error:uErr}=await db.from('rewards_users').select('id').eq('twitch_user_id',s.twitchUserId).single();if(uErr||!u)return res.status(404).json({error:'user_not_found'});const {data,error}=await db.rpc('rewards_sell_win',{p_win_id:req.params.id,p_user_id:u.id});if(error){console.error('sell_win_failed',error);return res.status(409).json({error:'sell_failed',detail:error.message})}res.json({ok:true,result:data})});\n"""
+              s=s.replace(marker,routes+marker,1)
+          old=".select('id,won_at,delivery_status,delivered_at,rewards_prizes(name,image_url)')"
+          new=".select('id,won_at,delivery_status,delivered_at,choice_status,sold_for_coins,rewards_prizes(name,image_url,sell_price_coins)')"
+          s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+      - name: Build
+        run: npm ci && npm run build
+      - name: Commit
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/server-next.ts
+          git diff --cached --quiet && exit 0
+          git commit -m 'Integrate economy actions into main server'
+          git push
