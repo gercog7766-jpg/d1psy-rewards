@@ -11,6 +11,7 @@ export function installAdminHistoryHotfix(){
         if(typeof body==='string'){
           body=body.replace('list.slice(0,20).map(', 'list.slice(0,100).map(');
           body=body.replace('.wins{display:grid;gap:9px}', '.wins{display:grid;gap:9px;max-height:70vh;overflow-y:auto;padding-right:6px}');
+          body=body.replace("let completed=(s.wins||[]).slice(0,8)", "let completed=(s.historyWins||s.wins||[]).slice(0,8)");
         }
         return originalSend(body);
       };
