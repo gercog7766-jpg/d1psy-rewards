@@ -1,0 +1,45 @@
+name: Fix account renderer
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  fix:
+    if: github.event.head_commit.message == 'Apply direct account renderer fix'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Patch account renderer directly
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('src/account-hotfix.ts')
+          s=p.read_text()
+          replacements=[
+            ("choice=w.choice_status||(w.delivery_status==='awaiting_choice'?'awaiting_choice':'claimed')", "choice=received?'claimed':(w.choice_status||(w.delivery_status==='awaiting_choice'?'awaiting_choice':'claimed'))"),
+            ("actions=choice==='awaiting_choice'?", "actions=choice==='awaiting_choice'&&!received?"),
+            ("badge=choice==='sold'?'<span class=\"badge sold\">Продано</span>':choice==='awaiting_choice'?", "badge=choice==='sold'?'<span class=\"badge sold\">Продано</span>':received?'<span class=\"badge received\">Получено</span>':choice==='awaiting_choice'?"),
+            ("function renderWins(list){if(!Array.isArray(list)||!list.length)", "function renderWins(list){if(Array.isArray(list)){var earned=list.reduce((n,w)=>n+(w.choice_status==='sold'?Number(w.sold_for_coins||0):0),0);coinBalance.textContent=earned+' '+coinWord(earned)}if(!Array.isArray(list)||!list.length)"),
+            ("var er=await fetch('/api/me/economy',{cache:'no-store'})", "var er=await fetch('/api/me/economy?ts='+Date.now(),{cache:'no-store'})")
+          ]
+          for old,new in replacements:
+            if old not in s:
+              print('pattern not found or already patched:', old[:70])
+            else:
+              s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+      - name: Build
+        run: npm install && npm run build
+      - name: Commit fix
+        run: |
+          git config user.name 'd1psy-rewards-bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add src/account-hotfix.ts
+          git diff --cached --quiet && exit 0
+          git commit -m 'Fix account renderer directly'
+          git push
