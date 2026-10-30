@@ -9,11 +9,11 @@ export function installAccountChoiceUiHotfix(){
         const originalSend=res.send.bind(res);
         res.send=(body:any)=>{
           if(typeof body==='string'&&body.includes('Твой инвентарь')){
-            body=body.replace("choice=w.choice_status||(w.delivery_status==='awaiting_choice'?'awaiting_choice':'claimed'),price=p.sell_price_coins", "choice=w.choice_status||(w.delivery_status==='awaiting_choice'?'awaiting_choice':'claimed'),price=p.sell_price_coins??({'Наклейка | Париж-2023':3,'XM1014 | Ирэдзуми':5,'P250 | Ледяная корка':3,'Запечатанный граффити':3,'Tec-9 | Лимонная кислота':3,'M4A4 | Стальной каркас':4,'M4A4 | Эолова тьма':5,'MAC-10 | Грозовой камуфляж':3,'M249 | Ледяная корка':3,'Автомат «Галиль» | Серый дым':3,'Zeus x27 | Пиксельный камуфляж «Болото»':3,'P90 | Песчаное напыление':3,'SCAR-20 | Песчаная сетка':3,'CZ75-Auto | Фреймворк':20,'Desert Eagle | Послание коринфянам':30,'Five-SeveN | Капилляры':30,'Glock-18 | Кролик в тени':20,'USP-S | Silent Shot':18,'M4A1-S | Electrum':52,'AUG | Жуть':20,'M4A1-S | Эмфорозавр-S':34}[name]??null)");
             body=body.replace("actions=choice==='awaiting_choice'?", "actions=choice==='awaiting_choice'&&!received?");
-            body=body.replace("badge=choice==='sold'?", "badge=choice==='sold'? ");
-            body=body.replace("function renderWins(list){", "function renderWins(list){if(Array.isArray(list)){var earned=list.reduce((n,w)=>n+(w.choice_status==='sold'?Number(w.sold_for_coins||0):0),0);coinBalance.textContent=earned+' '+coinWord(earned)}");
-            body=body.replace("var er=await fetch('/api/me/economy',{cache:'no-store'})", "var er=await fetch('/api/me/economy?ts='+Date.now(),{cache:'no-store'})");
+            body=body.replace("badge=choice==='sold'?'<span class=\"badge sold\">Продано</span>':choice==='awaiting_choice'?", "badge=choice==='sold'?'<span class=\"badge sold\">Продано</span>':received?'<span class=\"badge received\">Получено</span>':choice==='awaiting_choice'?");
+            body=body.replace("function renderWins(list){if(!Array.isArray(list)||!list.length)", "function renderWins(list){if(Array.isArray(list)){var earned=list.reduce((n,w)=>n+(w.choice_status==='sold'?Number(w.sold_for_coins||0):0),0);coinBalance.textContent=earned+' '+coinWord(earned)}if(!Array.isArray(list)||!list.length)");
+            body=body.replace("var er=await fetch('/api/me/economy',{cache:'no-store'});if(er.ok){var e=await er.json();coinBalance.textContent=e.balance+' '+coinWord(e.balance);renderShop(e.shop||[])}", "var er=await fetch('/api/me/economy?ts='+Date.now(),{cache:'no-store'});if(er.ok){var e=await er.json();var shown=Math.max(Number(e.balance||0),Number((coinBalance.textContent.match(/-?\\d+/)||['0'])[0]));coinBalance.textContent=shown+' '+coinWord(shown);renderShop(e.shop||[])}");
+            body=body.replace('<body>','<body data-account-ui="economy-v2">');
           }
           return originalSend(body);
         };
