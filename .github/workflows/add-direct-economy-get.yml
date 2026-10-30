@@ -1,0 +1,39 @@
+name: Add direct economy endpoint
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'Trigger direct economy endpoint'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch server-next
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('src/server-next.ts')
+          s=p.read_text()
+          marker="app.get('/api/public/state'"
+          if "app.get('/api/me/economy',requireUser" in s:
+              print('direct economy endpoint already exists')
+          else:
+              i=s.index(marker)
+              route="""app.get('/api/me/economy',requireUser,async(_req,res)=>{const s=res.locals.session as Session;const {data:u,error:uErr}=await db.from('rewards_users').select('id').eq('twitch_user_id',s.twitchUserId).single();if(uErr||!u)return res.status(404).json({error:'user_not_found'});const [{data:tx,error:txErr},{data:shop,error:shopErr}]=await Promise.all([db.from('rewards_coin_transactions').select('amount').eq('user_id',u.id),db.from('rewards_shop_items').select('id,name,image_url,price_coins,stock').eq('status','available').order('price_coins',{ascending:true})]);if(txErr||shopErr){console.error('economy_load_failed',txErr||shopErr);return res.status(500).json({error:'economy_load_failed'})}const balance=(tx||[]).reduce((n:number,x:any)=>n+Number(x.amount||0),0);res.set('Cache-Control','no-store');res.json({balance,currency:'Монета',shop:shop||[]})});\n"
+              s=s[:i]+route+s[i:]
+              p.write_text(s)
+          PY
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install && npm run build
+      - name: Commit
+        run: |
+          git config user.name 'd1psy-rewards-bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add src/server-next.ts
+          git diff --cached --quiet && exit 0
+          git commit -m 'Serve shop from direct economy endpoint'
+          git push
