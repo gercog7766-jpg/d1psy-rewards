@@ -11,6 +11,7 @@ import { installAccountChoiceUiHotfix } from './account-choice-ui-hotfix.js';
 import { installAccountFinalUiHotfix } from './account-final-ui-hotfix.js';
 import { installOrdersHotfix } from './orders-hotfix.js';
 import { installAdminOrdersUiHotfix } from './admin-orders-ui-hotfix.js';
+import { installAdminOrdersFinalHotfix } from './admin-orders-final-hotfix.js';
 
 installPrizeAssets();
 installEconomyHotfix();
@@ -23,6 +24,7 @@ installObsHotfix();
 installAdminHistoryHotfix();
 installOrdersHotfix();
 installAdminOrdersUiHotfix();
+installAdminOrdersFinalHotfix();
 installAdminDashboardHotfix();
 installHomeHotfix();
 await import('./server-next.js');
