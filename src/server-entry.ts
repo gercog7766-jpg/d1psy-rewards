@@ -23,8 +23,10 @@ import { installReferralAccountCleanupHotfix } from './referral-account-cleanup-
 import { installAdminReferralsHotfix } from './admin-referrals-hotfix.js';
 import { installTwitchAvatarHotfix } from './twitch-avatar-hotfix.js';
 import { installDailyBonusHotfix } from './daily-bonus-hotfix.js';
+import { installPromoCodeHotfix } from './promo-code-hotfix.js';
 
 installTwitchAvatarHotfix();
+installPromoCodeHotfix();
 installDailyBonusHotfix();
 installReferralOauthHotfix();
 installReferralHotfix();
