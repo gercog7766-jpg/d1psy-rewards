@@ -21,7 +21,9 @@ import { installReferralHotfix } from './referral-hotfix.js';
 import { installReferralOauthHotfix } from './referral-oauth-hotfix.js';
 import { installReferralAccountCleanupHotfix } from './referral-account-cleanup-hotfix.js';
 import { installAdminReferralsHotfix } from './admin-referrals-hotfix.js';
+import { installTwitchAvatarHotfix } from './twitch-avatar-hotfix.js';
 
+installTwitchAvatarHotfix();
 installReferralOauthHotfix();
 installReferralHotfix();
 installReferralAccountCleanupHotfix();
