@@ -1,0 +1,50 @@
+import express from 'express';
+import crypto from 'node:crypto';
+import { createClient } from '@supabase/supabase-js';
+
+const db=createClient(process.env.SUPABASE_URL||'https://ssqjogdcynmjjgtxknng.supabase.co',process.env.SUPABASE_SECRET_KEY||'not-configured',{auth:{persistSession:false}});
+
+async function user(req:any,res:any){
+  try{
+    const secret=process.env.SESSION_SECRET||'',raw=req.cookies?.rewards_session;
+    if(!raw||!secret)return res.status(401).json({error:'authentication_required'}),null;
+    const [p,s]=raw.split('.'),expected=crypto.createHmac('sha256',secret).update(p).digest('base64url');
+    if(!p||!s||Buffer.byteLength(s)!==Buffer.byteLength(expected)||!crypto.timingSafeEqual(Buffer.from(s),Buffer.from(expected)))return res.status(401).json({error:'authentication_required'}),null;
+    const session=JSON.parse(Buffer.from(p,'base64url').toString());
+    if(session.exp<=Date.now())return res.status(401).json({error:'authentication_required'}),null;
+    const {data}=await db.from('rewards_users').select('id').eq('twitch_user_id',session.twitchUserId).single();
+    if(!data)return res.status(404).json({error:'user_not_found'}),null;
+    return data;
+  }catch{return res.status(401).json({error:'authentication_required'}),null}
+}
+
+export function installSellAllHotfix(){
+  const proto:any=(express as any).application,response:any=(express as any).response;
+  const originalListen=proto.listen,originalSend=response.send;
+  response.send=function(body:any){
+    if(typeof body==='string'&&body.includes('<h2>Инвентарь</h2>')&&body.includes('id="inventory"')){
+      body=body.replace('<h2>Инвентарь</h2>','<div class="inventory-head"><h2>Инвентарь</h2><button id="sellAllBtn" class="sell-all-btn" type="button">Продать всё</button></div>');
+      body=body.replace('</style>','\n.inventory-head{display:flex;align-items:center;justify-content:space-between;gap:14px}.inventory-head h2{margin:0}.sell-all-btn{border:1px solid #5b3b75;border-radius:10px;padding:9px 14px;background:#241630;color:#fcd34d;font-weight:850;cursor:pointer}.sell-all-btn:hover{background:#30203e}.sell-all-btn:disabled{opacity:.45;cursor:not-allowed}@media(max-width:620px){.inventory-head{align-items:center}.sell-all-btn{padding:8px 11px;font-size:12px}}\n</style>');
+      body=body.replace("saveBtn.addEventListener('click',save);load();", "var sellAllBtn=document.getElementById('sellAllBtn');if(sellAllBtn)sellAllBtn.addEventListener('click',async()=>{if(!confirm('Продать все доступные выигранные предметы за Монеты? Купленные, уже полученные и уже проданные предметы не затрагиваются.'))return;sellAllBtn.disabled=true;try{var r=await fetch('/api/me/wins/sell-all',{method:'POST'}),j=await r.json().catch(()=>({}));if(!r.ok){alert('Не удалось продать предметы.');return}alert(j.soldCount?'Продано предметов: '+j.soldCount+' · Получено Монет: '+j.coinsAdded:'Нет доступных выигрышей для продажи.');await load()}finally{sellAllBtn.disabled=false}});saveBtn.addEventListener('click',save);load();");
+    }
+    return originalSend.call(this,body);
+  };
+  proto.listen=function(...args:any[]){
+    const app:any=this;
+    if(!app.locals.__sellAllInstalled){app.locals.__sellAllInstalled=true;
+      app.post('/api/me/wins/sell-all',async(req:any,res:any)=>{
+        const u=await user(req,res);if(!u)return;
+        const {data:wins,error}=await db.from('rewards_wins').select('id').eq('user_id',u.id).eq('choice_status','awaiting_choice').in('delivery_status',['awaiting_choice','pending']);
+        if(error)return res.status(500).json({error:'load_failed'});
+        let soldCount=0,coinsAdded=0,balance:number|null=null;
+        for(const w of wins||[]){
+          const {data,error:e}=await db.rpc('rewards_sell_win',{p_win_id:w.id,p_user_id:u.id});
+          if(!e){soldCount++;balance=Number(data);}
+        }
+        if(soldCount){const {data:tx}=await db.from('rewards_coin_transactions').select('amount').eq('user_id',u.id).eq('transaction_type','win_sale');coinsAdded=(tx||[]).reduce((n:number,x:any)=>n+Number(x.amount||0),0);}
+        res.set('Cache-Control','no-store');return res.json({ok:true,soldCount,balance});
+      });
+    }
+    return originalListen.apply(this,args);
+  };
+}
