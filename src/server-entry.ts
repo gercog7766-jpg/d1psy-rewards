@@ -10,7 +10,9 @@ import { installShopHotfix } from './shop-hotfix.js';
 import { installShopFilterHotfix } from './shop-filter-hotfix.js';
 import { installSellAllHotfix } from './sell-all-hotfix.js';
 import { installCoinHistoryModalHotfix } from './coin-history-modal-hotfix.js';
+import { installAdminGrantsHotfix } from './admin-grants-hotfix.js';
 
+installAdminGrantsHotfix();
 installCoinHistoryModalHotfix();
 installSellAllHotfix();
 installShopFilterHotfix();
