@@ -19,9 +19,11 @@ import { installInventoryFiltersHotfix } from './inventory-filters-hotfix.js';
 import { installAccountEngagementHotfix } from './account-engagement-hotfix.js';
 import { installReferralHotfix } from './referral-hotfix.js';
 import { installReferralOauthHotfix } from './referral-oauth-hotfix.js';
+import { installReferralAccountCleanupHotfix } from './referral-account-cleanup-hotfix.js';
 
 installReferralOauthHotfix();
 installReferralHotfix();
+installReferralAccountCleanupHotfix();
 installAccountEngagementHotfix();
 installInventoryFiltersHotfix();
 installAdminPrizeRangeHotfix();
