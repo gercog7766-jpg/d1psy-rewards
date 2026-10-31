@@ -1,0 +1,31 @@
+import express from 'express';
+
+export function installPromoUiFixHotfix(){
+  const response:any=(express as any).response;
+  const original=response.send;
+  if(response.__promoUiFix)return;
+  response.__promoUiFix=true;
+  response.send=function(body:any){
+    if(typeof body==='string'){
+      if(body.includes('D1PSY REWARDS')&&!body.includes('promoUiFixMarker')) body=fixUser(body);
+      if(body.includes('Розыгрыши')&&body.includes('Пользователи')&&!body.includes('promoAdminUiFixMarker')) body=fixAdmin(body);
+    }
+    return original.call(this,body);
+  };
+}
+
+function fixUser(b:string){
+  const button='<button id="promoOpenFix" type="button" style="border:1px solid #49315f;background:#171020;color:#fff;border-radius:10px;padding:9px 13px;font-weight:700;cursor:pointer">Промокод</button>';
+  const modal='<div id="promoUiFixMarker"></div><div id="promoModalFix" style="display:none;position:fixed;inset:0;background:#000b;z-index:10050;align-items:center;justify-content:center;padding:16px"><div style="width:min(420px,100%);background:#15101e;border:1px solid #4b2c68;border-radius:16px;padding:20px;box-shadow:0 20px 60px #0008"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><b style="font-size:18px">Активация промокода</b><button id="promoCloseFix" type="button" style="background:transparent;border:0;color:#aaa;font-size:24px;cursor:pointer">×</button></div><div class="muted" style="margin:7px 0 14px">Введите промокод, чтобы получить награду.</div><input id="promoInputFix" maxlength="64" autocomplete="off" placeholder="Промокод" style="width:100%;box-sizing:border-box;padding:12px;border-radius:10px;background:#0d0912;color:#fff;border:1px solid #3b2853;outline:none"><div id="promoMsgFix" class="muted" style="min-height:20px;margin:10px 0"></div><button id="promoRedeemFix" type="button" style="width:100%;padding:11px;border:1px solid #7c3aed;background:#6d28d9;color:#fff;border-radius:10px;font-weight:800;cursor:pointer">Активировать</button></div></div>';
+  if(!b.includes('promoOpenFix')){
+    if(b.includes('>Магазин</a>')) b=b.replace('>Магазин</a>','>Магазин</a>'+button);
+    else if(b.includes('Магазин')) b=b.replace(/(<a[^>]*>Магазин<\/a>)/,'$1'+button);
+  }
+  b=b.replace('</body>',modal+'<script>(function(){var o=document.getElementById("promoOpenFix"),m=document.getElementById("promoModalFix"),c=document.getElementById("promoCloseFix"),r=document.getElementById("promoRedeemFix"),i=document.getElementById("promoInputFix"),x=document.getElementById("promoMsgFix");if(!o||!m)return;o.onclick=function(){m.style.display="flex";setTimeout(function(){i&&i.focus()},0)};c.onclick=function(){m.style.display="none"};m.onclick=function(e){if(e.target===m)m.style.display="none"};if(i)i.onkeydown=function(e){if(e.key==="Enter")r.click()};r.onclick=async function(){var code=(i.value||"").trim();if(!code){x.textContent="Введите промокод";return}r.disabled=true;r.textContent="Проверяем…";x.textContent="";try{var q=await fetch("/api/me/promo/redeem",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code:code})});var j=await q.json().catch(function(){return{}});if(q.ok){x.textContent=j.rewardType==="coins"?"Начислено: +"+j.amount+" Монет":"Скин добавлен в инвентарь";r.textContent="Активировано";setTimeout(function(){location.reload()},900);return}x.textContent=j.error==="already_used"?"Этот промокод вы уже активировали":j.error==="limit_reached"?"Лимит активаций исчерпан":j.error==="promo_not_found"?"Промокод не найден":"Не удалось активировать промокод"}catch(e){x.textContent="Ошибка соединения"}r.disabled=false;r.textContent="Активировать"}})();</script></body>');
+  return b;
+}
+
+function fixAdmin(b:string){
+  b=b.replace('</body>','<div id="promoAdminUiFixMarker"></div><script>(function(){function sync(){var t=document.getElementById("paType"),co=document.getElementById("paCoins"),pr=document.getElementById("paPrize");if(!t||!co||!pr)return;var skin=t.value==="prize";co.style.display=skin?"none":"";pr.style.display=skin?"":"none";co.placeholder="Количество монет";if(skin&&(!pr.options||!pr.options.length)){pr.innerHTML="<option>Загрузка скинов…</option>"}}function init(){var t=document.getElementById("paType");if(!t)return;sync();t.addEventListener("change",sync);new MutationObserver(sync).observe(t,{attributes:true,attributeFilter:["value"]})}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init()})();</script></body>');
+  return b;
+}
