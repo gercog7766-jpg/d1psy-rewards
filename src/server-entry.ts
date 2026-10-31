@@ -11,7 +11,9 @@ import { installShopFilterHotfix } from './shop-filter-hotfix.js';
 import { installSellAllHotfix } from './sell-all-hotfix.js';
 import { installCoinHistoryModalHotfix } from './coin-history-modal-hotfix.js';
 import { installAdminGrantsHotfix } from './admin-grants-hotfix.js';
+import { installSingleSellModalHotfix } from './single-sell-modal-hotfix.js';
 
+installSingleSellModalHotfix();
 installAdminGrantsHotfix();
 installCoinHistoryModalHotfix();
 installSellAllHotfix();
