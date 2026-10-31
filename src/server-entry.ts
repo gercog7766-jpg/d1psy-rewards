@@ -17,7 +17,11 @@ import { installInventoryPaginationHotfix } from './inventory-pagination-hotfix.
 import { installAdminPrizeRangeHotfix } from './admin-prize-range-hotfix.js';
 import { installInventoryFiltersHotfix } from './inventory-filters-hotfix.js';
 import { installAccountEngagementHotfix } from './account-engagement-hotfix.js';
+import { installReferralHotfix } from './referral-hotfix.js';
+import { installReferralOauthHotfix } from './referral-oauth-hotfix.js';
 
+installReferralOauthHotfix();
+installReferralHotfix();
 installAccountEngagementHotfix();
 installInventoryFiltersHotfix();
 installAdminPrizeRangeHotfix();
