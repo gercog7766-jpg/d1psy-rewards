@@ -16,7 +16,9 @@ import { installAccountProfileMenuHotfix } from './account-profile-menu-hotfix.j
 import { installInventoryPaginationHotfix } from './inventory-pagination-hotfix.js';
 import { installAdminPrizeRangeHotfix } from './admin-prize-range-hotfix.js';
 import { installInventoryFiltersHotfix } from './inventory-filters-hotfix.js';
+import { installAccountEngagementHotfix } from './account-engagement-hotfix.js';
 
+installAccountEngagementHotfix();
 installInventoryFiltersHotfix();
 installAdminPrizeRangeHotfix();
 installInventoryPaginationHotfix();
