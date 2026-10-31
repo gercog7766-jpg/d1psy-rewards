@@ -8,7 +8,9 @@ import { installHomeHotfix } from './home-hotfix.js';
 import { installOrdersHotfix } from './orders-hotfix.js';
 import { installShopHotfix } from './shop-hotfix.js';
 import { installShopFilterHotfix } from './shop-filter-hotfix.js';
+import { installSellAllHotfix } from './sell-all-hotfix.js';
 
+installSellAllHotfix();
 installShopFilterHotfix();
 installShopHotfix();
 installAccountUiRefreshHotfix();
