@@ -18,14 +18,14 @@ import { installAdminPrizeRangeHotfix } from './admin-prize-range-hotfix.js';
 import { installInventoryFiltersHotfix } from './inventory-filters-hotfix.js';
 import { installAccountEngagementHotfix } from './account-engagement-hotfix.js';
 import { installReferralHotfix } from './referral-hotfix.js';
+import { installReferralOauthHotfix } from './referral-oauth-hotfix.js';
 import { installReferralAccountCleanupHotfix } from './referral-account-cleanup-hotfix.js';
 import { installAdminReferralsHotfix } from './admin-referrals-hotfix.js';
 import { installDailyBonusHotfix } from './daily-bonus-hotfix.js';
 import { installPromoCodeHotfix } from './promo-code-hotfix.js';
 import { installPromoUiFixHotfix } from './promo-ui-fix-hotfix.js';
-import { installOauthReferralFixHotfix } from './oauth-referral-fix-hotfix.js';
 
-installOauthReferralFixHotfix();
+installReferralOauthHotfix();
 installPromoUiFixHotfix();
 installPromoCodeHotfix();
 installDailyBonusHotfix();
