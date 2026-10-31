@@ -26,8 +26,8 @@ import { installPromoCodeHotfix } from './promo-code-hotfix.js';
 import { installPromoUiFixHotfix } from './promo-ui-fix-hotfix.js';
 import { installTwitchPresenceHotfix } from './twitch-presence-hotfix.js';
 import { installOauthStateHotfix } from './oauth-state-hotfix.js';
+import { installAccountLevelHotfix } from './account-level-hotfix.js';
 
-// Install first so it can wrap the original Twitch OAuth routes when server-next registers them.
 installOauthStateHotfix();
 installReferralOauthHotfix();
 installPromoUiFixHotfix();
@@ -37,6 +37,7 @@ installReferralHotfix();
 installReferralAccountCleanupHotfix();
 installAdminReferralsHotfix();
 installTwitchPresenceHotfix();
+installAccountLevelHotfix();
 installAccountEngagementHotfix();
 installInventoryFiltersHotfix();
 installAdminPrizeRangeHotfix();
