@@ -2,13 +2,79 @@ import express from 'express';
 import { createClient } from '@supabase/supabase-js';
 
 const db=createClient(process.env.SUPABASE_URL||'https://ssqjogdcynmjjgtxknng.supabase.co',process.env.SUPABASE_SECRET_KEY||'not-configured',{auth:{persistSession:false}});
-let appToken='';let appTokenExp=0;
-async function token(){if(appToken&&Date.now()<appTokenExp-60000)return appToken;const id=process.env.TWITCH_CLIENT_ID||'',secret=process.env.TWITCH_CLIENT_SECRET||'';if(!id||!secret)throw new Error('twitch_not_configured');const r=await fetch('https://id.twitch.tv/oauth2/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:id,client_secret:secret,grant_type:'client_credentials'})});if(!r.ok)throw new Error('twitch_token_failed');const j:any=await r.json();appToken=String(j.access_token||'');appTokenExp=Date.now()+Number(j.expires_in||3600)*1000;return appToken}
-async function helix(path:string){const id=process.env.TWITCH_CLIENT_ID||'';const t=await token();const r=await fetch('https://api.twitch.tv/helix/'+path,{headers:{'Client-Id':id,Authorization:'Bearer '+t}});if(!r.ok)throw new Error('twitch_api_'+r.status);return r.json() as Promise<any>}
+let appToken='';
+let appTokenExp=0;
 
-export function installTwitchPresenceHotfix(){const p:any=(express as any).application,og=p.get,ol=p.listen;let userAuth:any=null;
- p.get=function(path:any,...hs:any[]){if(path==='/api/me'&&hs.length>1)userAuth=hs[0];return og.call(this,path,...hs)};
- p.listen=function(...args:any[]){const app:any=this;if(!app.locals.__twitchPresence&&userAuth){app.locals.__twitchPresence=true;app.get('/api/me/twitch-presence',userAuth,async(req:any,res:any)=>{try{const s=req.rewardsSession;if(!s?.twitchUserId)return res.status(401).json({error:'unauthorized'});const {data:u}=await db.from('rewards_users').select('id,twitch_login,twitch_avatar_url').eq('twitch_user_id',s.twitchUserId).single();if(!u)return res.status(404).json({error:'user_not_found'});const login=String(u.twitch_login||s.login||'').toLowerCase();const [uj,sj]=await Promise.all([helix('users?login='+encodeURIComponent(login)),helix('streams?user_login='+encodeURIComponent(login))]);const tu=uj?.data?.[0],stream=sj?.data?.[0]||null;const avatar=String(tu?.profile_image_url||u.twitch_avatar_url||'');if(avatar&&avatar!==u.twitch_avatar_url)await db.from('rewards_users').update({twitch_avatar_url:avatar,updated_at:new Date().toISOString()}).eq('id',u.id);res.set('Cache-Control','private, max-age=30');res.json({avatarUrl:avatar,live:!!stream,title:stream?.title||'',gameName:stream?.game_name||'',viewerCount:Number(stream?.viewer_count||0),startedAt:stream?.started_at||null,channelUrl:'https://www.twitch.tv/'+encodeURIComponent(login)})}catch(e){console.error('twitch_presence_failed',e);res.status(502).json({error:'twitch_presence_failed'})})})}
- const response:any=(express as any).response,send=response.send;if(!response.__twitchPresenceSend){response.__twitchPresenceSend=true;response.send=function(body:any){if(typeof body==='string'&&body.includes('id="who"')&&!body.includes('twitchPresenceMarker'))body=inject(body);return send.call(this,body)}}return ol.apply(this,args)};
+async function token(){
+  if(appToken&&Date.now()<appTokenExp-60000)return appToken;
+  const id=process.env.TWITCH_CLIENT_ID||'';
+  const secret=process.env.TWITCH_CLIENT_SECRET||'';
+  if(!id||!secret)throw new Error('twitch_not_configured');
+  const r=await fetch('https://id.twitch.tv/oauth2/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:id,client_secret:secret,grant_type:'client_credentials'})});
+  if(!r.ok)throw new Error('twitch_token_failed_'+r.status);
+  const j:any=await r.json();
+  appToken=String(j.access_token||'');
+  appTokenExp=Date.now()+Number(j.expires_in||3600)*1000;
+  return appToken;
 }
-function inject(b:string){b=b.replace('</style>',`.twitch-profile{display:flex;align-items:center;justify-content:flex-end;gap:10px}.twitch-avatar{width:36px;height:36px;border-radius:50%;object-fit:cover;border:1px solid #49315f;background:#171020}.twitch-avatar[hidden]{display:none}.stream-state{display:flex;align-items:center;justify-content:flex-end;gap:6px;margin-top:4px;font-size:11px;color:#8f849b}.stream-dot{width:7px;height:7px;border-radius:50%;background:#5d5368}.stream-state.live{color:#f0a8bd}.stream-state.live .stream-dot{background:#ef476f;box-shadow:0 0 0 3px rgba(239,71,111,.12)}.stream-link{color:inherit;text-decoration:none}.stream-link:hover{text-decoration:underline}@media(max-width:620px){.twitch-profile,.stream-state{justify-content:flex-start}}\n</style>`);b=b.replace('<div id="who" class="user">Загрузка…</div>','<div id="twitchPresenceMarker" class="twitch-profile"><img id="twitchAvatar" class="twitch-avatar" hidden alt=""><div><div id="who" class="user">Загрузка…</div><div id="streamState" class="stream-state"><span class="stream-dot"></span><span id="streamText">Проверяем Twitch…</span></div></div></div>');b=b.replace('</body>',`<script>(function(){async function presence(){try{var r=await fetch('/api/me/twitch-presence',{cache:'no-store'});if(!r.ok)return;var j=await r.json(),a=document.getElementById('twitchAvatar'),s=document.getElementById('streamState'),t=document.getElementById('streamText');if(j.avatarUrl&&a){a.src=j.avatarUrl;a.hidden=false}if(s&&t){if(j.live){s.classList.add('live');t.innerHTML='<a class="stream-link" href="'+j.channelUrl+'" target="_blank" rel="noopener">В эфире'+(j.viewerCount?' · '+j.viewerCount+' зр.':'')+'</a>'}else{t.textContent='Сейчас не в эфире'}}}catch(e){}}presence();setInterval(presence,60000)})();</script></body>`);return b}
+async function helix(path:string){
+  const id=process.env.TWITCH_CLIENT_ID||'';
+  const t=await token();
+  const r=await fetch('https://api.twitch.tv/helix/'+path,{headers:{'Client-Id':id,Authorization:'Bearer '+t}});
+  if(!r.ok)throw new Error('twitch_api_'+r.status);
+  return r.json() as Promise<any>;
+}
+
+export function installTwitchPresenceHotfix(){
+  const proto:any=(express as any).application;
+  const originalGet=proto.get;
+  const originalListen=proto.listen;
+  let userAuth:any=null;
+  proto.get=function(path:any,...handlers:any[]){
+    if(path==='/api/me'&&handlers.length>1)userAuth=handlers[0];
+    return originalGet.call(this,path,...handlers);
+  };
+  proto.listen=function(...args:any[]){
+    const app:any=this;
+    if(!app.locals.__twitchPresence&&userAuth){
+      app.locals.__twitchPresence=true;
+      app.get('/api/me/twitch-presence',userAuth,async(_req:any,res:any)=>{
+        try{
+          const s=res.locals.session;
+          if(!s?.twitchUserId)return res.status(401).json({error:'unauthorized'});
+          const {data:u,error:uErr}=await db.from('rewards_users').select('id,twitch_login,twitch_avatar_url').eq('twitch_user_id',s.twitchUserId).single();
+          if(uErr||!u)return res.status(404).json({error:'user_not_found'});
+          const login=String(u.twitch_login||s.login||'').toLowerCase();
+          if(!login)return res.status(404).json({error:'twitch_login_missing'});
+          const [uj,sj]=await Promise.all([helix('users?login='+encodeURIComponent(login)),helix('streams?user_login='+encodeURIComponent(login))]);
+          const tu=uj?.data?.[0];
+          const stream=sj?.data?.[0]||null;
+          const avatar=String(tu?.profile_image_url||u.twitch_avatar_url||'');
+          if(avatar&&avatar!==u.twitch_avatar_url){
+            const {error:updateErr}=await db.from('rewards_users').update({twitch_avatar_url:avatar,updated_at:new Date().toISOString()}).eq('id',u.id);
+            if(updateErr)console.error('twitch_avatar_save_failed',updateErr);
+          }
+          res.set('Cache-Control','private, max-age=30');
+          res.json({avatarUrl:avatar,live:!!stream,title:stream?.title||'',gameName:stream?.game_name||'',viewerCount:Number(stream?.viewer_count||0),startedAt:stream?.started_at||null,channelUrl:'https://www.twitch.tv/'+encodeURIComponent(login)});
+        }catch(e){console.error('twitch_presence_failed',e);res.status(502).json({error:'twitch_presence_failed'})}
+      });
+    }
+    const response:any=(express as any).response;
+    const send=response.send;
+    if(!response.__twitchPresenceSend){
+      response.__twitchPresenceSend=true;
+      response.send=function(body:any){
+        if(typeof body==='string'&&body.includes('id="who"')&&!body.includes('twitchPresenceMarker'))body=inject(body);
+        return send.call(this,body);
+      };
+    }
+    return originalListen.apply(this,args);
+  };
+}
+
+function inject(b:string){
+  b=b.replace('</style>',`.twitch-profile{display:flex;align-items:center;justify-content:flex-end;gap:10px}.twitch-avatar{width:36px;height:36px;border-radius:50%;object-fit:cover;border:1px solid #49315f;background:#171020}.twitch-avatar[hidden]{display:none}.stream-state{display:flex;align-items:center;justify-content:flex-end;gap:6px;margin-top:4px;font-size:11px;color:#8f849b}.stream-dot{width:7px;height:7px;border-radius:50%;background:#5d5368}.stream-state.live{color:#f0a8bd}.stream-state.live .stream-dot{background:#ef476f;box-shadow:0 0 0 3px rgba(239,71,111,.12)}.stream-link{color:inherit;text-decoration:none}.stream-link:hover{text-decoration:underline}@media(max-width:620px){.twitch-profile,.stream-state{justify-content:flex-start}}\n</style>`);
+  b=b.replace('<div id="who" class="user">Загрузка…</div>','<div id="twitchPresenceMarker" class="twitch-profile"><img id="twitchAvatar" class="twitch-avatar" hidden alt=""><div><div id="who" class="user">Загрузка…</div><div id="streamState" class="stream-state"><span class="stream-dot"></span><span id="streamText">Проверяем Twitch…</span></div></div></div>');
+  b=b.replace('</body>',`<script>(function(){async function presence(){try{var r=await fetch('/api/me/twitch-presence',{cache:'no-store'});if(!r.ok)return;var j=await r.json(),a=document.getElementById('twitchAvatar'),s=document.getElementById('streamState'),t=document.getElementById('streamText');if(j.avatarUrl&&a){a.src=j.avatarUrl;a.hidden=false}if(s&&t){if(j.live){s.classList.add('live');t.innerHTML='<a class="stream-link" href="'+j.channelUrl+'" target="_blank" rel="noopener">В эфире'+(j.viewerCount?' · '+j.viewerCount+' зр.':'')+'</a>'}else{s.classList.remove('live');t.textContent='Сейчас не в эфире'}}}catch(e){}}presence();setInterval(presence,60000)})();</script></body>`);
+  return b;
+}
