@@ -20,10 +20,12 @@ import { installAccountEngagementHotfix } from './account-engagement-hotfix.js';
 import { installReferralHotfix } from './referral-hotfix.js';
 import { installReferralOauthHotfix } from './referral-oauth-hotfix.js';
 import { installReferralAccountCleanupHotfix } from './referral-account-cleanup-hotfix.js';
+import { installAdminReferralsHotfix } from './admin-referrals-hotfix.js';
 
 installReferralOauthHotfix();
 installReferralHotfix();
 installReferralAccountCleanupHotfix();
+installAdminReferralsHotfix();
 installAccountEngagementHotfix();
 installInventoryFiltersHotfix();
 installAdminPrizeRangeHotfix();
