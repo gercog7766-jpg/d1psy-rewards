@@ -14,7 +14,9 @@ import { installAdminGrantsHotfix } from './admin-grants-hotfix.js';
 import { installSingleSellModalHotfix } from './single-sell-modal-hotfix.js';
 import { installAccountProfileMenuHotfix } from './account-profile-menu-hotfix.js';
 import { installInventoryPaginationHotfix } from './inventory-pagination-hotfix.js';
+import { installAdminPrizeRangeHotfix } from './admin-prize-range-hotfix.js';
 
+installAdminPrizeRangeHotfix();
 installInventoryPaginationHotfix();
 installAccountProfileMenuHotfix();
 installSingleSellModalHotfix();
