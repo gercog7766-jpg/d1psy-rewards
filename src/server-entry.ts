@@ -7,7 +7,9 @@ import { installAdminUsersSafeHotfix } from './admin-users-safe-hotfix.js';
 import { installHomeHotfix } from './home-hotfix.js';
 import { installOrdersHotfix } from './orders-hotfix.js';
 import { installShopHotfix } from './shop-hotfix.js';
+import { installShopFilterHotfix } from './shop-filter-hotfix.js';
 
+installShopFilterHotfix();
 installShopHotfix();
 installAccountUiRefreshHotfix();
 installAccountHotfix();
