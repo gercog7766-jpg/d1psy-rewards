@@ -24,6 +24,7 @@ import { installAdminReferralsHotfix } from './admin-referrals-hotfix.js';
 import { installDailyBonusHotfix } from './daily-bonus-hotfix.js';
 import { installPromoCodeHotfix } from './promo-code-hotfix.js';
 import { installPromoUiFixHotfix } from './promo-ui-fix-hotfix.js';
+import { installTwitchPresenceHotfix } from './twitch-presence-hotfix.js';
 
 installReferralOauthHotfix();
 installPromoUiFixHotfix();
@@ -32,6 +33,7 @@ installDailyBonusHotfix();
 installReferralHotfix();
 installReferralAccountCleanupHotfix();
 installAdminReferralsHotfix();
+installTwitchPresenceHotfix();
 installAccountEngagementHotfix();
 installInventoryFiltersHotfix();
 installAdminPrizeRangeHotfix();
