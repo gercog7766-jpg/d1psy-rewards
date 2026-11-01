@@ -10,7 +10,6 @@ export function installAdminSeasonHotfix(){
  const proto:any=(express as any).application,og=proto.get,ol=proto.listen;let adminAuth:any=null;
  proto.get=function(path:any,...handlers:any[]){
   if(path==='/api/admin/state'&&handlers.length>1)adminAuth=handlers[0];
-  if(path==='/admin')handlers=handlers.map((h:any)=>function(req:any,res:any,next:any){const send=res.send.bind(res);res.send=(body:any)=>send(typeof body==='string'?enhance(body):body);return h(req,res,next)});
   return og.call(this,path,...handlers);
  };
  proto.listen=function(...args:any[]){const app:any=this;if(!app.locals.__adminSeason&&adminAuth){app.locals.__adminSeason=true;
@@ -20,7 +19,7 @@ export function installAdminSeasonHotfix(){
  }return ol.apply(this,args)};
 }
 
-function enhance(body:string){
+export function enhanceAdminSeason(body:string){
  const css=`<style id="adminSeasonCss">.seasonTable{overflow:auto}.seasonHead,.seasonRow{display:grid;grid-template-columns:1.5fr .6fr .6fr .9fr 1.2fr;gap:12px;align-items:center;min-width:820px;padding:11px 13px}.seasonHead{color:#958aa7;font-size:12px;text-transform:uppercase}.seasonRow{border-top:1px solid #251c33}.seasonActions{display:flex;gap:6px;flex-wrap:wrap}.seasonActions input{width:80px;padding:7px}.seasonActions button{padding:7px 9px}.seasonTasks{grid-column:1/-1;background:#100c17;border-radius:10px;padding:8px 10px;display:none}.seasonRow.open .seasonTasks{display:block}.seasonTask{display:grid;grid-template-columns:1.4fr 1fr .7fr .7fr auto;gap:8px;padding:7px;border-top:1px solid #251c33;font-size:12px}.seasonClaimed{color:#c4b5fd;font-size:12px}</style>`;
  body=body.replace('</head>',css+'</head>');
  body=body.replace('<button class="tab" data-page="users">Пользователи</button>','<button class="tab" data-page="users">Пользователи</button><button class="tab" data-page="season">Season</button>');
