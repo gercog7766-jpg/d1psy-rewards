@@ -26,25 +26,30 @@ export function installUpgraderRunFixHotfix(){
   const app:any=this;
   if(!app.locals.__upgraderRunFix){
    app.locals.__upgraderRunFix=true;
+   app.get('/api/me/upgrader/balance',async(req:any,res:any)=>{
+    const u=await currentUser(req,res);if(!u)return;
+    const {data,error}=await db.from('rewards_coin_transactions').select('amount').eq('user_id',u.id);
+    if(error)return res.status(500).json({error:'balance_load_failed'});
+    res.set('Cache-Control','no-store').json({balance:(data||[]).reduce((n:any,x:any)=>n+Number(x.amount||0),0)});
+   });
    app.post('/api/me/upgrader/run',express.json(),async(req:any,res:any)=>{
     const u=await currentUser(req,res);if(!u)return;
     const {sourceWinId,targetShopItemId,targetVariantId}=req.body||{};
+    const extraCoins=Math.max(0,Math.floor(Number(req.body?.extraCoins)||0));
     if(!sourceWinId||!targetShopItemId||!targetVariantId)return res.status(400).json({error:'invalid_request'});
 
-    // Idempotency: if this source was already processed, return the authoritative saved roll/result.
-    const {data:existing}=await db.from('rewards_upgrades').select('id,result,chance_bps,roll_bps,reward_win_id,target_shop_item_id,target_shop_variant_id').eq('user_id',u.id).eq('source_win_id',sourceWinId).maybeSingle();
+    const {data:existing}=await db.from('rewards_upgrades').select('id,result,chance_bps,roll_bps,reward_win_id,target_shop_item_id,target_shop_variant_id,extra_coins').eq('user_id',u.id).eq('source_win_id',sourceWinId).maybeSingle();
     if(existing){
-     if(existing.target_shop_item_id!==targetShopItemId||existing.target_shop_variant_id!==targetVariantId)return res.status(409).json({error:'source_already_used'});
+     if(existing.target_shop_item_id!==targetShopItemId||existing.target_shop_variant_id!==targetVariantId||Number(existing.extra_coins||0)!==extraCoins)return res.status(409).json({error:'source_already_used'});
      return res.status(200).json(payload(existing));
     }
 
-    const {data,error}=await db.rpc('rewards_run_skin_upgrade',{p_user_id:u.id,p_source_win_id:sourceWinId,p_target_shop_item_id:targetShopItemId,p_target_variant_id:targetVariantId});
+    const {data,error}=await db.rpc('rewards_run_skin_upgrade',{p_user_id:u.id,p_source_win_id:sourceWinId,p_target_shop_item_id:targetShopItemId,p_target_variant_id:targetVariantId,p_extra_coins:extraCoins});
     if(error){
-     // A retry/race may see source_already_used after the first request committed. Recover its saved result instead of showing a false error.
-     const {data:saved}=await db.from('rewards_upgrades').select('id,result,chance_bps,roll_bps,reward_win_id,target_shop_item_id,target_shop_variant_id').eq('user_id',u.id).eq('source_win_id',sourceWinId).maybeSingle();
-     if(saved&&saved.target_shop_item_id===targetShopItemId&&saved.target_shop_variant_id===targetVariantId)return res.status(200).json(payload(saved));
+     const {data:saved}=await db.from('rewards_upgrades').select('id,result,chance_bps,roll_bps,reward_win_id,target_shop_item_id,target_shop_variant_id,extra_coins').eq('user_id',u.id).eq('source_win_id',sourceWinId).maybeSingle();
+     if(saved&&saved.target_shop_item_id===targetShopItemId&&saved.target_shop_variant_id===targetVariantId&&Number(saved.extra_coins||0)===extraCoins)return res.status(200).json(payload(saved));
      const m=String(error.message||'');
-     const known=['source_not_found','source_not_available','source_has_no_value','source_already_used','target_not_available','target_variant_not_available','target_must_be_more_expensive','chance_too_low'];
+     const known=['source_not_found','source_not_available','source_has_no_value','source_already_used','target_not_available','target_variant_not_available','target_must_be_more_expensive','chance_too_low','invalid_extra_coins','insufficient_coins'];
      return res.status(409).json({error:known.find(x=>m.includes(x))||'upgrade_failed'});
     }
     const x=Array.isArray(data)?data[0]:data;
