@@ -3,8 +3,7 @@ import express from 'express';
 import { createClient } from '@supabase/supabase-js';
 
 const db=createClient(process.env.SUPABASE_URL||'https://ssqjogdcynmjjgtxknng.supabase.co',process.env.SUPABASE_SECRET_KEY||'not-configured',{auth:{persistSession:false}});
-const TEST_LOGIN='d1psy_off';
-const PRIVATE_HIDE_NAMES=new Set(['Glock-18 | Кролик в тени','CZ75-Auto | Фреймворк','AUG | Жуть','USP-S | Silent Shot','XM1014 | Ирэдзуми','M4A4 | Эолова тьма','M4A4 | Стальной каркас','Zeus x27 | Пиксельный камуфляж «Болото»','Tec-9 | Лимонная кислота','SCAR-20 | Песчаная сетка','P90 | Песчаное напыление','P250 | Ледяная корка','MAC-10 | Грозовой камуфляж','M249 | Ледяная корка','Наклейка | Париж-2023','Запечатанный граффити','Автомат «Галиль» | Серый дым']);
+const HIDE_NAMES=new Set(['Glock-18 | Кролик в тени','CZ75-Auto | Фреймворк','AUG | Жуть','USP-S | Silent Shot','XM1014 | Ирэдзуми','M4A4 | Эолова тьма','M4A4 | Стальной каркас','Zeus x27 | Пиксельный камуфляж «Болото»','Tec-9 | Лимонная кислота','SCAR-20 | Песчаная сетка','P90 | Песчаное напыление','P250 | Ледяная корка','MAC-10 | Грозовой камуфляж','M249 | Ледяная корка','Наклейка | Париж-2023','Запечатанный граффити','Автомат «Галиль» | Серый дым']);
 
 async function currentUser(req:any,res:any){
  try{
@@ -54,8 +53,7 @@ export function installShopHotfix(){
     ]);
     if(tErr||sErr||pErr)return res.status(500).json({error:'shop_load_failed'});
     const balance=(tx||[]).reduce((n:number,x:any)=>n+Number(x.amount||0),0);
-    const privateTest=String(u.twitch_login||'').toLowerCase()===TEST_LOGIN;
-    const visibleShop=privateTest?(shop||[]).filter((x:any)=>!PRIVATE_HIDE_NAMES.has(String(x.name||''))):(shop||[]);
+    const visibleShop=(shop||[]).filter((x:any)=>!HIDE_NAMES.has(String(x.name||'')));
     res.set('Cache-Control','no-store');
     return res.json({balance,currency:'Монета',shop:visibleShop,purchases:purchases||[]});
    });
