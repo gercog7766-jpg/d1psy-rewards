@@ -21,6 +21,7 @@ import { installShopVariantRouteFixHotfix } from './shop-variant-route-fix-hotfi
 import { installToastUiHotfix } from './toast-ui-hotfix.js';
 import { installToastActionsHotfix } from './toast-actions-hotfix.js';
 import { installShopConfirmHotfix } from './shop-confirm-hotfix.js';
+import { installShopCartHotfix } from './shop-cart-hotfix.js';
 import { installSellAllHotfix } from './sell-all-hotfix.js';
 import { installCoinHistoryModalHotfix } from './coin-history-modal-hotfix.js';
 import { installAdminGrantsHotfix } from './admin-grants-hotfix.js';
@@ -81,6 +82,7 @@ installShopVariantRouteFixHotfix();
 installToastUiHotfix();
 installToastActionsHotfix();
 installShopConfirmHotfix();
+installShopCartHotfix();
 installUpgraderHotfix();
 installUpgraderRunFixHotfix();
 installUpgraderUiV2Hotfix();
