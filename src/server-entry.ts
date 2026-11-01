@@ -45,6 +45,7 @@ import { installUpgraderRunFixHotfix } from './upgrader-run-fix-hotfix.js';
 import { installUpgraderUiV2Hotfix } from './upgrader-ui-v2-hotfix.js';
 import { installUpgraderCatalogV3Hotfix } from './upgrader-catalog-v3-hotfix.js';
 import { installAccountUpgradedHideHotfix } from './account-upgraded-hide-hotfix.js';
+import { installAccountInventoryV2Hotfix } from './account-inventory-v2-hotfix.js';
 
 installOauthStateHotfix();
 installReferralOauthHotfix();
@@ -87,6 +88,7 @@ installUpgraderCatalogV3Hotfix();
 installAccountUiRefreshHotfix();
 installAccountHotfix();
 installAccountUpgradedHideHotfix();
+installAccountInventoryV2Hotfix();
 installAccountStatusHotfix();
 installObsHotfix();
 installOrdersHotfix();
