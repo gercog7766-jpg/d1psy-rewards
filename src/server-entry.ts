@@ -41,6 +41,7 @@ import { installTwitchPresenceHotfix } from './twitch-presence-hotfix.js';
 import { installOauthStateHotfix } from './oauth-state-hotfix.js';
 import { installAccountLevelHotfix } from './account-level-hotfix.js';
 import { installUpgraderHotfix } from './upgrader-hotfix.js';
+import { installUpgraderUiV2Hotfix } from './upgrader-ui-v2-hotfix.js';
 
 installOauthStateHotfix();
 installReferralOauthHotfix();
@@ -77,6 +78,7 @@ installToastUiHotfix();
 installToastActionsHotfix();
 installShopConfirmHotfix();
 installUpgraderHotfix();
+installUpgraderUiV2Hotfix();
 installAccountUiRefreshHotfix();
 installAccountHotfix();
 installAccountStatusHotfix();
