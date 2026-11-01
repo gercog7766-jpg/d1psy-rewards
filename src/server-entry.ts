@@ -9,7 +9,7 @@ import { installOrdersHotfix } from './orders-hotfix.js';
 import { installShopHotfix } from './shop-hotfix.js';
 import { installShopFilterHotfix } from './shop-filter-hotfix.js';
 import { installShopVariantTestHotfix } from './shop-variant-test-hotfix.js';
-import { installShopPageHotfix } from './shop-page-hotfix.js';
+import { installShopPageHotfix } from './shop-page-v2.js';
 import { installSellAllHotfix } from './sell-all-hotfix.js';
 import { installCoinHistoryModalHotfix } from './coin-history-modal-hotfix.js';
 import { installAdminGrantsHotfix } from './admin-grants-hotfix.js';
