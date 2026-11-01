@@ -1,9 +1,10 @@
 import express from 'express';
 
-export function installToastActionsHotfix(){const response:any=(express as any).response;if(response.__toastActionsV1)return;response.__toastActionsV1=true;const original=response.send;response.send=function(body:any){if(typeof body==='string'){
+export function installToastActionsHotfix(){const response:any=(express as any).response;if(response.__toastActionsV2)return;response.__toastActionsV2=true;const original=response.send;response.send=function(body:any){if(typeof body==='string'){
 if(body.includes('<title>Магазин — d1psy Rewards</title>')){
-body=body.replace(/alert\(j\.error==='insufficient_coins'\?'Недостаточно Монет\.':j\.error==='trade_url_required'\?'Сначала добавь Steam Trade URL\.':'Ошибка покупки\.'\)/g,"window.d1ShopError?window.d1ShopError(j,0,0):alert('Ошибка покупки.')");
+body=body.replace(/alert\(j\.error==='insufficient_coins'\?'Недостаточно Монет\.':j\.error==='trade_url_required'\?'Сначала добавь Steam Trade URL\.':'Ошибка покупки\.'\)/g,"window.d1ShopError?window.d1ShopError(j,0,0):void 0");
 body=body.replace(/alert\('Покупка оформлена\.'\)/g,"window.d1Toast?window.d1Toast('Предмет добавлен в историю покупок.','success','Покупка оформлена'):void 0");
+body=body.replace(/alert\(([^;]+)\)/g,"window.d1Toast?window.d1Toast(String($1||'Ошибка'),'error','Ошибка'):void 0");
 }
 if(body.includes('promoUiFixMarker')&&!body.includes('toastPromoV1')){
 body=body.replace('<div id="promoUiFixMarker"></div>','<div id="promoUiFixMarker"></div><div id="toastPromoV1"></div>');
