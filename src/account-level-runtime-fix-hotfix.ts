@@ -31,8 +31,15 @@ async function refreshLevel(){
   var stats=document.getElementById('levelModalStats');if(stats)stats.textContent='Уровень '+x.level+' · '+x.xp+' XP · до следующего '+x.remaining+' XP';
  }catch(e){text.textContent='Ошибка загрузки XP';console.error('level_runtime_load_failed',e)}
 }
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',refreshLevel,{once:true});else refreshLevel();
-window.addEventListener('focus',refreshLevel);
+function bindLevelUi(){
+ var w=document.getElementById('levelWidget'),m=document.getElementById('levelModal'),c=document.getElementById('levelClose');
+ if(w&&!w.dataset.runtimeClick){w.dataset.runtimeClick='1';w.addEventListener('click',function(){var mm=document.getElementById('levelModal');if(mm)mm.style.display='flex'})}
+ if(c&&!c.dataset.runtimeClick){c.dataset.runtimeClick='1';c.addEventListener('click',function(e){e.stopPropagation();var mm=document.getElementById('levelModal');if(mm)mm.style.display='none'})}
+ if(m&&!m.dataset.runtimeClick){m.dataset.runtimeClick='1';m.addEventListener('click',function(e){if(e.target===m)m.style.display='none'})}
+}
+function boot(){bindLevelUi();refreshLevel()}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+window.addEventListener('focus',function(){bindLevelUi();refreshLevel()});
 })();</script>`;
 
 export function installAccountLevelRuntimeFixHotfix(){
