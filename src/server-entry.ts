@@ -46,6 +46,7 @@ import { installAccountLevelModalRestoreHotfix } from './account-level-modal-res
 import { installSeasonOneHotfix } from './season-one-hotfix.js';
 import { installSeasonAccountBannerHotfix } from './season-account-banner-hotfix.js';
 import { installSeasonUiV2Hotfix } from './season-ui-v2-hotfix.js';
+import { installSeasonAuthFixHotfix } from './season-auth-fix-hotfix.js';
 import { installUpgraderHotfix } from './upgrader-hotfix.js';
 import { installUpgraderRunFixHotfix } from './upgrader-run-fix-hotfix.js';
 import { installUpgraderUiV2Hotfix } from './upgrader-ui-v2-hotfix.js';
@@ -69,6 +70,7 @@ installAccountLevelHotfix();
 installSeasonOneHotfix();
 installSeasonAccountBannerHotfix();
 installSeasonUiV2Hotfix();
+installSeasonAuthFixHotfix();
 installShopCartHotfix();
 installAccountEngagementHotfix();
 installInventoryFiltersHotfix();
