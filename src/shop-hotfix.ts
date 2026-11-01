@@ -46,14 +46,16 @@ export function installShopHotfix(){
    app.locals.__shopRoutesInstalled=true;
    app.get('/api/me/economy',async(req:any,res:any)=>{
     const u=await currentUser(req,res);if(!u)return;
-    const [{data:tx,error:tErr},{data:shop,error:sErr},{data:purchases,error:pErr}]=await Promise.all([
+    const [{data:tx,error:tErr},{data:shop,error:sErr},{data:purchases,error:pErr},{data:ftVariants,error:vErr}]=await Promise.all([
      db.from('rewards_coin_transactions').select('amount').eq('user_id',u.id),
      db.from('rewards_shop_items').select('id,name,image_url,price_coins,stock').eq('status','available').order('price_coins',{ascending:true}).order('name',{ascending:true}),
-     db.from('rewards_orders').select('id,item_name,image_url,price_coins,status,created_at,sent_at').eq('user_id',u.id).eq('source_type','shop').order('created_at',{ascending:false})
+     db.from('rewards_orders').select('id,item_name,image_url,price_coins,status,created_at,sent_at').eq('user_id',u.id).eq('source_type','shop').order('created_at',{ascending:false}),
+     db.from('rewards_shop_item_variants').select('shop_item_id,price_coins,available').eq('wear','FT').eq('variant_kind','normal')
     ]);
-    if(tErr||sErr||pErr)return res.status(500).json({error:'shop_load_failed'});
+    if(tErr||sErr||pErr||vErr)return res.status(500).json({error:'shop_load_failed'});
     const balance=(tx||[]).reduce((n:number,x:any)=>n+Number(x.amount||0),0);
-    const visibleShop=(shop||[]).filter((x:any)=>!HIDE_NAMES.has(String(x.name||'')));
+    const ftPriceByItem=new Map((ftVariants||[]).filter((v:any)=>v.available&&v.price_coins!=null).map((v:any)=>[String(v.shop_item_id),Number(v.price_coins)]));
+    const visibleShop=(shop||[]).filter((x:any)=>!HIDE_NAMES.has(String(x.name||''))).map((x:any)=>{const ft=ftPriceByItem.get(String(x.id));return ft==null?x:{...x,price_coins:ft}});
     res.set('Cache-Control','no-store');
     return res.json({balance,currency:'Монета',shop:visibleShop,purchases:purchases||[]});
    });
