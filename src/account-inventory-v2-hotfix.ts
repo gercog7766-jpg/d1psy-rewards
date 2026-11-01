@@ -7,13 +7,26 @@ export function installAccountInventoryV2Hotfix(){
  const original=response.send;
  response.send=function(body:any){
   if(typeof body==='string'&&body.includes('<title>Личный кабинет — d1psy Rewards</title>')){
-   // Undo the old rule that removed upgrader-consumed items from history.
-   body=body.replace("/*__hideUpgradedWins*/if(Array.isArray(list))list=list.filter(w=>w&&w.choice_status!=='upgraded');",'/*__showUpgradedWins*/');
-   // Preserve the full inventory while changing pages. The old pager overwrote inventoryItems with the current page.
-   body=body.replace("function renderWins(list,page){inventoryItems=Array.isArray(list)?list.slice():[];var pages=", "function renderWins(list,page){if(Array.isArray(list)&&list!==inventoryItems)inventoryItems=list.slice();var pages=");
-   // Upgraded source items are history-only and must be visibly marked as lost/used, never actionable.
-   body=body.replace("actions=choice==='awaiting_choice'&&!received?", "actions=choice==='upgraded'?'':choice==='awaiting_choice'&&!received?");
-   body=body.replace("badge=choice==='shop_purchase'?", "badge=choice==='upgraded'?'<span class=\"badge sold\">ПРОИГРАН</span>':choice==='shop_purchase'?");
+   // Pagination hotfix must not replace the master inventory when it is called
+   // with inventoryItems from a pager click.
+   body=body.replace(
+    'function renderWins(list,page){inventoryItems=Array.isArray(list)?list.slice():[];',
+    'function renderWins(list,page){if(Array.isArray(list)&&list!==inventoryItems)inventoryItems=list.slice();'
+   );
+   // Inventory-filters hotfix is installed after pagination and emits this form.
+   body=body.replace(
+    'function renderWins(list,page){if(Array.isArray(list)){inventoryItems=list.slice();updateInventoryValue()}list=inventoryFiltered();',
+    'function renderWins(list,page){if(Array.isArray(list)&&list!==inventoryItems){inventoryItems=list.slice();updateInventoryValue()}list=inventoryFiltered();'
+   );
+   // Upgrader sources stay in history, have no actions and are explicitly lost.
+   body=body.replace(
+    "actions=choice==='awaiting_choice'&&!received?",
+    "actions=choice==='upgraded'?'':choice==='awaiting_choice'&&!received?"
+   );
+   body=body.replace(
+    "badge=choice==='sold'?'<span class=\"badge sold\">Продано</span>':received?",
+    "badge=choice==='upgraded'?'<span class=\"badge sold\">ПРОИГРАН</span>':choice==='sold'?'<span class=\"badge sold\">Продано</span>':received?"
+   );
   }
   return original.call(this,body);
  };
