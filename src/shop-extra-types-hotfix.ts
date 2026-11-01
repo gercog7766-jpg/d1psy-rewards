@@ -35,6 +35,9 @@ const rarityByName:Record<string,string>={
   'автомат «галиль» | леденец':'army'
 };
 
+const CHARM='https://cs2.io/assets/images/skins/cs2/charms/charm-biomech.png';
+const STICKER='https://images.steamusercontent.com/ugc/1711912631077972797/A03D60E4F02F0FB3D47D01B4BC3E37128E4D8F4E/';
+
 export function installShopExtraTypesHotfix(){
   const response:any=(express as any).response;
   const originalSend=response.send;
@@ -43,12 +46,13 @@ export function installShopExtraTypesHotfix(){
       if(body.includes('<title>Магазин — d1psy Rewards</title>')){
         body=body.replace(
           '<label><input type="checkbox" data-type="gloves"> 🧤 Перчатки</label>',
-          '<label><input type="checkbox" data-type="gloves"> 🧤 Перчатки</label><label><input type="checkbox" data-type="agent"> 👤 Агент</label><label><input type="checkbox" data-type="charm"> Брелок</label><label><input type="checkbox" data-type="sticker"> Наклейка</label>'
+          '<label><input type="checkbox" data-type="gloves"> 🧤 Перчатки</label><label><input type="checkbox" data-type="agent"> 👤 Агент</label><label><input type="checkbox" data-type="charm"><img class="typeico" src="'+CHARM+'" alt=""> Брелок</label><label><input type="checkbox" data-type="sticker"><img class="typeico" src="'+STICKER+'" alt=""> Наклейка</label>'
         );
         body=body.replace(
           '<p class="note">Редкость добавим после классификации скинов.</p>',
-          '<h3>Редкость</h3><div class="opts"><label><input type="checkbox" data-rarity="army"> Армейское качество</label><label><input type="checkbox" data-rarity="restricted"> Запрещённое</label><label><input type="checkbox" data-rarity="classified"> Засекреченное</label><label><input type="checkbox" data-rarity="covert"> Тайное</label></div>'
+          '<h3>Редкость</h3><div class="opts rarityopts"><label class="rarity-army"><input type="checkbox" data-rarity="army"> Армейское качество</label><label class="rarity-restricted"><input type="checkbox" data-rarity="restricted"> Запрещённое</label><label class="rarity-classified"><input type="checkbox" data-rarity="classified"> Засекреченное</label><label class="rarity-covert"><input type="checkbox" data-rarity="covert"> Тайное</label></div>'
         );
+        body=body.replace('</style>','.typeico{width:22px;height:22px;object-fit:contain;vertical-align:middle;margin:0 5px 0 2px}.rarityopts .rarity-army{color:#4b9cff}.rarityopts .rarity-restricted{color:#9b5cff}.rarityopts .rarity-classified{color:#f05acb}.rarityopts .rarity-covert{color:#ff4f5e}</style>');
       }
       if(body.includes("function ok(x)")&&body.includes("data-type")){
         body=body.replace(
