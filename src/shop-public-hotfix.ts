@@ -9,9 +9,7 @@ export function installShopPublicHotfix(){
     if(typeof body==='string'&&body.includes('<title>Магазин — d1psy Rewards</title>')&&!body.includes('id="side"')){
       body=body.replace('<div class="layout"><section>','<div class="layout">'+SIDE+'<section>');
       body=body.replace('grid-template-columns:1fr;gap:16px','grid-template-columns:285px minmax(0,1fr);gap:16px');
-      body=body.replace('.mobile{display:none}', '.mobile{display:none}');
-      body=body.replace(".mobile{display:none}@media(max-width:900px)",".mobile{display:none}@media(max-width:900px)");
-      body=body.replace(".mobile{display:none}.item", ".mobile{display:block}.item");
+      body=body.replace('</style>','@media(max-width:900px){#filterBtn{display:block!important}}</style>');
       body=body.replace('<script>window.D1P=false;</script>','<script>window.D1P=true;</script>');
     }
     return originalSend.call(this,body);
