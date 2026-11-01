@@ -37,6 +37,7 @@ const rarityByName:Record<string,string>={
 
 const CHARM='https://cs2.io/assets/images/skins/cs2/charms/charm-biomech.png';
 const STICKER='https://images.steamusercontent.com/ugc/1711912631077972797/A03D60E4F02F0FB3D47D01B4BC3E37128E4D8F4E/';
+const KNIFE_RE='(нож|knife|стилет|stiletto|керамбит|karambit|наваха|navaja|фальшион|falchion|штык|bayonet|коготь|talon|боуи|bowie|складной|flip|охотничий|huntsman|паракорд|paracord|скелетный|skeleton|выживания|survival|медвежий|ursus|бродяга|nomad|классический|classic)';
 
 export function installShopExtraTypesHotfix(){
   const response:any=(express as any).response;
@@ -57,7 +58,7 @@ export function installShopExtraTypesHotfix(){
       if(body.includes("function ok(x)")&&body.includes("data-type")){
         body=body.replace(
           "z==='knife'?/(нож|knife)/i.test(name):/(перчат|gloves|обмотки рук)/i.test(name)",
-          "z==='knife'?/(нож|knife)/i.test(name):z==='gloves'?/(перчат|gloves|обмотки рук)/i.test(name):z==='agent'?/(солдат|агент|agent|феникс|кавалерия|фбр|антитеррор)/i.test(name):z==='charm'?/(брелок|charm)/i.test(name):/(наклейка|sticker)/i.test(name)"
+          "z==='knife'?/"+KNIFE_RE+"/i.test(name):z==='gloves'?/(перчат|gloves|обмотки рук)/i.test(name):z==='agent'?/(солдат|агент|agent|феникс|кавалерия|фбр|антитеррор)/i.test(name):z==='charm'?/(брелок|charm)/i.test(name):/(наклейка|sticker)/i.test(name)"
         );
         body=body.replace(
           "ts=sel('[data-type]','type'),price=Number(x.price_coins)",
@@ -65,8 +66,8 @@ export function installShopExtraTypesHotfix(){
         );
         const map=JSON.stringify(rarityByName);
         body=body.replace(
-          "if(ts.length&&!ts.some(function(z){return z==='knife'?/(нож|knife)/i.test(name):z==='gloves'?/(перчат|gloves|обмотки рук)/i.test(name):z==='agent'?/(солдат|агент|agent|феникс|кавалерия|фбр|антитеррор)/i.test(name):z==='charm'?/(брелок|charm)/i.test(name):/(наклейка|sticker)/i.test(name)}))return false;return true",
-          "if(ts.length&&!ts.some(function(z){return z==='knife'?/(нож|knife)/i.test(name):z==='gloves'?/(перчат|gloves|обмотки рук)/i.test(name):z==='agent'?/(солдат|агент|agent|феникс|кавалерия|фбр|антитеррор)/i.test(name):z==='charm'?/(брелок|charm)/i.test(name):/(наклейка|sticker)/i.test(name)}))return false;var rb="+map+";if(rs.length&&rs.indexOf(rb[name])<0)return false;return true"
+          "if(ts.length&&!ts.some(function(z){return z==='knife'?/"+KNIFE_RE+"/i.test(name):z==='gloves'?/(перчат|gloves|обмотки рук)/i.test(name):z==='agent'?/(солдат|агент|agent|феникс|кавалерия|фбр|антитеррор)/i.test(name):z==='charm'?/(брелок|charm)/i.test(name):/(наклейка|sticker)/i.test(name)}))return false;return true",
+          "if(ts.length&&!ts.some(function(z){return z==='knife'?/"+KNIFE_RE+"/i.test(name):z==='gloves'?/(перчат|gloves|обмотки рук)/i.test(name):z==='agent'?/(солдат|агент|agent|феникс|кавалерия|фбр|антитеррор)/i.test(name):z==='charm'?/(брелок|charm)/i.test(name):/(наклейка|sticker)/i.test(name)}))return false;var rb="+map+";if(rs.length&&rs.indexOf(rb[name])<0)return false;return true"
         );
       }
     }
