@@ -43,6 +43,7 @@ import { installAccountLevelHotfix } from './account-level-hotfix.js';
 import { installUpgraderHotfix } from './upgrader-hotfix.js';
 import { installUpgraderUiV2Hotfix } from './upgrader-ui-v2-hotfix.js';
 import { installUpgraderCatalogV3Hotfix } from './upgrader-catalog-v3-hotfix.js';
+import { installAccountUpgradedHideHotfix } from './account-upgraded-hide-hotfix.js';
 
 installOauthStateHotfix();
 installReferralOauthHotfix();
@@ -83,6 +84,7 @@ installUpgraderUiV2Hotfix();
 installUpgraderCatalogV3Hotfix();
 installAccountUiRefreshHotfix();
 installAccountHotfix();
+installAccountUpgradedHideHotfix();
 installAccountStatusHotfix();
 installObsHotfix();
 installOrdersHotfix();
