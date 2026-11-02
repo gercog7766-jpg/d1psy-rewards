@@ -11,9 +11,10 @@ export function installShopCartHotfix(){
   if(typeof body==='string'&&body.includes('<title>Магазин — d1psy Rewards</title>')&&!body.includes('shopCartV6')){
    body=body.replace('</head>',CSS+'</head>');
    body=body.replace(/<div class="cartBar">[\s\S]*?<button id="cartOpen" class="cartBtn">Открыть корзину<\/button><\/div>/g,'');
-   if(!body.includes('id="cartTop"')) body=body.replace('<div class="nav"><div class="balance">','<div class="nav"><button id="cartTop" class="cartBtn">🛒 Корзина <span id="cartTopCount" class="cartCount">0</span></button><div class="balance">');
+   if(!body.includes('id="cartTop"')) body=body.replace('<div class="nav"><div class="balance">','<div class="nav"><button id="cartTop" class="cartBtn">🛒 Корзина <span id="cartTopCount" class="cartCount">0</span></button><a id="shopUpgraderLink" href="/upgrader" style="display:none">Апгрейдер</a><div class="balance">');
    if(!body.includes('id="addCart"')) body=body.replace(/<button id="mb"([^>]*)>\s*(?:Купить выбранный вариант|Купить)\s*<\/button>/i,'<div class="modalBuyRow"><button id="mb"$1>Купить выбранный вариант</button><button id="addCart" class="addCart" type="button" title="Добавить в корзину" aria-label="Добавить в корзину">🛒</button></div>');
    if(!body.includes('id="cartPanel"')) body=body.replace('</main><div id="modal"','</main><div id="cartPanel" class="cartPanel"><div class="cartBox"><div class="cartHead"><h2 style="margin:0">Корзина</h2><button id="cartClose" class="cartRemove">✕</button></div><div id="cartList" class="cartList"></div><div class="cartFoot"><div>Итого: <b id="cartPanelTotal" style="color:#fcd34d">0 Монет</b></div><button id="cartBuy" class="cartBuy">Купить всё</button></div></div></div><div id="modal"');
+   body=body.replace('</body>',`<script>fetch('/api/me/upgrader/access',{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(j){if(j&&j.allowed){var a=document.getElementById('shopUpgraderLink');if(a)a.style.display='inline-flex'}}).catch(function(){});</script></body>`);
   }
   if(typeof body==='string'&&body.includes("var P=window.D1P===true")&&!body.includes('shopCart=[]')){
    body=body.replace("var P=window.D1P===true,", "var P=window.D1P===true,shopCart=[],shopBalance=0,cartStorageKey='d1psy_shop_cart_v1',");
