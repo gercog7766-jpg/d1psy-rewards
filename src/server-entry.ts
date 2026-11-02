@@ -62,6 +62,10 @@ import { installUpgraderCoinsHotfix } from './upgrader-coins-hotfix.js';
 import { installAccountUpgradedHideHotfix } from './account-upgraded-hide-hotfix.js';
 import { installAccountInventoryV2Hotfix } from './account-inventory-v2-hotfix.js';
 
+// Install raw HTTP legal handling first so /privacy and /rules are not dependent
+// on the heavily wrapped Express application.get chain.
+installLegalPagesHotfix();
+
 installOauthStateHotfix();
 installReferralOauthHotfix();
 installPromoUiFixHotfix();
@@ -124,5 +128,4 @@ installAdminUsersSafeHotfix();
 installAdminGrantsLoaderHotfix();
 installAdminDashboardHotfix();
 installHomeHotfix();
-installLegalPagesHotfix();
 await import('./server-next.js');
