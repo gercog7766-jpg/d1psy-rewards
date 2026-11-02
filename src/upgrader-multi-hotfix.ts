@@ -1,13 +1,13 @@
 import express from 'express';
 
-const CSS=`<style id="upgraderMultiV2">
-.selected.multiSel{height:260px;display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:10px;align-content:center}.multiMini{min-width:0;border:1px solid #3d2a51;border-radius:11px;background:#120d19;padding:6px;text-align:center;cursor:pointer}.multiMini:hover{border-color:#8b5cf6}.multiMini img{width:100%!important;height:72px!important;object-fit:contain}.multiMini b{display:block;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.multiTotal{grid-column:1/-1;color:#fcd34d;font-weight:950;font-size:14px}.item.multiOn{border-color:#8b5cf6!important;box-shadow:0 0 0 2px #8b5cf655!important}.multiCount{color:#c4b5fd;font-size:11px;margin-left:6px}
+const CSS=`<style id="upgraderMultiV3">
+.selected.multiSel{height:260px;display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:10px;align-content:center;overflow:hidden;min-width:0}.multiMini{min-width:0;max-width:100%;overflow:hidden;border:1px solid #3d2a51;border-radius:11px;background:#120d19;padding:6px;text-align:center;cursor:pointer}.multiMini:hover{border-color:#8b5cf6}.selected.multiSel .multiMini img{display:block!important;width:100%!important;max-width:100%!important;height:72px!important;max-height:72px!important;object-fit:contain!important;margin:0 auto!important}.multiMini b{display:block;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.multiTotal{grid-column:1/-1;color:#fcd34d;font-weight:950;font-size:14px;min-width:0}.item.multiOn{border-color:#8b5cf6!important;box-shadow:0 0 0 2px #8b5cf655!important}.multiCount{color:#c4b5fd;font-size:11px;margin-left:6px}
 </style>`;
 
 export function installUpgraderMultiHotfix(){
- const response:any=(express as any).response;if(response.__upgraderMultiV2)return;response.__upgraderMultiV2=true;const original=response.send;
+ const response:any=(express as any).response;if(response.__upgraderMultiV3)return;response.__upgraderMultiV3=true;const original=response.send;
  response.send=function(body:any){
-  if(typeof body==='string'&&body.includes('<title>Апгрейдер — d1psy Rewards</title>')&&!body.includes('upgraderMultiV2')){
+  if(typeof body==='string'&&body.includes('<title>Апгрейдер — d1psy Rewards</title>')&&!body.includes('upgraderMultiV3')){
    body=body.replace('</head>',CSS+'</head>');
    body=body.replace('<h2>Твой предмет</h2>','<h2>Твои предметы <span id="srcCount" class="multiCount">0/4</span></h2>').replace('<div class="hint">Выбери один предмет из инвентаря</div>','<div class="hint">Выбери до 4 предметов — их стоимость суммируется</div>');
    body=body.replace('<h2>Желаемый предмет</h2>','<h2>Желаемые предметы <span id="tgtCount" class="multiCount">0/4</span></h2>').replace('<div class="hint">Выбери конкретный вариант из магазина</div>','<div class="hint">Выбери до 4 вариантов — их стоимость суммируется</div>');
@@ -24,6 +24,7 @@ export function installUpgraderMultiHotfix(){
    body=body.replace("data=await r.json();s=null;t=null;render();draw()", "data=await r.json();window.__upMulti.sources=[];window.__upMulti.targets=[];s=null;t=null;render();draw()");
    body=body.replace("if(!s||!t||busy)return;", "if(!window.__upMulti.sources.length||!window.__upMulti.targets.length||busy)return;");
    body=body.replace("body:JSON.stringify({sourceWinId:s.winId,targetShopItemId:t.itemId,targetVariantId:t.variantId", "body:JSON.stringify({sourceWinIds:window.__upMulti.sources.map(x=>x.winId),targets:window.__upMulti.targets.map(x=>({itemId:x.itemId,variantId:x.variantId})),sourceWinId:s&&s.winId,targetShopItemId:t&&t.itemId,targetVariantId:t&&t.variantId");
+   body=body.replace("$('result').classList.add('on');await load()", "$('result').classList.add('on');window.__upMulti.sources=[];window.__upMulti.targets=[];window.upExtraCoins=0;s=null;t=null;multiSync();render();draw();await load()");
   }
   if(typeof body==='string'&&body.includes("var ex=Math.max(0,Number(window.upExtraCoins||0)),p=s&&t?")&&!body.includes('multiSum(window.__upMulti.sources)')){
    body=body.replace("var ex=Math.max(0,Number(window.upExtraCoins||0)),p=s&&t?Math.min(85,(s.value+ex)/t.value*90):0;", "var ex=Math.max(0,Number(window.upExtraCoins||0)),sv=multiSum(window.__upMulti.sources),tv=multiSum(window.__upMulti.targets),p=sv&&tv?Math.min(85,(sv+ex)/tv*90):0;");
