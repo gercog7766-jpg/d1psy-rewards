@@ -57,7 +57,6 @@ import { installUpgraderRunFixHotfix } from './upgrader-run-fix-hotfix.js';
 import { installUpgraderUiV2Hotfix } from './upgrader-ui-v2-hotfix.js';
 import { installUpgraderCatalogV3Hotfix } from './upgrader-catalog-v3-hotfix.js';
 import { installUpgraderCoinsHotfix } from './upgrader-coins-hotfix.js';
-import { installUpgraderMultiHotfix } from './upgrader-multi-hotfix.js';
 import { installAccountUpgradedHideHotfix } from './account-upgraded-hide-hotfix.js';
 import { installAccountInventoryV2Hotfix } from './account-inventory-v2-hotfix.js';
 
@@ -110,7 +109,6 @@ installUpgraderRunFixHotfix();
 installUpgraderUiV2Hotfix();
 installUpgraderCatalogV3Hotfix();
 installUpgraderCoinsHotfix();
-installUpgraderMultiHotfix();
 installAccountUiRefreshHotfix();
 installAccountHotfix();
 installAccountUpgradedHideHotfix();
