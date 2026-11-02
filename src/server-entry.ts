@@ -1,4 +1,5 @@
 import { installAccountHotfix } from './account-hotfix.js';
+import { installAccountFooterHotfix } from './account-footer-hotfix.js';
 import { installAccountUiRefreshHotfix } from './account-ui-refresh-hotfix.js';
 import { installAccountStatusHotfix } from './account-status-hotfix.js';
 import { installObsHotfix } from './obs-hotfix.js';
@@ -110,6 +111,7 @@ installUpgraderUiV2Hotfix();
 installUpgraderCatalogV3Hotfix();
 installUpgraderCoinsHotfix();
 installAccountUiRefreshHotfix();
+installAccountFooterHotfix();
 installAccountHotfix();
 installAccountUpgradedHideHotfix();
 installAccountInventoryV2Hotfix();
