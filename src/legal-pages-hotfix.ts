@@ -26,6 +26,6 @@ export function installLegalPagesHotfix(){
     }return oldEnd(chunk,...rest)};
    }
   }
-  return original.call(this,event,...args)
+  return Reflect.apply(original,this,[event,...args])
  }
 }
