@@ -12,7 +12,7 @@ export function installSeasonRewardsUiHotfix(){
       if(x.key==='upgrades_15')return {...x,title:'Сделай 25 апгрейдов',target:25,progress:Math.min(25,Number(x.progress||0))};
       if(x.key==='withdraw_200')return {...x,title:'Выведи скин стоимостью 250+ монет',target:1};
       if(x.key==='upgrader_coins_200')return {...x,title:'Потрать суммарно 300+ монет в апгрейдере',target:300,progress:Math.min(300,Number(x.progress||0))};
-      if(x.key==='drops_10')return {...x,title:'Выиграй 2 дропа на стриме',target:2,progress:Math.min(2,Number(x.progress||0))};
+      if(x.key==='drops_10')return {...x,title:'Выиграй 12 дропов на стриме',target:12,progress:Math.min(12,Number(x.progress||0))};
       if(x.key==='upgrade_x3')return {...x,title:'Сделай успешный апгрейд ×2 или выше два раза подряд',target:2,progress:Math.min(2,Number(x.progress||0))};
       return x;
      });
