@@ -17,10 +17,13 @@ const db=createClient(SUPABASE_URL,SUPABASE_SECRET_KEY,{auth:{persistSession:fal
 export const eventSubRouter=express.Router();
 type TwitchChatEvent={broadcaster_user_id:string;broadcaster_user_login?:string;broadcaster_user_name?:string;chatter_user_id:string;chatter_user_login:string;chatter_user_name:string;message_id:string;message?:{text?:string}};
 type PocMessage={receivedAt:string;broadcasterUserId:string;broadcasterLogin:string;chatterUserId:string;chatterLogin:string;text:string};
+type RouteDiagnostic={receivedAt:string;broadcasterUserId:string;broadcasterLogin:string;route:'poc'|'primary'|'ignored'};
 const pocMessages:PocMessage[]=[];
+const routeDiagnostics:RouteDiagnostic[]=[];
 function safeEqual(a:string,b:string){const aa=Buffer.from(a);const bb=Buffer.from(b);return aa.length===bb.length&&crypto.timingSafeEqual(aa,bb)}
 function cookie(req:express.Request,name:string){const raw=String(req.header('cookie')||'');for(const part of raw.split(';')){const i=part.indexOf('=');if(i<0)continue;if(part.slice(0,i).trim()===name)return decodeURIComponent(part.slice(i+1).trim())}return ''}
 function clearOauthCookie(res:express.Response){res.cookie('poc_oauth_state','',{httpOnly:true,secure:APP_URL.startsWith('https:'),sameSite:'lax',maxAge:0,path:'/'})}
+function rememberRoute(event:TwitchChatEvent,occurredAt:string,route:RouteDiagnostic['route']){routeDiagnostics.unshift({receivedAt:occurredAt,broadcasterUserId:event.broadcaster_user_id,broadcasterLogin:event.broadcaster_user_login||'',route});if(routeDiagnostics.length>100)routeDiagnostics.length=100}
 async function setConnection(status:'connected'|'disconnected'|'reconnecting'|'error'){await db.from('rewards_settings').update({twitch_connection_status:status,updated_at:new Date().toISOString()}).eq('id',true)}
 async function processPrimaryChat(messageId:string,event:TwitchChatEvent,occurredAt:string){
  const {error:dedupError}=await db.from('rewards_event_dedup').insert({event_id:messageId,event_type:'channel.chat.message'});
@@ -38,8 +41,9 @@ function processPocChat(event:TwitchChatEvent,occurredAt:string){
  console.log('[MULTISTREAM_POC]',event.broadcaster_user_login||event.broadcaster_user_id,event.chatter_user_login,event.message?.text||'');
 }
 async function routeChat(messageId:string,event:TwitchChatEvent,occurredAt:string){
- if(pocBroadcasterId&&event.broadcaster_user_id===pocBroadcasterId){processPocChat(event,occurredAt);return}
- if(PRIMARY_BROADCASTER_ID&&event.broadcaster_user_id!==PRIMARY_BROADCASTER_ID){console.warn('[MULTISTREAM_POC] ignored unknown broadcaster',event.broadcaster_user_id);return}
+ if(pocBroadcasterId&&event.broadcaster_user_id===pocBroadcasterId){rememberRoute(event,occurredAt,'poc');processPocChat(event,occurredAt);return}
+ if(PRIMARY_BROADCASTER_ID&&event.broadcaster_user_id!==PRIMARY_BROADCASTER_ID){rememberRoute(event,occurredAt,'ignored');console.warn('[MULTISTREAM_POC] ignored unknown broadcaster',event.broadcaster_user_id);return}
+ rememberRoute(event,occurredAt,'primary');
  await processPrimaryChat(messageId,event,occurredAt);
 }
 
@@ -71,6 +75,7 @@ eventSubRouter.get('/auth/twitch/callback',async(req,res)=>{try{
  }catch(e:any){console.error('[MULTISTREAM_POC] OAuth failed',e);clearOauthCookie(res);res.status(500).send(`PoC Twitch authentication failed: ${String(e?.message||e)}`)}});
 
 eventSubRouter.get('/api/poc/multistream',(_req,res)=>{res.set('Cache-Control','no-store');res.json({enabled:!!pocBroadcasterId,pocBroadcasterId:pocBroadcasterId||null,pocLogin:POC_LOGIN,count:pocMessages.length,messages:pocMessages.slice(0,20)})});
+eventSubRouter.get('/api/poc/routes',(_req,res)=>{res.set('Cache-Control','no-store');res.json({primaryBroadcasterId:PRIMARY_BROADCASTER_ID||null,pocBroadcasterId:pocBroadcasterId||null,routes:routeDiagnostics.slice(0,50)})});
 eventSubRouter.post('/eventsub/twitch',express.raw({type:'application/json'}),async(req,res)=>{try{
  if(!EVENTSUB_SECRET)return res.sendStatus(503);
  const id=String(req.header('Twitch-Eventsub-Message-Id')||'');const timestamp=String(req.header('Twitch-Eventsub-Message-Timestamp')||'');const signature=String(req.header('Twitch-Eventsub-Message-Signature')||'');const type=String(req.header('Twitch-Eventsub-Message-Type')||'');
