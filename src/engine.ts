@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 
 const db=createClient(process.env.SUPABASE_URL||'',process.env.SUPABASE_SECRET_KEY||'',{auth:{persistSession:false}});
+const ENGINE_ENABLED=process.env.REWARDS_ENGINE_ENABLED!=='false';
 let checking=false;
 
 async function startNextRound(){
@@ -46,5 +47,11 @@ export async function checkGiveawayRound(){
   } finally { checking=false; }
 }
 
-// Time-mode rounds must finish server-side even when chat is quiet.
-setInterval(()=>{void checkGiveawayRound().catch(e=>console.error('Giveaway engine tick failed',e));},1000);
+// Time-mode rounds must finish server-side even when chat is quiet. The isolated TEST
+// service shares production credentials, so its legacy engine is explicitly disabled via
+// REWARDS_ENGINE_ENABLED=false. Production behavior remains unchanged by default.
+if(ENGINE_ENABLED){
+  setInterval(()=>{void checkGiveawayRound().catch(e=>console.error('Giveaway engine tick failed',e));},1000);
+}else{
+  console.log('[GIVEAWAY_ENGINE] disabled by REWARDS_ENGINE_ENABLED=false');
+}
