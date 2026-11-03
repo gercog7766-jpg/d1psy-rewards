@@ -8,21 +8,31 @@ const db=createClient(SUPABASE_URL,SUPABASE_SECRET_KEY,{auth:{persistSession:fal
 export function installObsHotfix(){
   const proto:any=(express as any).application;
   const originalGet=proto.get;
+  const activityInstalled=new WeakSet<object>();
+  const activityHandler=async(_req:any,res:any)=>{
+    try{
+      const {data:win,error}=await db.from('rewards_wins').select('id,won_at,source_type,user_id,prize_id').order('won_at',{ascending:false}).limit(1).maybeSingle();
+      if(error) throw error;
+      if(!win){res.set('Cache-Control','no-store');return res.json({activity:null})}
+      const [{data:user,error:userError},{data:prize,error:prizeError}]=await Promise.all([
+        db.from('rewards_users').select('twitch_display_name').eq('id',win.user_id).maybeSingle(),
+        db.from('rewards_prizes').select('name,image_url').eq('id',win.prize_id).maybeSingle()
+      ]);
+      if(userError) console.error('obs_activity_user_failed',userError);
+      if(prizeError) console.error('obs_activity_prize_failed',prizeError);
+      res.set('Cache-Control','no-store');
+      res.json({activity:{...win,rewards_users:user||null,rewards_prizes:prize||null}});
+    }catch(e){console.error('obs_activity_failed',e);res.set('Cache-Control','no-store');res.json({activity:null})}
+  };
   proto.get=function(path:any,...handlers:any[]){
+    // The activity endpoint is new: server-next never registers this path itself.
+    // Register it on the real Express app the first time its GET routes are installed.
+    if(!activityInstalled.has(this)){
+      activityInstalled.add(this);
+      originalGet.call(this,'/api/public/activity',activityHandler);
+    }
     if(path==='/obs') return originalGet.call(this,path,(_req:any,res:any)=>res.send(obsHtml()));
-    if(path==='/api/public/activity') return originalGet.call(this,path,async(_req:any,res:any)=>{
-      try{
-        const {data:win,error}=await db.from('rewards_wins').select('id,won_at,source_type,user_id,prize_id').order('won_at',{ascending:false}).limit(1).maybeSingle();
-        if(error) throw error;
-        if(!win){res.set('Cache-Control','no-store');return res.json({activity:null})}
-        const [{data:user},{data:prize}]=await Promise.all([
-          db.from('rewards_users').select('twitch_display_name').eq('id',win.user_id).maybeSingle(),
-          db.from('rewards_prizes').select('name,image_url').eq('id',win.prize_id).maybeSingle()
-        ]);
-        res.set('Cache-Control','no-store');
-        res.json({activity:{...win,rewards_users:user||null,rewards_prizes:prize||null}});
-      }catch(e){console.error('obs_activity_failed',e);res.set('Cache-Control','no-store');res.json({activity:null})}
-    });
+    if(path==='/api/public/activity') return originalGet.call(this,path,activityHandler);
     return originalGet.call(this,path,...handlers);
   };
 }
