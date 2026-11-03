@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import express from 'express';
 import { createClient } from '@supabase/supabase-js';
 import { checkGiveawayRound } from './engine.js';
+import { recordStreamerChat,resolveStreamerByBroadcasterId } from './multistream-engine.js';
 
 const APP_URL=process.env.APP_URL||'';
 const SUPABASE_URL=process.env.SUPABASE_URL||'';
@@ -14,11 +15,12 @@ const PRIMARY_BROADCASTER_ID=process.env.TWITCH_PRIMARY_BROADCASTER_ID||'';
 let pocBroadcasterId=process.env.TWITCH_POC_BROADCASTER_ID||'';
 const POC_LOGIN=(process.env.TWITCH_POC_LOGIN||'amych').toLowerCase();
 const POC_ISOLATION=process.env.TWITCH_POC_ISOLATION!=='false';
+const MULTISTREAM_DB_ENABLED=process.env.MULTISTREAM_DB_ENABLED==='true';
 const db=createClient(SUPABASE_URL,SUPABASE_SECRET_KEY,{auth:{persistSession:false}});
 export const eventSubRouter=express.Router();
 type TwitchChatEvent={broadcaster_user_id:string;broadcaster_user_login?:string;broadcaster_user_name?:string;chatter_user_id:string;chatter_user_login:string;chatter_user_name:string;message_id:string;message?:{text?:string}};
 type PocMessage={receivedAt:string;broadcasterUserId:string;broadcasterLogin:string;chatterUserId:string;chatterLogin:string;text:string};
-type RouteDiagnostic={receivedAt:string;broadcasterUserId:string;broadcasterLogin:string;route:'poc'|'primary'|'ignored'};
+type RouteDiagnostic={receivedAt:string;broadcasterUserId:string;broadcasterLogin:string;route:'poc'|'streamer'|'primary'|'ignored'};
 const pocMessages:PocMessage[]=[];
 const routeDiagnostics:RouteDiagnostic[]=[];
 function safeEqual(a:string,b:string){const aa=Buffer.from(a);const bb=Buffer.from(b);return aa.length===bb.length&&crypto.timingSafeEqual(aa,bb)}
@@ -42,8 +44,17 @@ function processPocChat(event:TwitchChatEvent,occurredAt:string){
  console.log('[MULTISTREAM_POC]',event.broadcaster_user_login||event.broadcaster_user_id,event.chatter_user_login,event.message?.text||'');
 }
 async function routeChat(messageId:string,event:TwitchChatEvent,occurredAt:string){
- if(pocBroadcasterId&&event.broadcaster_user_id===pocBroadcasterId){rememberRoute(event,occurredAt,'poc');processPocChat(event,occurredAt);return}
- if(POC_ISOLATION){rememberRoute(event,occurredAt,'ignored');console.warn('[MULTISTREAM_POC] isolation ignored broadcaster',event.broadcaster_user_id);return}
+ if(POC_ISOLATION){
+  if(pocBroadcasterId&&event.broadcaster_user_id===pocBroadcasterId){rememberRoute(event,occurredAt,'poc');processPocChat(event,occurredAt);return}
+  rememberRoute(event,occurredAt,'ignored');console.warn('[MULTISTREAM_POC] isolation ignored broadcaster',event.broadcaster_user_id);return;
+ }
+ if(MULTISTREAM_DB_ENABLED){
+  const streamer=await resolveStreamerByBroadcasterId(event.broadcaster_user_id);
+  if(!streamer){rememberRoute(event,occurredAt,'ignored');console.warn('[MULTISTREAM] ignored disabled/unknown broadcaster',event.broadcaster_user_id);return}
+  rememberRoute(event,occurredAt,'streamer');
+  await recordStreamerChat(messageId,event,occurredAt,streamer);
+  return;
+ }
  if(PRIMARY_BROADCASTER_ID&&event.broadcaster_user_id!==PRIMARY_BROADCASTER_ID){rememberRoute(event,occurredAt,'ignored');console.warn('[MULTISTREAM_POC] ignored unknown broadcaster',event.broadcaster_user_id);return}
  rememberRoute(event,occurredAt,'primary');
  await processPrimaryChat(messageId,event,occurredAt);
@@ -76,8 +87,8 @@ eventSubRouter.get('/auth/twitch/callback',async(req,res)=>{try{
  res.type('html').send(`<h1>Multi-stream PoC connected</h1><p>Twitch: <b>${String(user.display_name||user.login)}</b></p><p>Broadcaster ID: <code>${pocBroadcasterId}</code></p><p>EventSub: <code>${subscription.alreadyExists?'already exists':'created'}</code></p><p><a href="/api/poc/multistream">Open PoC messages</a></p>`);
  }catch(e:any){console.error('[MULTISTREAM_POC] OAuth failed',e);clearOauthCookie(res);res.status(500).send(`PoC Twitch authentication failed: ${String(e?.message||e)}`)}});
 
-eventSubRouter.get('/api/poc/multistream',(_req,res)=>{res.set('Cache-Control','no-store');res.json({enabled:!!pocBroadcasterId,isolation:POC_ISOLATION,pocBroadcasterId:pocBroadcasterId||null,pocLogin:POC_LOGIN,count:pocMessages.length,messages:pocMessages.slice(0,20)})});
-eventSubRouter.get('/api/poc/routes',(_req,res)=>{res.set('Cache-Control','no-store');res.json({isolation:POC_ISOLATION,primaryWritesEnabled:!POC_ISOLATION,primaryBroadcasterId:PRIMARY_BROADCASTER_ID||null,pocBroadcasterId:pocBroadcasterId||null,routes:routeDiagnostics.slice(0,50)})});
+eventSubRouter.get('/api/poc/multistream',(_req,res)=>{res.set('Cache-Control','no-store');res.json({enabled:!!pocBroadcasterId,isolation:POC_ISOLATION,multistreamDbEnabled:MULTISTREAM_DB_ENABLED,pocBroadcasterId:pocBroadcasterId||null,pocLogin:POC_LOGIN,count:pocMessages.length,messages:pocMessages.slice(0,20)})});
+eventSubRouter.get('/api/poc/routes',(_req,res)=>{res.set('Cache-Control','no-store');res.json({isolation:POC_ISOLATION,multistreamDbEnabled:MULTISTREAM_DB_ENABLED,primaryWritesEnabled:!POC_ISOLATION&&!MULTISTREAM_DB_ENABLED,primaryBroadcasterId:PRIMARY_BROADCASTER_ID||null,pocBroadcasterId:pocBroadcasterId||null,routes:routeDiagnostics.slice(0,50)})});
 eventSubRouter.post('/eventsub/twitch',express.raw({type:'application/json'}),async(req,res)=>{try{
  if(!EVENTSUB_SECRET)return res.sendStatus(503);
  const id=String(req.header('Twitch-Eventsub-Message-Id')||'');const timestamp=String(req.header('Twitch-Eventsub-Message-Timestamp')||'');const signature=String(req.header('Twitch-Eventsub-Message-Signature')||'');const type=String(req.header('Twitch-Eventsub-Message-Type')||'');
@@ -86,19 +97,19 @@ eventSubRouter.post('/eventsub/twitch',express.raw({type:'application/json'}),as
  const expected='sha256='+crypto.createHmac('sha256',EVENTSUB_SECRET).update(id+timestamp).update(req.body).digest('hex');if(!safeEqual(expected,signature))return res.sendStatus(403);
  const payload=JSON.parse(req.body.toString('utf8'));
  if(type==='webhook_callback_verification'){return res.type('text/plain').status(200).send(String(payload.challenge||''))}
- if(type==='revocation'){const broadcasterId=String(payload.subscription?.condition?.broadcaster_user_id||'');if(!POC_ISOLATION&&(!pocBroadcasterId||broadcasterId!==pocBroadcasterId)){await setConnection('error');await db.from('rewards_audit_log').insert({action:'twitch_eventsub_revoked',entity_type:'eventsub',entity_id:payload.subscription?.id||null,details:{status:payload.subscription?.status||'unknown'}})}return res.sendStatus(204)}
- if(type==='notification'&&payload.subscription?.type==='channel.chat.message'){const event=payload.event as TwitchChatEvent;const isPoc=!!pocBroadcasterId&&event.broadcaster_user_id===pocBroadcasterId;if(!POC_ISOLATION&&!isPoc)await setConnection('connected');res.sendStatus(204);void routeChat(id,event,timestamp).catch(async e=>{console.error('EventSub processing failed',e);if(!POC_ISOLATION&&!isPoc)await setConnection('error')});return}
+ if(type==='revocation'){const broadcasterId=String(payload.subscription?.condition?.broadcaster_user_id||'');if(!POC_ISOLATION&&!MULTISTREAM_DB_ENABLED&&(!pocBroadcasterId||broadcasterId!==pocBroadcasterId)){await setConnection('error');await db.from('rewards_audit_log').insert({action:'twitch_eventsub_revoked',entity_type:'eventsub',entity_id:payload.subscription?.id||null,details:{status:payload.subscription?.status||'unknown'}})}return res.sendStatus(204)}
+ if(type==='notification'&&payload.subscription?.type==='channel.chat.message'){const event=payload.event as TwitchChatEvent;const isPoc=!!pocBroadcasterId&&event.broadcaster_user_id===pocBroadcasterId;if(!POC_ISOLATION&&!MULTISTREAM_DB_ENABLED&&!isPoc)await setConnection('connected');res.sendStatus(204);void routeChat(id,event,timestamp).catch(async e=>{console.error('EventSub processing failed',e);if(!POC_ISOLATION&&!MULTISTREAM_DB_ENABLED&&!isPoc)await setConnection('error')});return}
  return res.sendStatus(204);
  }catch(e){console.error('EventSub webhook failed',e);return res.sendStatus(500)}});
 async function getAppToken(){const r=await fetch('https://id.twitch.tv/oauth2/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:TWITCH_CLIENT_ID,client_secret:TWITCH_CLIENT_SECRET,grant_type:'client_credentials'})});if(!r.ok)throw new Error(`Twitch app token failed: ${r.status}`);return(await r.json()as any).access_token as string}
 async function createChatSubscription(broadcasterUserId:string,writeProductionStatus:boolean){
  if(!APP_URL||!TWITCH_CLIENT_ID||!TWITCH_CLIENT_SECRET||!EVENTSUB_SECRET)throw new Error('eventsub_not_configured');
- if(writeProductionStatus&&!POC_ISOLATION)await setConnection('reconnecting');
+ if(writeProductionStatus&&!POC_ISOLATION&&!MULTISTREAM_DB_ENABLED)await setConnection('reconnecting');
  const token=await getAppToken();
  const r=await fetch('https://api.twitch.tv/helix/eventsub/subscriptions',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Client-Id':TWITCH_CLIENT_ID,'Content-Type':'application/json'},body:JSON.stringify({type:'channel.chat.message',version:'1',condition:{broadcaster_user_id:broadcasterUserId,user_id:broadcasterUserId},transport:{method:'webhook',callback:`${APP_URL}/eventsub/twitch`,secret:EVENTSUB_SECRET}})});
  const body:any=await r.json().catch(()=>({}));
- if(r.status===409){if(writeProductionStatus&&!POC_ISOLATION)await setConnection('connected');return {data:[],alreadyExists:true,conflict:body}}
- if(!r.ok){if(writeProductionStatus&&!POC_ISOLATION)await setConnection('error');throw new Error(`Twitch EventSub subscribe failed ${r.status}: ${JSON.stringify(body)}`)}
+ if(r.status===409){if(writeProductionStatus&&!POC_ISOLATION&&!MULTISTREAM_DB_ENABLED)await setConnection('connected');return {data:[],alreadyExists:true,conflict:body}}
+ if(!r.ok){if(writeProductionStatus&&!POC_ISOLATION&&!MULTISTREAM_DB_ENABLED)await setConnection('error');throw new Error(`Twitch EventSub subscribe failed ${r.status}: ${JSON.stringify(body)}`)}
  return body;
 }
 async function subscribeToPocChat(broadcasterUserId:string){return createChatSubscription(broadcasterUserId,false)}
