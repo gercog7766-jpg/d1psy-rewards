@@ -12,10 +12,15 @@ export function installObsHotfix(){
     if(path==='/obs') return originalGet.call(this,path,(_req:any,res:any)=>res.send(obsHtml()));
     if(path==='/api/public/activity') return originalGet.call(this,path,async(_req:any,res:any)=>{
       try{
-        const {data,error}=await db.from('rewards_wins').select('id,won_at,source_type,rewards_users(twitch_display_name),rewards_prizes(name,image_url)').order('won_at',{ascending:false}).limit(1).maybeSingle();
+        const {data:win,error}=await db.from('rewards_wins').select('id,won_at,source_type,user_id,prize_id').order('won_at',{ascending:false}).limit(1).maybeSingle();
         if(error) throw error;
+        if(!win){res.set('Cache-Control','no-store');return res.json({activity:null})}
+        const [{data:user},{data:prize}]=await Promise.all([
+          db.from('rewards_users').select('twitch_display_name').eq('id',win.user_id).maybeSingle(),
+          db.from('rewards_prizes').select('name,image_url').eq('id',win.prize_id).maybeSingle()
+        ]);
         res.set('Cache-Control','no-store');
-        res.json({activity:data||null});
+        res.json({activity:{...win,rewards_users:user||null,rewards_prizes:prize||null}});
       }catch(e){console.error('obs_activity_failed',e);res.set('Cache-Control','no-store');res.json({activity:null})}
     });
     return originalGet.call(this,path,...handlers);
@@ -28,5 +33,5 @@ function obsHtml(){return `<!doctype html><html lang="ru"><head><meta charset="u
 let lastActivityId=null,hideActivityAt=0;
 function labelFor(type){if(type==='upgrader')return 'АПГРЕЙД ЗАШЁЛ';if(type==='shop')return 'ЗАБРАЛ В МАГАЗИНЕ';return 'ДРОП ЗАБРАЛ'}
 function showActivity(w){if(!w||!w.id||w.id===lastActivityId)return;lastActivityId=w.id;activityTag.textContent=labelFor(w.source_type);activityName.textContent=w.rewards_users?.twitch_display_name||'Игрок';activityPrize.textContent=w.rewards_prizes?.name||'Предмет';const src=w.rewards_prizes?.image_url||'';activityImg.src=src;activityImg.classList.toggle('on',!!src);activity.classList.add('show');round.classList.add('hidden');hideActivityAt=Date.now()+7000}
-async function tick(){try{const stateRes=await fetch('/api/public/state',{cache:'no-store'});if(!stateRes.ok)throw new Error('state_'+stateRes.status);const s=await stateRes.json();fetch('/api/public/activity',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(a=>{const item=a?.activity;if(item&&Date.now()-new Date(item.won_at).getTime()<9000)showActivity(item)}).catch(()=>{});if(hideActivityAt&&Date.now()>=hideActivityAt){activity.classList.remove('show');round.classList.remove('hidden');hideActivityAt=0}if(s.twitchConnectionStatus!=='connected'){main.textContent='OFFLINE';sub.textContent='Twitch не подключён';prize.textContent='ДРОП'}else if(s.round){prize.textContent='ДРОП';if(s.round.mode==='messages'){main.textContent=s.round.message_count+' / '+s.round.message_threshold;sub.textContent='сообщений до дропа'}else{const end=new Date(s.round.started_at).getTime()+s.round.interval_seconds*1000,left=Math.max(0,Math.ceil((end-Date.now())/1000)),m=Math.floor(left/60),sec=String(left%60).padStart(2,'0');main.textContent=m+':'+sec;sub.textContent='до следующего дропа'}}else{prize.textContent='ДРОП';main.textContent=s.enabled?'СКОРО':'СТОП';sub.textContent=s.enabled?'Готовим следующий дроп':'Дропы остановлены'}}catch{main.textContent='ERROR';sub.textContent='Нет связи с сервером'}}tick();setInterval(tick,500);
+async function tick(){try{const stateRes=await fetch('/api/public/state',{cache:'no-store'});if(!stateRes.ok)throw new Error('state_'+stateRes.status);const s=await stateRes.json();fetch('/api/public/activity',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(a=>{const item=a?.activity;if(item&&Date.now()-new Date(item.won_at).getTime()<15000)showActivity(item)}).catch(()=>{});if(hideActivityAt&&Date.now()>=hideActivityAt){activity.classList.remove('show');round.classList.remove('hidden');hideActivityAt=0}if(s.twitchConnectionStatus!=='connected'){main.textContent='OFFLINE';sub.textContent='Twitch не подключён';prize.textContent='ДРОП'}else if(s.round){prize.textContent='ДРОП';if(s.round.mode==='messages'){main.textContent=s.round.message_count+' / '+s.round.message_threshold;sub.textContent='сообщений до дропа'}else{const end=new Date(s.round.started_at).getTime()+s.round.interval_seconds*1000,left=Math.max(0,Math.ceil((end-Date.now())/1000)),m=Math.floor(left/60),sec=String(left%60).padStart(2,'0');main.textContent=m+':'+sec;sub.textContent='до следующего дропа'}}else{prize.textContent='ДРОП';main.textContent=s.enabled?'СКОРО':'СТОП';sub.textContent=s.enabled?'Готовим следующий дроп':'Дропы остановлены'}}catch{main.textContent='ERROR';sub.textContent='Нет связи с сервером'}}tick();setInterval(tick,500);
 </script></body></html>`}
