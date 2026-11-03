@@ -44,16 +44,16 @@ function processPocChat(event:TwitchChatEvent,occurredAt:string){
  console.log('[MULTISTREAM_POC]',event.broadcaster_user_login||event.broadcaster_user_id,event.chatter_user_login,event.message?.text||'');
 }
 async function routeChat(messageId:string,event:TwitchChatEvent,occurredAt:string){
- if(POC_ISOLATION){
-  if(pocBroadcasterId&&event.broadcaster_user_id===pocBroadcasterId){rememberRoute(event,occurredAt,'poc');processPocChat(event,occurredAt);return}
-  rememberRoute(event,occurredAt,'ignored');console.warn('[MULTISTREAM_POC] isolation ignored broadcaster',event.broadcaster_user_id);return;
- }
  if(MULTISTREAM_DB_ENABLED){
   const streamer=await resolveStreamerByBroadcasterId(event.broadcaster_user_id);
   if(!streamer){rememberRoute(event,occurredAt,'ignored');console.warn('[MULTISTREAM] ignored disabled/unknown broadcaster',event.broadcaster_user_id);return}
   rememberRoute(event,occurredAt,'streamer');
   await recordStreamerChat(messageId,event,occurredAt,streamer);
   return;
+ }
+ if(POC_ISOLATION){
+  if(pocBroadcasterId&&event.broadcaster_user_id===pocBroadcasterId){rememberRoute(event,occurredAt,'poc');processPocChat(event,occurredAt);return}
+  rememberRoute(event,occurredAt,'ignored');console.warn('[MULTISTREAM_POC] isolation ignored broadcaster',event.broadcaster_user_id);return;
  }
  if(PRIMARY_BROADCASTER_ID&&event.broadcaster_user_id!==PRIMARY_BROADCASTER_ID){rememberRoute(event,occurredAt,'ignored');console.warn('[MULTISTREAM_POC] ignored unknown broadcaster',event.broadcaster_user_id);return}
  rememberRoute(event,occurredAt,'primary');
