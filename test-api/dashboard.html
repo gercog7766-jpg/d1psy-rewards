@@ -25,6 +25,7 @@ table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:left;b
 <button id="refresh">Загрузить данные</button></div>
 <p id="status" role="status">Для просмотра введите тестовый API-токен. Он не сохраняется и не добавляется в URL.</p>
 </section>
+<section class="panel"><h2>Twitch EventSub · amych</h2><p id="twitch-probe-status" role="status">Статус ещё не проверен. Введите тестовый токен и нажмите «Загрузить данные».</p><small>Показывает только готовность локального обработчика. Не подтверждает подписку Twitch, получение реального чата или работу розыгрышей.</small></section>
 <div id="streamers" class="cards" aria-live="polite"></div>
 <section class="panel"><h2>Состояние призов</h2><div id="prizes">Данные ещё не загружены.</div></section>
 <section class="panel"><h2>Раунды по стримерам</h2><div id="rounds">Данные ещё не загружены.</div></section>
@@ -37,7 +38,7 @@ const table=(columns,rows)=>{const t=document.createElement('table'),h=document.
 $('refresh').addEventListener('click',async()=>{
  const token=$('token').value.trim();
  if(!token){$('status').textContent='Введите тестовый токен.';return}
- $('refresh').disabled=true;$('status').textContent='Загрузка…';
+ $('refresh').disabled=true;$('status').textContent='Загрузка…';$('twitch-probe-status').textContent='Проверка обработчика Twitch…';
  try{
   const response=await fetch('/api/test/overview',{headers:{Authorization:'Bearer '+token},cache:'no-store'});
   if(!response.ok)throw new Error(response.status===401?'Неверный тестовый токен.':'Ошибка API: '+response.status);
@@ -55,6 +56,14 @@ $('refresh').addEventListener('click',async()=>{
   $('prizes').replaceChildren(table([['Статус','status'],['Количество','count']],data.prizes));
   $('rounds').replaceChildren(table([['ID стримера','streamer_id'],['Статус','status'],['Количество','count']],data.rounds));
   $('status').textContent='Тестовые данные загружены. Изменений в базе нет.';
+  try{
+   const probeResponse=await fetch('/api/test/twitch-probe-status',{headers:{Authorization:'Bearer '+token},cache:'no-store'});
+   if(!probeResponse.ok)throw new Error('HTTP '+probeResponse.status);
+   const probe=await probeResponse.json();
+   $('twitch-probe-status').textContent=probe.enabled?'Включён — подписанные уведомления amych могут приниматься. Подписка Twitch не подтверждена.':'Выключен — настройки безопасности или обязательные переменные не прошли проверку.';
+  }catch{
+   $('twitch-probe-status').textContent='Не удалось проверить готовность обработчика Twitch.';
+  }
  }catch(error){$('status').textContent=error.message}
  finally{$('refresh').disabled=false}
 });
