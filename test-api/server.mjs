@@ -17,6 +17,10 @@ const parsed = new URL(url);
 if (parsed.pathname.replace(/^\//, '') !== expectedName) {
   throw new Error('Refusing database URL with unexpected database name');
 }
+if (process.env.BOOTSTRAP_ISOLATED_DB === 'true') {
+  await import('./bootstrap.mjs');
+  if (process.exitCode) throw new Error('Isolated bootstrap failed; refusing API startup');
+}
 const pool = new Pool({ connectionString: url, max: 3, connectionTimeoutMillis: 5000 });
 const verify = async () => {
   const result = await pool.query('select current_database() as name');
