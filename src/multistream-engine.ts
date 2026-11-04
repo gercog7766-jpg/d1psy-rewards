@@ -43,7 +43,8 @@ export async function recordStreamerChat(messageId:string,event:{chatter_user_id
       p_occurred_at:occurredAt
     });
     if(error)throw error;
-    if(data===true)await checkStreamerRound(streamer);
+    // A retry after an already-committed event can still resume finalization.
+    await checkStreamerRound(streamer);
     return;
   }
   const dedupId=chatDedupKey(streamer.twitchBroadcasterId,messageId);
