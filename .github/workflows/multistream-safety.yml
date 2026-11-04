@@ -104,6 +104,7 @@ jobs:
           CONFIRM_TEST_DB_BOOTSTRAP: d1psy_multistream_test_db
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/d1psy_multistream_test_db
         run: |
+          psql -d multistream_test -v ON_ERROR_STOP=1 -c 'DROP DATABASE IF EXISTS d1psy_multistream_test_db WITH (FORCE);'
           psql -d multistream_test -v ON_ERROR_STOP=1 -c 'CREATE DATABASE d1psy_multistream_test_db;'
           node test-api/bootstrap.mjs
           test "$(psql "$DATABASE_URL" -X -At -c "select count(*) from public.rewards_rounds")" = 2
