@@ -1,5 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { Pool } from 'pg';
+import http from 'node:http';
+import { once } from 'node:events';
+import { acknowledgeChat } from '../src/eventsub-ack.mjs';
 const expected='d1psy_multistream_test_db',url=process.env.DATABASE_URL;
 if(process.env.ISOLATED_TEST_API!=='true'||process.env.VERIFY_ATOMIC_CHAT!=='true'||!url||new URL(url).pathname.slice(1)!==expected)throw Error('Isolated DB guard');
 const pool=new Pool({connectionString:url,max:1,connectionTimeoutMillis:5000}),client=await pool.connect();
@@ -39,6 +42,50 @@ try{
  if(!(await record(secondary,'39780903','retry-event','viewer-b')).rows[0].recorded)throw Error('Failed event could not retry');
  const {rows:[check]}=await client.query("select (select count(*)::int from public.rewards_event_dedup) as dedup,(select count(*)::int from public.rewards_chat_events) as events,(select message_count from public.rewards_rounds where streamer_id=$1 and status='active') as secondary_count",[secondary]);
  if(check.dedup!==3||check.events!==3||check.secondary_count!==2)throw Error('Atomic accounting mismatch '+JSON.stringify(check));
+ // End-to-end HTTP acknowledgment against the actual SQL RPC in this transaction.
+ // This is a synthetic webhook transport, not a live Twitch signature test.
+ let sequence=0;
+ const server=http.createServer((req,res)=>{
+   if(req.method!=='POST'||req.url!=='/eventsub/twitch'){res.writeHead(404).end();return;}
+   const messageId=String(req.headers['x-test-message-id']||'');
+   const chatterId=String(req.headers['x-test-chatter-id']||'viewer-http');
+   void acknowledgeChat({
+     atomicEnabled:true,
+     route:async()=>{
+       const savepoint='http_event_'+(++sequence);
+       await client.query('SAVEPOINT '+savepoint);
+       try{
+         await record(primary,'511100980',messageId,chatterId);
+         await client.query('RELEASE SAVEPOINT '+savepoint);
+       }catch(error){
+         await client.query('ROLLBACK TO SAVEPOINT '+savepoint);
+         await client.query('RELEASE SAVEPOINT '+savepoint);
+         throw error;
+       }
+     },
+     sendStatus:status=>res.writeHead(status).end(),
+     onLegacyError:()=>{}
+   });
+ });
+ server.listen(0,'127.0.0.1');await once(server,'listening');
+ try{
+   const port=server.address().port;
+   const send=(id,user)=>fetch('http://127.0.0.1:'+port+'/eventsub/twitch',{
+     method:'POST',headers:{'x-test-message-id':id,'x-test-chatter-id':user}
+   }).then(response=>response.status);
+   if(await send('http-delivery','viewer-http')!==204)throw Error('HTTP atomic delivery was not acknowledged');
+   if(await send('http-delivery','viewer-http')!==204)throw Error('HTTP duplicate was not acknowledged');
+   const originalError=console.error;console.error=()=>{};
+   let failedStatus;
+   try{failedStatus=await send('http-failure','force-error');}finally{console.error=originalError;}
+   if(failedStatus!==500)throw Error('HTTP failed transaction was acknowledged');
+   if(await send('http-failure','viewer-retry')!==204)throw Error('HTTP retry was not acknowledged');
+   const {rows:[httpCheck]}=await client.query("select (select count(*)::int from public.rewards_event_dedup where event_id='511100980:http-delivery') as once_only,(select count(*)::int from public.rewards_event_dedup where event_id='511100980:http-failure') as retried,(select message_count from public.rewards_rounds where streamer_id=$1 and status='active') as count",[primary]);
+   if(httpCheck.once_only!==1||httpCheck.retried!==1||httpCheck.count!==3)throw Error('HTTP/SQL accounting mismatch '+JSON.stringify(httpCheck));
+ }finally{
+   server.closeAllConnections();
+   await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+ }
  // An event without an active round is still recorded once, but cannot credit a round.
  await client.query("update public.rewards_rounds set status='cancelled' where streamer_id=$1 and status='active'",[secondary]);
  if(!(await record(secondary,'39780903','between-rounds','viewer-c')).rows[0].recorded)throw Error('Between-round event not stored');
