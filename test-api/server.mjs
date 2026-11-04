@@ -29,6 +29,10 @@ if (process.env.VERIFY_START_STOP === 'true') {
   await import('./verify-start-stop.mjs');
   if (process.exitCode) throw new Error('Isolated start/stop verification failed; refusing API startup');
 }
+if (process.env.VERIFY_PRIZE_CONCURRENCY === 'true') {
+  await import('./verify-prize-concurrency.mjs');
+  if (process.exitCode) throw new Error('Isolated prize concurrency verification failed; refusing API startup');
+}
 const pool = new Pool({ connectionString: url, max: 3, connectionTimeoutMillis: 5000 });
 const verify = async () => {
   const result = await pool.query('select current_database() as name');
