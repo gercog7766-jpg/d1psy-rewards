@@ -22,19 +22,10 @@ export function probeConfig(env){
    && !env.TWITCH_ACCESS_TOKEN && !env.TWITCH_REFRESH_TOKEN;
  }catch{return false;}
 }
-export async function startProbe(env=process.env){
- if(!probeConfig(env))throw new Error('Refusing non-isolated Twitch probe configuration');
- const pool=new Pool({connectionString:env.DATABASE_URL,max:1,connectionTimeoutMillis:5000});
- try{
-  const result=await pool.query('select current_database() as name');
-  if(result.rows[0]?.name!==expectedDb)throw new Error('Isolated database identity mismatch');
- }catch(e){await pool.end();throw e;}
- const server=http.createServer(async(req,res)=>{
+export async function handleProbeRequest(req,res,env=process.env){
+  if(!probeConfig(env))throw new Error('Isolated Twitch probe is not enabled');
   const send=status=>{res.writeHead(status,{'cache-control':'no-store'});res.end();};
-  if(req.method==='GET'&&req.url==='/healthz'){
-   try{const r=await pool.query('select current_database() as name');return send(r.rows[0]?.name===expectedDb?200:503);}
-   catch{return send(503);}
-  }
+
   if(req.method!=='POST'||req.url!=='/eventsub/twitch')return send(404);
   let body=Buffer.alloc(0);
   for await(const chunk of req){
@@ -56,7 +47,15 @@ export async function startProbe(env=process.env){
   if(payload.event.broadcaster_user_id!==expectedBroadcaster)return send(403);
   // Never persist chat or create/complete rounds. Acknowledge verified delivery only.
   return send(204);
- });
+ }
+export async function startProbe(env=process.env){
+ if(!probeConfig(env))throw new Error('Refusing non-isolated Twitch probe configuration');
+ const pool=new Pool({connectionString:env.DATABASE_URL,max:1,connectionTimeoutMillis:5000});
+ try{
+  const result=await pool.query('select current_database() as name');
+  if(result.rows[0]?.name!==expectedDb)throw new Error('Isolated database identity mismatch');
+ }catch(e){await pool.end();throw e;}
+ const server=http.createServer((req,res)=>{void handleProbeRequest(req,res,env).catch(()=>{if(!res.headersSent)res.writeHead(500).end();});});
  server.listen(Number(env.PORT||10000),'0.0.0.0');
  server.on('close',()=>{void pool.end();});
  return server;
