@@ -1,62 +1,71 @@
-# Isolated Twitch EventSub probe — deployment gate
+# Twitch EventSub for amych — free isolated deployment
 
-This is a **read-only** receiver for synthetic or future authorized Twitch
-EventSub traffic. It does **not** subscribe to Twitch, authorize `amych`,
-write chat messages, start rounds, or award prizes.
+## Current state (2026-11-04)
 
-## Before creating any service
+- Existing **free** Render web service: `d1psy-multistream-isolated-api`
+  (`srv-dblgb3gae00c73c69nl0`).
+- URL: `https://d1psy-multistream-isolated-api.onrender.com`
+- Branch: `feature/multistream-safe-cutover`; manual deploy, auto-deploy off.
+- Start command: `node test-api/server.mjs` — serves the existing test dashboard
+  and an **opt-in**, read-only `POST /eventsub/twitch` handler.
+- Disposable PostgreSQL: `d1psy_multistream_test_db` (Render free instance).
+- Latest verified deployed commit at time of writing: `bbf90e6`.
+- `amych` broadcaster Twitch ID: `39780903`.
+- Twitch webhook **not enabled**; no subscription has been created.
+- The streamer has finished the stream; no live-stream dependency for offline testing.
 
-- Keep production `d1psy-rewards` and its environment untouched.
-- Do not repurpose `d1psy-rewards-multistream-test`: it has shared
-  production credentials and is not an isolated Twitch environment.
-- Reuse only the disposable Render PostgreSQL database named
-  `d1psy_multistream_test_db`. Verify the internal connection string in
-  Render without copying it into GitHub or chat.
-- Confirm Render has a **free** web-service slot available before creating
-  anything. Do not select a paid instance or enable auto-deploy.
-- The existing isolated dashboard service runs `node test-api/server.mjs`.
-  Do not replace its start command: that would take the dashboard offline.
+**Do not create another Render service or replace the dashboard start command.**
+Do not modify production, the old test service with shared production credentials,
+or any production Supabase project.
 
-## Dedicated probe service (not yet provisioned)
+## Safety gates before enabling the webhook
 
-Repository: `gercog7766-jpg/d1psy-rewards`
+1. Keep `ISOLATED_TEST_API=true`, `DATABASE_URL` pointing only to the
+   disposable `d1psy_multistream_test_db`, and the existing
+   `TEST_API_TOKEN` (do not share either secret).
+2. Confirm no `SUPABASE_URL`, `SUPABASE_SECRET_KEY`,
+   `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`,
+   `TWITCH_ACCESS_TOKEN`, or `TWITCH_REFRESH_TOKEN`
+   are present in this service. The probe refuses to enable with these.
+3. Confirm `ENABLE_GIVEAWAYS`, `MULTISTREAM_DB_ENABLED`, and
+   `ATOMIC_CHAT_RPC_ENABLED` are not `true`.
+4. Generate a **new, independent, random** `TWITCH_PROBE_SECRET` of
+   at least 32 characters and set it **only in Render**. Never use an
+   existing Twitch or production secret. Do not paste it in GitHub or chat.
+5. Only after all checks, set `TWITCH_PROBE_ENABLED=true` and
+   `TWITCH_PROBE_BROADCASTER_ID=39780903` on the isolated service.
+   A Render environment change can restart/redeploy the service.
+6. Use `GET /api/test/twitch-probe-status` with the existing
+   `Authorization: Bearer <TEST_API_TOKEN>` header to verify
+   `enabled:true`; without a token it must return HTTP 401.
+   This status reports local readiness **only**, not Twitch connectivity.
 
-Branch: `feature/multistream-safe-cutover`
+## Offline verification (no Twitch account needed)
 
-Build: `npm install --ignore-scripts --no-audit --no-fund`
+- `GET /healthz` returns `{"ok":true,"isolated":true}`.
+- `GET /test-dashboard` remains available.
+- Before enabling, `POST /eventsub/twitch` returns HTTP 405.
+- After enabling, unsigned `POST /eventsub/twitch` returns HTTP 403.
+- GitHub CI runs `tests/shared-twitch-probe-http.test.mjs` using a
+  **synthetic** signing secret, signed challenge and notification for
+  `39780903`, rejection of primary broadcaster `511100980`, and
+  verification that the dashboard still works.
+- Do not send the real secret to an online tester or into logs.
 
-Start: `node test-api/twitch-probe.mjs`
+## Real Twitch subscription — separate approval gate
 
-Auto-deploy: **off**. Plan: **free** only, if available.
+This code **does not create subscriptions**, request Twitch OAuth, store chat,
+or count entries. A real `channel.chat.message` subscription requires a
+Twitch-authorized subscription creation flow with appropriate permissions,
+which is **not** configured on this isolated service.
 
-Required environment:
+Do not reuse production Twitch credentials or create a real subscription
+until an independently isolated Twitch authorization path has been reviewed.
+Do not ask `amych` to authorize yet. A read-only 204 acknowledgement is
+not a giveaway integration.
 
-```text
-ISOLATED_TEST_API=true
-TWITCH_PROBE_ENABLED=true
-TWITCH_PROBE_BROADCASTER_ID=39780903
-DATABASE_URL=<internal URL of disposable d1psy_multistream_test_db>
-TWITCH_PROBE_SECRET=<independent random secret of at least 32 characters>
-```
+## Rollback
 
-Do not set `SUPABASE_URL`, `SUPABASE_SECRET_KEY`,
-`TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`,
-`TWITCH_ACCESS_TOKEN`, or `TWITCH_REFRESH_TOKEN`.
-Do not set `ENABLE_GIVEAWAYS=true`, `MULTISTREAM_DB_ENABLED=true`,
-or `ATOMIC_CHAT_RPC_ENABLED=true`.
-
-Never reuse production EventSub signing secrets. Do not place the probe
-URL into production Twitch subscription configuration.
-
-## Verification (no real Twitch subscription)
-
-- `GET /healthz` must return HTTP 200.
-- Unsigned `POST /eventsub/twitch` must return HTTP 403.
-- `GET /eventsub/twitch` must return HTTP 404.
-- CI test `tests/twitch-probe-http.test.mjs` exercises signed challenge,
-  signed secondary notification, wrong broadcaster and invalid signature
-  against disposable PostgreSQL.
-
-Do **not** ask `amych` to authorize until a separate review confirms
-the probe has no production credentials, callback URL is correct, and
-the Twitch subscription can be created without touching production.
+Set `TWITCH_PROBE_ENABLED=false` (or remove it). The webhook returns to
+HTTP 405; the dashboard and read-only test API continue operating.
+Keep auto-deploy off and never merge this branch into `main`.
