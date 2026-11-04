@@ -45,7 +45,7 @@ export async function startProbe(env=process.env){
   if(!verifyEventSubMessage({id,timestamp,signature,body,secret:env.TWITCH_PROBE_SECRET}))return send(403);
   let payload;try{payload=JSON.parse(body.toString('utf8'));}catch{return send(400);}
   if(type==='webhook_callback_verification'){
-   if(payload?.subscription?.condition?.broadcaster_user_id!==expectedBroadcaster)return send(403);
+   if(payload?.subscription?.type!=='channel.chat.message'||payload?.subscription?.condition?.broadcaster_user_id!==expectedBroadcaster||typeof payload.challenge!=='string'||payload.challenge.length===0||payload.challenge.length>1024)return send(403);
    res.writeHead(200,{'content-type':'text/plain','cache-control':'no-store'});
    return res.end(String(payload.challenge||''));
   }
