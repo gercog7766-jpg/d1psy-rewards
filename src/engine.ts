@@ -1,4 +1,3 @@
-import crypto from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 
 const db=createClient(process.env.SUPABASE_URL||'',process.env.SUPABASE_SECRET_KEY||'',{auth:{persistSession:false}});
@@ -6,26 +5,16 @@ const ENGINE_ENABLED=process.env.REWARDS_ENGINE_ENABLED!=='false';
 let checking=false;
 
 async function startNextRound(){
-  const {data:s}=await db.from('rewards_settings').select('*').eq('id',true).single();
-  if(!s?.enabled || s.twitch_connection_status!=='connected') return;
-  const {data:active,error:activeError}=await db.from('rewards_rounds').select('id').is('streamer_id',null).eq('status','active').maybeSingle();
-  if(activeError) throw activeError;
-  if(active) return;
-
-  const {data:prizes,error:pErr}=await db.from('rewards_prizes').select('id,name').eq('status','available');
-  if(pErr) throw pErr;
-  if(!prizes?.length){
-    await db.from('rewards_audit_log').insert({action:'round_start_failed',entity_type:'rewards_rounds',details:{reason:'no_available_prizes'}});
-    return;
+  const {data:settings,error:settingsError}=await db.from('rewards_settings')
+    .select('enabled,twitch_connection_status').eq('id',true).single();
+  if(settingsError) throw settingsError;
+  if(!settings.enabled||settings.twitch_connection_status!=='connected') return;
+  const {error}=await db.rpc('rewards_legacy_start_round');
+  if(error){
+    if(['round_already_active','no_available_prizes','twitch_not_connected']
+      .some(reason=>error.message.includes(reason))) return;
+    throw error;
   }
-  const reserved=new Set((await db.from('rewards_rounds').select('prize_id').eq('status','active')).data?.map(r=>r.prize_id)||[]);
-  const free=prizes.filter(p=>!reserved.has(p.id));
-  if(!free.length) return;
-  const prize=free[crypto.randomInt(free.length)];
-  const {data:round,error}=await db.from('rewards_rounds').insert({mode:s.mode,interval_seconds:s.interval_seconds,message_threshold:s.message_threshold,status:'active',prize_id:prize.id}).select('id').single();
-  if(error) throw error;
-  await db.from('rewards_settings').update({selected_prize_id:prize.id,updated_at:new Date().toISOString()}).eq('id',true);
-  await db.from('rewards_audit_log').insert({action:'round_prize_randomized',entity_type:'rewards_rounds',entity_id:round.id,details:{prize_id:prize.id,prize_name:prize.name,source:'automatic_next_round'}});
 }
 
 export async function checkGiveawayRound(){
