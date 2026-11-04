@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>D1PSY · Isolated multi-stream dashboard</title>
+<style>
+:root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color-scheme:dark;background:#0b1020;color:#e8ecf7}
+*{box-sizing:border-box}body{margin:0;padding:32px;max-width:1120px;margin-inline:auto}
+h1{font-size:clamp(26px,4vw,42px);margin:12px 0 8px}p{color:#aebad4;line-height:1.55}
+small{color:#96a5c5}.tag{display:inline-block;padding:7px 12px;border-radius:99px;background:#283451;color:#c2d4ff;font-size:12px;font-weight:700}
+.panel{background:#151e32;border:1px solid #2b3854;border-radius:18px;padding:22px;margin-top:20px}
+.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+input{background:#0c1426;border:1px solid #465679;border-radius:9px;padding:12px;color:white;min-width:240px;flex:1}
+button{background:#637cff;border:0;border-radius:9px;color:#fff;font-weight:700;padding:12px 18px;cursor:pointer}
+button:disabled{opacity:.6;cursor:wait}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px}
+.card{background:#151e32;border:1px solid #2b3854;border-radius:18px;padding:20px}
+.card h2{margin:8px 0 18px}.stat{font-size:32px;font-weight:750;margin:6px 0}
+dl{display:grid;grid-template-columns:1fr auto;gap:10px;font-size:14px}dt{color:#aebad4}dd{margin:0}
+.notice{border-left:3px solid #e6b86d;padding-left:14px}#status{min-height:22px}
+table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:left;border-bottom:1px solid #2b3854;padding:11px 8px;overflow-wrap:anywhere}th{color:#aebad4}
+</style></head><body>
+<span class="tag">ISOLATED · READ ONLY · FICTIONAL FIXTURES</span>
+<h1>D1PSY / Multi-stream</h1>
+<p>Тестовая панель двух стримеров. Данные из отдельной PostgreSQL Render — не реальные розыгрыши Twitch и не production.</p>
+<section class="panel">
+<div class="controls"><input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="TEST_API_TOKEN (вводится вручную)" aria-label="Тестовый API токен">
+<button id="refresh">Загрузить данные</button></div>
+<p id="status" role="status">Для просмотра введите тестовый API-токен. Он не сохраняется и не добавляется в URL.</p>
+</section>
+<div id="streamers" class="cards" aria-live="polite"></div>
+<section class="panel"><h2>Состояние призов</h2><div id="prizes">Данные ещё не загружены.</div></section>
+<section class="panel"><h2>Раунды по стримерам</h2><div id="rounds">Данные ещё не загружены.</div></section>
+<p class="notice">Здесь нет кнопок запуска, остановки или выдачи призов. Используйте только тестовый токен из изолированного сервиса; не вводите секреты production.</p>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const cell=(tag,value)=>{const el=document.createElement(tag);el.textContent=String(value);return el};
+const table=(columns,rows)=>{const t=document.createElement('table'),h=document.createElement('tr');for(const x of columns)h.append(cell('th',x[0]));t.append(h);for(const row of rows){const tr=document.createElement('tr');for(const x of columns)tr.append(cell('td',row[x[1]]??'—'));t.append(tr)}return t};
+$('refresh').addEventListener('click',async()=>{
+ const token=$('token').value.trim();
+ if(!token){$('status').textContent='Введите тестовый токен.';return}
+ $('refresh').disabled=true;$('status').textContent='Загрузка…';
+ try{
+  const response=await fetch('/api/test/overview',{headers:{Authorization:'Bearer '+token},cache:'no-store'});
+  if(!response.ok)throw new Error(response.status===401?'Неверный тестовый токен.':'Ошибка API: '+response.status);
+  const data=await response.json();
+  $('streamers').replaceChildren();
+  for(const s of data.streamers){
+   const card=document.createElement('article');card.className='card';
+   card.append(cell('small',s.is_primary?'Основной · тестовая запись':'Второй · тестовая запись'));
+   card.append(cell('h2',s.is_primary?'d1psy_off':'amych'));
+   const stat=cell('div',s.active_rounds+' активных раундов');stat.className='stat';card.append(stat);
+   const dl=document.createElement('dl');
+   for(const [label,value] of [['Стример',s.enabled?'Включён':'Выключен'],['Розыгрыши',s.giveaway_enabled?'Включены в фикстуре':'Выключены'],['Twitch (фикстура)',s.twitch_connection_status],['Тестовый ID',s.id]]){dl.append(cell('dt',label),cell('dd',value))}
+   card.append(dl);$('streamers').append(card);
+  }
+  $('prizes').replaceChildren(table([['Статус','status'],['Количество','count']],data.prizes));
+  $('rounds').replaceChildren(table([['ID стримера','streamer_id'],['Статус','status'],['Количество','count']],data.rounds));
+  $('status').textContent='Тестовые данные загружены. Изменений в базе нет.';
+ }catch(error){$('status').textContent=error.message}
+ finally{$('refresh').disabled=false}
+});
+</script></body></html>
