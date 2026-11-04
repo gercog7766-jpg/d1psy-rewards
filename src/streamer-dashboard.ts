@@ -119,4 +119,62 @@ export function installStreamerDashboard(app: Express, requireUser: RequestHandl
       return res.status(500).json({ error: 'streamer_dashboard_unavailable' });
     }
   });
+
+  // Streamer-only configuration. Mutations are gated until multi-stream cutover.
+  // The primary broadcaster continues using the existing Super Admin routes.
+  app.put('/api/streamer/settings', requireUser, async (req, res) => {
+    res.set('Cache-Control', 'private, no-store');
+    if (process.env.MULTISTREAM_DB_ENABLED !== 'true' ||
+        process.env.STREAMER_DASHBOARD_WRITES_ENABLED !== 'true') {
+      return res.status(503).json({ error: 'streamer_controls_not_enabled' });
+    }
+    const session = res.locals.session as Session | undefined;
+    if (!session?.twitchUserId) return res.status(401).json({ error: 'authentication_required' });
+
+    // Browser writes must originate from this application, not an unrelated site.
+    const origin = req.get('origin');
+    const host = req.get('host');
+    const configuredOrigin = process.env.APP_URL ? new URL(process.env.APP_URL).origin : null;
+    if (!origin || !configuredOrigin || origin !== configuredOrigin || !host ||
+        new URL(origin).host !== host) {
+      return res.status(403).json({ error: 'invalid_origin' });
+    }
+    const body = req.body;
+    if (!body || typeof body !== 'object' || Array.isArray(body) ||
+        Object.keys(body).some(k => !['mode', 'intervalSeconds', 'messageThreshold'].includes(k))) {
+      return res.status(400).json({ error: 'invalid_settings' });
+    }
+    const { mode, intervalSeconds, messageThreshold } = body;
+    if ((mode !== 'time' && mode !== 'messages') ||
+        !Number.isInteger(intervalSeconds) || intervalSeconds < 60 || intervalSeconds > 900 ||
+        !Number.isInteger(messageThreshold) || messageThreshold < 50 || messageThreshold > 200) {
+      return res.status(400).json({ error: 'invalid_settings' });
+    }
+
+    try {
+      const { data: streamer, error: streamerError } = await db
+        .from('rewards_streamers').select('id,enabled,is_primary')
+        .eq('twitch_broadcaster_id', session.twitchUserId).maybeSingle();
+      if (streamerError) throw streamerError;
+      if (!streamer || !streamer.enabled || streamer.is_primary) {
+        return res.status(403).json({ error: 'streamer_access_required' });
+      }
+      const { data: active, error: roundError } = await db.from('rewards_rounds')
+        .select('id').eq('streamer_id', streamer.id).eq('status', 'active').maybeSingle();
+      if (roundError) throw roundError;
+      if (active) return res.status(409).json({ error: 'active_round_settings_locked' });
+
+      const { data, error } = await db.from('rewards_streamer_settings')
+        .update({ mode, interval_seconds: intervalSeconds,
+          message_threshold: messageThreshold, updated_at: new Date().toISOString() })
+        .eq('streamer_id', streamer.id)
+        .select('mode,interval_seconds,message_threshold').single();
+      if (error) throw error;
+      return res.json({ ok: true, settings: data });
+    } catch (error) {
+      console.error('[STREAMER_DASHBOARD] settings update failed', error);
+      return res.status(500).json({ error: 'streamer_settings_update_failed' });
+    }
+  });
+
 }
