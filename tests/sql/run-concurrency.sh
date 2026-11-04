@@ -5,6 +5,7 @@ psql -X -v ON_ERROR_STOP=1 -f tests/sql/multistream_fixture.sql >/dev/null
 psql -X -v ON_ERROR_STOP=1 -f migrations/20261104_active_prize_guard_proposal.sql >/dev/null
 psql -X -v ON_ERROR_STOP=1 -f migrations/20261104_atomic_start_proposal.sql >/dev/null
 psql -X -v ON_ERROR_STOP=1 -f migrations/20261104_atomic_stop_proposal.sql >/dev/null
+psql -X -v ON_ERROR_STOP=1 -f migrations/20261104_atomic_legacy_start_proposal.sql >/dev/null
 
 # With one prize, two streamers racing cannot both reserve it.
 # Both calls are real concurrent PostgreSQL sessions.
