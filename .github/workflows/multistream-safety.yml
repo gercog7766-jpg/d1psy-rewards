@@ -79,6 +79,12 @@ jobs:
           ISOLATED_TEST_API: 'true'
           VERIFY_ATOMIC_CHAT: 'true'
         run: node test-api/verify-atomic-chat.mjs
+      - name: Isolated Twitch EventSub signed HTTP integration test
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/d1psy_multistream_test_db
+          ISOLATED_TEST_API: 'true'
+          VERIFY_TWITCH_PROBE_HTTP: 'true'
+        run: node --test tests/twitch-probe-http.test.mjs
       - name: Integration smoke test for isolated API
         env:
           PGHOST: localhost
