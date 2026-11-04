@@ -2,7 +2,7 @@ import type { Express, RequestHandler } from 'express';
 import { createClient } from '@supabase/supabase-js';
 
 
-const STREAMER_DASHBOARD_HTML = \`<!doctype html>
+const STREAMER_DASHBOARD_HTML = `<!doctype html>
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Streamer Dashboard — D1PSY Rewards</title>
 <style>
@@ -51,7 +51,7 @@ try{
  if(!list.children.length){const li=document.createElement('li');li.textContent='Нет завершённых раундов';list.appendChild(li);}
 }catch(e){el('status').textContent='Не удалось загрузить данные панели. Попробуйте позже.';}
 })();
-</script></body></html>\`;
+</script></body></html>`;
 
 type Session = { twitchUserId: string; login: string; displayName: string; exp: number };
 
