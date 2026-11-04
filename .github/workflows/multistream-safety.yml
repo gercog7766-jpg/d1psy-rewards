@@ -62,6 +62,8 @@ jobs:
           export CONFIRM_TEST_DB_BOOTSTRAP=d1psy_multistream_test_db
           bash scripts/bootstrap-render-test-db.sh
           test "$(psql "$DATABASE_URL" -X -At -c "select count(*) from public.rewards_prizes")" = 2
+          test "$(psql "$DATABASE_URL" -X -At -c "select count(*) from pg_proc where proname = 'rewards_finalize_round'")" = 1
+          test "$(psql "$DATABASE_URL" -X -At -c "select count(*) from pg_indexes where indexname = 'rewards_rounds_active_prize_unique_idx'")" = 1
           if bash scripts/bootstrap-render-test-db.sh; then exit 1; fi
           export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/multistream_test
           if bash scripts/bootstrap-render-test-db.sh; then exit 1; fi
