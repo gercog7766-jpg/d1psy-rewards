@@ -1,4 +1,3 @@
-import crypto from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 
 const db=createClient(process.env.SUPABASE_URL||'',process.env.SUPABASE_SECRET_KEY||'',{auth:{persistSession:false}});
@@ -20,22 +19,14 @@ async function getSettings(streamerId:string){
 }
 
 async function startNextRound(streamer:StreamerContext){
-  const s=await getSettings(streamer.id);
-  if(!s?.enabled||s.twitch_connection_status!=='connected') return;
-  const {data:active,error:activeError}=await db.from('rewards_rounds').select('id').eq('streamer_id',streamer.id).eq('status','active').maybeSingle();
-  if(activeError) throw activeError;
-  if(active) return;
-  const {data:prizes,error:pErr}=await db.from('rewards_prizes').select('id,name').eq('status','available');
-  if(pErr) throw pErr;
-  if(!prizes?.length){
-    await db.from('rewards_audit_log').insert({action:'round_start_failed',entity_type:'rewards_rounds',details:{reason:'no_available_prizes',streamer_id:streamer.id,streamer_login:streamer.twitchLogin}});
-    return;
+  // Only the database may reserve a prize and create a round. The RPC
+  // serializes competing starts and enforces the active-prize uniqueness index.
+  const {error}=await db.rpc('rewards_streamer_start_round',{p_streamer_id:streamer.id});
+  if(error){
+    if(['round_already_active','no_available_prizes','twitch_not_connected','streamer_not_enabled']
+      .some(reason=>error.message.includes(reason))) return;
+    throw error;
   }
-  const prize=prizes[crypto.randomInt(prizes.length)];
-  const {data:round,error}=await db.from('rewards_rounds').insert({streamer_id:streamer.id,mode:s.mode,interval_seconds:s.interval_seconds,message_threshold:s.message_threshold,status:'active',prize_id:prize.id}).select('id').single();
-  if(error) throw error;
-  await db.from('rewards_streamer_settings').update({selected_prize_id:prize.id,updated_at:new Date().toISOString()}).eq('streamer_id',streamer.id);
-  await db.from('rewards_audit_log').insert({action:'round_prize_randomized',entity_type:'rewards_rounds',entity_id:round.id,details:{streamer_id:streamer.id,streamer_login:streamer.twitchLogin,prize_id:prize.id,prize_name:prize.name,source:'automatic_next_round'}});
 }
 
 export async function recordStreamerChat(messageId:string,event:{chatter_user_id:string},occurredAt:string,streamer:StreamerContext){
