@@ -30,6 +30,10 @@ if (process.env.VERIFY_START_STOP === 'true') {
   await import('./verify-start-stop.mjs');
   if (process.exitCode) throw new Error('Isolated start/stop verification failed; refusing API startup');
 }
+if (process.env.VERIFY_ATOMIC_CHAT === 'true') {
+  await import('./verify-atomic-chat.mjs');
+  if (process.exitCode) throw new Error('Isolated atomic chat verification failed; refusing API startup');
+}
 if (process.env.VERIFY_PRIZE_CONCURRENCY === 'true') {
   await import('./verify-prize-concurrency.mjs');
   if (process.exitCode) throw new Error('Isolated prize concurrency verification failed; refusing API startup');
