@@ -39,3 +39,15 @@ test('round controls use transactional RPCs rather than separate round writes', 
   assert.match(dashboard, /db\.rpc\('rewards_streamer_stop_round'/);
   assert.doesNotMatch(dashboard, /db\.from\('rewards_rounds'\)\s*\.insert/);
 });
+
+test('legacy engine only reads primary streamer rounds', () => {
+  const legacy = readFileSync(new URL('../src/engine.ts', import.meta.url), 'utf8');
+  assert.match(legacy, /eq\('is_primary',true\)/);
+  assert.match(legacy, /insert\(\{streamer_id:streamerId,/);
+  assert.match(legacy, /eq\('streamer_id',streamerId\)\.eq\('status','active'\)/);
+});
+test('automatic multi-stream engine uses transactional prize reservation', () => {
+  const engine = readFileSync(new URL('../src/multistream-engine.ts', import.meta.url), 'utf8');
+  assert.match(engine, /db\.rpc\('rewards_streamer_start_round'/);
+  assert.doesNotMatch(engine, /db\.from\('rewards_rounds'\)\.insert/);
+});
