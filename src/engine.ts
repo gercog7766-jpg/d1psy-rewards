@@ -4,6 +4,12 @@ const db=createClient(process.env.SUPABASE_URL||'',process.env.SUPABASE_SECRET_K
 const ENGINE_ENABLED=process.env.REWARDS_ENGINE_ENABLED!=='false';
 let checking=false;
 
+async function primaryStreamerId():Promise<string>{
+  const {data,error}=await db.from('rewards_streamers').select('id').eq('is_primary',true).single();
+  if(error||!data) throw error||new Error('primary_streamer_missing');
+  return data.id;
+}
+
 async function startNextRound(){
   const {data:settings,error:settingsError}=await db.from('rewards_settings')
     .select('enabled,twitch_connection_status').eq('id',true).single();
@@ -23,7 +29,8 @@ export async function checkGiveawayRound(){
   try{
     const {data:s}=await db.from('rewards_settings').select('*').eq('id',true).single();
     if(!s?.enabled || s.twitch_connection_status!=='connected') return;
-    const {data:r,error:roundError}=await db.from('rewards_rounds').select('*').is('streamer_id',null).eq('status','active').maybeSingle();
+    const primaryId=await primaryStreamerId();
+    const {data:r,error:roundError}=await db.from('rewards_rounds').select('*').eq('streamer_id',primaryId).eq('status','active').maybeSingle();
     if(roundError) throw roundError;
     if(!r) return;
     const due=r.mode==='messages'
