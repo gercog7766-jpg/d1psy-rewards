@@ -140,6 +140,10 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:18766/eventsub/twitch)" = 403
           test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:18766/test-dashboard)" = 405
           curl -fsS http://127.0.0.1:18766/test-dashboard | grep -q 'D1PSY / Multi-stream'
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18765/api/test/twitch-probe-status)" = 401
+          curl -fsS -H "Authorization: Bearer $TEST_API_TOKEN" http://127.0.0.1:18765/api/test/twitch-probe-status | grep -q '"enabled":false'
+          curl -fsS -H "Authorization: Bearer $TEST_API_TOKEN" http://127.0.0.1:18766/api/test/twitch-probe-status | grep -q '"enabled":true'
+          echo 'PASS: authenticated Twitch probe readiness and disabled-by-default status'
           echo 'PASS: optional webhook rejects unsigned requests while dashboard remains available'
           echo 'PASS: API health, authentication and read-only enforcement'
       - name: Integration test one-shot Render bootstrap
