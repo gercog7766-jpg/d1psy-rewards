@@ -16,7 +16,10 @@ export function probeConfig(env){
    && env.TWITCH_PROBE_BROADCASTER_ID===expectedBroadcaster
    && typeof env.TWITCH_PROBE_SECRET==='string'&&env.TWITCH_PROBE_SECRET.length>=32
    && env.ENABLE_GIVEAWAYS!=='true'&&env.MULTISTREAM_DB_ENABLED!=='true'
-   && env.ATOMIC_CHAT_RPC_ENABLED!=='true';
+   && env.ATOMIC_CHAT_RPC_ENABLED!=='true'
+   && !env.SUPABASE_URL && !env.SUPABASE_SECRET_KEY
+   && !env.TWITCH_CLIENT_SECRET && !env.TWITCH_CLIENT_ID
+   && !env.TWITCH_ACCESS_TOKEN && !env.TWITCH_REFRESH_TOKEN;
  }catch{return false;}
 }
 export async function startProbe(env=process.env){
