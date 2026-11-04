@@ -40,11 +40,14 @@ test('round controls use transactional RPCs rather than separate round writes', 
   assert.doesNotMatch(dashboard, /db\.from\('rewards_rounds'\)\s*\.insert/);
 });
 
-test('legacy engine only reads primary streamer rounds', () => {
+test('legacy engine only reads unscoped legacy rounds', () => {
   const legacy = readFileSync(new URL('../src/engine.ts', import.meta.url), 'utf8');
-  assert.match(legacy, /eq\('is_primary',true\)/);
-  assert.match(legacy, /insert\(\{streamer_id:streamerId,/);
-  assert.match(legacy, /eq\('streamer_id',streamerId\)\.eq\('status','active'\)/);
+  assert.match(legacy, /\.is\('streamer_id',null\)\.eq\('status','active'\)/);
+  assert.doesNotMatch(legacy, /insert\(\{streamer_id:/);
+});
+test('admin and public legacy routes never target secondary active rounds', () => {
+  assert.match(server, /\.eq\('status','active'\)\.is\('streamer_id',null\)\.maybeSingle\(\)/);
+  assert.match(server, /\.eq\('status','active'\)\.is\('streamer_id',null\);if\(stopError\)/);
 });
 test('automatic multi-stream engine uses transactional prize reservation', () => {
   const engine = readFileSync(new URL('../src/multistream-engine.ts', import.meta.url), 'utf8');
