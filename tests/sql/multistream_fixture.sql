@@ -53,3 +53,15 @@ insert into public.rewards_streamer_settings(streamer_id,twitch_connection_statu
 select id,'connected' from public.rewards_streamers;
 insert into public.rewards_prizes(id,status) values
   ('10000000-0000-4000-8000-000000000001','available');
+
+create table public.rewards_settings (
+  id boolean primary key default true,
+  enabled boolean not null default true,
+  mode text not null default 'time',
+  interval_seconds integer not null default 300,
+  message_threshold integer not null default 100,
+  twitch_connection_status text not null default 'connected',
+  selected_prize_id uuid,
+  updated_at timestamptz not null default now()
+);
+insert into public.rewards_settings(id) values(true);
