@@ -37,6 +37,12 @@ try{
  if(!(await record(secondary,'39780903','retry-event','viewer-b')).rows[0].recorded)throw Error('Failed event could not retry');
  const {rows:[check]}=await client.query("select (select count(*)::int from public.rewards_event_dedup) as dedup,(select count(*)::int from public.rewards_chat_events) as events,(select message_count from public.rewards_rounds where streamer_id=$1 and status='active') as secondary_count",[secondary]);
  if(check.dedup!==3||check.events!==3||check.secondary_count!==2)throw Error('Atomic accounting mismatch '+JSON.stringify(check));
- console.log('PASS: isolated atomic chat duplicate, cross-streamer, mismatch, retry and rollback');
+ // An event without an active round is still recorded once, but cannot credit a round.
+ await client.query("update public.rewards_rounds set status='cancelled' where streamer_id=$1 and status='active'",[secondary]);
+ if(!(await record(secondary,'39780903','between-rounds','viewer-c')).rows[0].recorded)throw Error('Between-round event not stored');
+ if((await record(secondary,'39780903','between-rounds','viewer-c')).rows[0].recorded)throw Error('Between-round duplicate counted');
+ const {rows:[gap]}=await client.query("select (select count(*)::int from public.rewards_chat_events where streamer_id=$1 and round_id is null) as unassigned,(select message_count from public.rewards_rounds where streamer_id=$1) as count",[secondary]);
+ if(gap.unassigned!==1||gap.count!==2)throw Error('Between-round event affected counter');
+ console.log('PASS: isolated atomic chat duplicate, cross-streamer, mismatch, retry, no-round and rollback');
 }catch(e){console.error('FAIL: atomic chat:',e.message);process.exitCode=1;}
 finally{if(begun)await client.query('ROLLBACK');client.release();await pool.end();}
