@@ -36,16 +36,19 @@ test('isolated Twitch probe HTTP signed challenge, notifications and rejection',
   const health=await fetch('http://127.0.0.1:'+port+'/healthz');
   assert.equal(health.status,200);
   const challenge=await send('webhook_callback_verification',{
-   subscription:{condition:{broadcaster_user_id:'39780903'}},challenge:'offline-challenge'
+   subscription:{type:'channel.chat.message',condition:{broadcaster_user_id:'39780903'}},challenge:'offline-challenge'
   });
   assert.equal(challenge.status,200);
   assert.equal(await challenge.text(),'offline-challenge');
   assert.equal((await send('notification',notification('39780903'))).status,204);
+  assert.equal((await send('notification',notification('39780903'))).status,204); // repeated delivery is harmless: probe never writes
+  assert.equal((await send('webhook_callback_verification',{subscription:{type:'channel.follow',condition:{broadcaster_user_id:'39780903'}},challenge:'invalid-type'})).status,403);
+  assert.equal((await send('webhook_callback_verification',{subscription:{type:'channel.chat.message',condition:{broadcaster_user_id:'39780903'}},challenge:''})).status,403);
   assert.equal((await send('notification',notification('511100980'))).status,403);
   assert.equal((await send('notification',notification('39780903','511100980'))).status,400);
   assert.equal((await send('notification',notification('39780903'),'incorrect-signing-secret')).status,403);
   const wrongChallenge=await send('webhook_callback_verification',{
-   subscription:{condition:{broadcaster_user_id:'511100980'}},challenge:'wrong'
+   subscription:{type:'channel.chat.message',condition:{broadcaster_user_id:'511100980'}},challenge:'wrong'
   });
   assert.equal(wrongChallenge.status,403);
   const check=await fetch('http://127.0.0.1:'+port+'/eventsub/twitch');
