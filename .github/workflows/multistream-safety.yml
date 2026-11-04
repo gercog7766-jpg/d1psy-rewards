@@ -88,6 +88,8 @@ jobs:
             sleep 1
           done
           grep -q '"isolated":true' /tmp/api-health.json
+          curl -fsS http://127.0.0.1:18765/test-dashboard | grep -q 'D1PSY / Multi-stream'
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:18765/test-dashboard)" = 405
           curl -fsS 'http://127.0.0.1:18765/healthz?utm_source=chatgpt.com' | grep -q '"isolated":true'
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18765/api/test/rounds)" = 401
           test "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TEST_API_TOKEN" http://127.0.0.1:18765/api/test/rounds)" = 200
