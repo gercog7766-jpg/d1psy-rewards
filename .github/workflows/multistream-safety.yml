@@ -67,3 +67,26 @@ jobs:
           if bash scripts/bootstrap-render-test-db.sh; then exit 1; fi
           export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/multistream_test
           if bash scripts/bootstrap-render-test-db.sh; then exit 1; fi
+      - name: Integration smoke test for isolated API
+        env:
+          PGHOST: localhost
+          PGPORT: '5432'
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: |
+          export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/d1psy_multistream_test_db
+          export TEST_API_TOKEN=integration-test-only-token-at-least-32-characters
+          export ISOLATED_TEST_API=true
+          export PORT=18765
+          node test-api/server.mjs > /tmp/test-api-smoke.log 2>&1 &
+          api_pid=$!
+          trap 'kill "$api_pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:18765/healthz > /tmp/api-health.json; then break; fi
+            sleep 1
+          done
+          grep -q '"isolated":true' /tmp/api-health.json
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18765/api/test/rounds)" = 401
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TEST_API_TOKEN" http://127.0.0.1:18765/api/test/rounds)" = 200
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:18765/api/test/rounds)" = 405
+          echo 'PASS: API health, authentication and read-only enforcement'
