@@ -16,6 +16,12 @@ test('probe is disabled unless explicitly isolated',()=>{
   {TWITCH_PROBE_SECRET:'short'},
   {ENABLE_GIVEAWAYS:'true'},
   {MULTISTREAM_DB_ENABLED:'true'},
-  {ATOMIC_CHAT_RPC_ENABLED:'true'}
+  {ATOMIC_CHAT_RPC_ENABLED:'true'},
+  {SUPABASE_URL:'https://ssqjogdcynmjjgtxknng.supabase.co'},
+  {SUPABASE_SECRET_KEY:'production-secret'},
+  {TWITCH_CLIENT_ID:'production-client'},
+  {TWITCH_CLIENT_SECRET:'production-secret'},
+  {TWITCH_ACCESS_TOKEN:'production-token'},
+  {TWITCH_REFRESH_TOKEN:'production-refresh'}
  ])assert.equal(probeConfig({...base,...override}),false,JSON.stringify(override));
 });
