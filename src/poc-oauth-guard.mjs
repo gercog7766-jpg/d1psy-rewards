@@ -15,7 +15,7 @@ export function pocStorageAllowed({supabaseUrl,isolatedStorageVerified}){
  try{
   const url=new URL(supabaseUrl);
   if(url.protocol!=='https:'||url.username||url.password||url.port||url.pathname!=='/'||url.search||url.hash)return false;
-  if(!/^[a-z0-9]{20}\\.supabase\\.co$/.test(url.hostname))return false;
+  if(!/^[a-z0-9]{20}\.supabase\.co$/.test(url.hostname))return false;
   return url.hostname!=='ssqjogdcynmjjgtxknng.supabase.co';
  }catch{return false;}
 }
