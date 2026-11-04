@@ -111,3 +111,6 @@ jobs:
           test "$(psql "$DATABASE_URL" -X -At -c "select count(*) from pg_proc where proname='rewards_finalize_round'")" = 1
           if node test-api/bootstrap.mjs; then echo 'FAIL: repeat bootstrap allowed'; exit 1; fi
           echo 'PASS: one-shot bootstrap and repeat rejection'
+          VERIFY_ISOLATED_DB=true node test-api/verify.mjs
+          test "$(psql "$DATABASE_URL" -X -At -c "select count(*) from public.rewards_wins")" = 0
+          test "$(psql "$DATABASE_URL" -X -At -c "select count(*) from public.rewards_rounds where status='active'")" = 2
