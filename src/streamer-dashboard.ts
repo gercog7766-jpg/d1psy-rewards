@@ -9,19 +9,29 @@ const STREAMER_DASHBOARD_HTML = `<!doctype html>
 <style>
 :root{color-scheme:dark;font-family:system-ui,Arial,sans-serif;background:#0d111b;color:#f0f3fa}
 body{max-width:1050px;margin:0 auto;padding:32px 18px}h1{font-size:28px}h2{font-size:18px}
-p,.muted{color:#aeb8ca}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+p,.muted{color:#aeb8ca}button,input,select{font:inherit;padding:10px;border-radius:8px;border:1px solid #47536a;background:#10192b;color:#f0f3fa}button{cursor:pointer}button:disabled,input:disabled,select:disabled{opacity:.5;cursor:not-allowed}label{display:block;margin:12px 0}label input,label select{display:block;margin-top:5px;width:100%;max-width:300px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
 section{background:#192132;border:1px solid #303c52;border-radius:14px;padding:20px;margin:12px 0}
 strong{display:block;font-size:22px;margin:10px 0}a{color:#91b9ff}ul{padding-left:20px}
 </style></head><body>
 <p><a href="/account">← Личный кабинет</a></p>
 <h1>Streamer Dashboard</h1>
-<p>Панель вашего Twitch-канала. Управление розыгрышами появится после проверки безопасности.</p>
+<p>Панель вашего Twitch-канала. Настройки и управление розыгрышами. До завершения тестирования управление заблокировано.</p>
 <p id="status" role="status">Загрузка данных…</p>
 <div class="grid">
 <section><h2>Канал</h2><strong id="channel">—</strong><p id="connection">—</p></section>
 <section><h2>Розыгрыши</h2><strong id="giveaway">—</strong><p id="config">—</p></section>
 <section><h2>Активный раунд</h2><strong id="round">—</strong><p id="progress">—</p></section>
 </div>
+<section><h2>Управление розыгрышами</h2>
+<p id="controlNotice">Проверка доступа к управлению…</p>
+<label>Режим <select id="mode" disabled><option value="time">По времени</option><option value="messages">По сообщениям</option></select></label>
+<label>Интервал (сек.) <input id="interval" type="number" min="60" max="900" value="300" disabled></label>
+<label>Порог сообщений <input id="threshold" type="number" min="50" max="200" value="100" disabled></label>
+<button id="saveSettings" disabled>Сохранить настройки</button>
+<button id="startRound" disabled>Запустить розыгрыш</button>
+<button id="stopRound" disabled>Остановить розыгрыш</button>
+<p id="actionStatus" role="status"></p>
+</section>
 <section><h2>Последние завершённые раунды</h2><ul id="history"><li>Нет данных</li></ul></section>
 <script>
 (async function(){
@@ -32,7 +42,20 @@ try{
  if(response.status===403){el('status').textContent='У этого аккаунта нет доступа к панели стримера.';return;}
  if(!response.ok)throw Error('dashboard unavailable');
  const data=await response.json();
- el('status').textContent='Данные загружены. Режим просмотра.';
+ el('status').textContent='Данные загружены.';
+ const canWrite=data.controlsEnabled===true && data.streamer.enabled && !data.streamer.isPrimary;
+ el('controlNotice').textContent=canWrite?'Управление доступно для вашего канала.':'Управление пока отключено до завершения тестирования.';
+ el('mode').value=data.settings?.mode||'time';
+ el('interval').value=String(data.settings?.interval_seconds||300);
+ el('threshold').value=String(data.settings?.message_threshold||100);
+ for(const id of ['mode','interval','threshold','saveSettings','startRound','stopRound']){
+   el(id).disabled=!canWrite;
+ }
+ if(canWrite){
+   el('saveSettings').disabled=!!data.activeRound;
+   el('startRound').disabled=!!data.activeRound;
+   el('stopRound').disabled=!data.activeRound && !data.settings?.enabled;
+ }
  el('channel').textContent=data.streamer.displayName||data.streamer.login;
  el('connection').textContent='Twitch: '+(data.settings?.twitch_connection_status||'не подключён');
  el('giveaway').textContent=data.settings?.enabled?'Включены':'Выключены';
@@ -51,6 +74,23 @@ try{
  }
  if(!list.children.length){const li=document.createElement('li');li.textContent='Нет завершённых раундов';list.appendChild(li);}
 }catch(e){el('status').textContent='Не удалось загрузить данные панели. Попробуйте позже.';}
+async function act(url,method,body){
+ const status=el('actionStatus');
+ status.textContent='Выполняется…';
+ for(const id of ['saveSettings','startRound','stopRound'])el(id).disabled=true;
+ try{
+  const response=await fetch(url,{method,credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const result=await response.json();
+  if(!response.ok)throw Error(result.error||'request_failed');
+  status.textContent='Изменения сохранены. Обновление…';
+  location.reload();
+ }catch(error){status.textContent='Ошибка: '+error.message;for(const id of ['saveSettings','startRound','stopRound'])el(id).disabled=false;}
+}
+el('saveSettings').addEventListener('click',()=>act('/api/streamer/settings','PUT',{
+ mode:el('mode').value,intervalSeconds:Number(el('interval').value),messageThreshold:Number(el('threshold').value)
+}));
+el('startRound').addEventListener('click',()=>act('/api/streamer/round/start','POST',{}));
+el('stopRound').addEventListener('click',()=>{if(confirm('Остановить свой розыгрыш?'))act('/api/streamer/round/stop','POST',{});});
 })();
 </script></body></html>`;
 
@@ -111,6 +151,7 @@ export function installStreamerDashboard(app: Express, requireUser: RequestHandl
           enabled: streamer.enabled,
           isPrimary: streamer.is_primary
         },
+        controlsEnabled: process.env.MULTISTREAM_DB_ENABLED === 'true' && process.env.STREAMER_DASHBOARD_WRITES_ENABLED === 'true',
         settings: settingsResult.data,
         activeRound: roundResult.data,
         recentRounds: winsResult.data || []
