@@ -33,3 +33,9 @@ test('existing legacy round routes are retained during development', () => {
   assert.ok(server.includes("app.post('/api/admin/round/stop'"));
   assert.ok(server.includes('installStreamerDashboard(app, requireUser)'));
 });
+
+test('round controls use transactional RPCs rather than separate round writes', () => {
+  assert.match(dashboard, /db\.rpc\('rewards_streamer_start_round'/);
+  assert.match(dashboard, /db\.rpc\('rewards_streamer_stop_round'/);
+  assert.doesNotMatch(dashboard, /db\.from\('rewards_rounds'\)\s*\.insert/);
+});
