@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 // Isolated PostgreSQL test API. Never attach to production Supabase.
 // This is deliberately NOT a replacement for the application's Supabase API.
 import http from 'node:http';
+import { readFileSync } from 'node:fs';
 import { Pool } from 'pg';
 
 const port = Number(process.env.PORT || 10000);
@@ -47,6 +48,10 @@ const send = (res, status, body) => {
 const server = http.createServer(async (req, res) => {
   if (req.method !== 'GET') return send(res, 405, { error: 'read_only' });
   const pathname = new URL(req.url || '/', 'http://localhost').pathname;
+  if (pathname === '/test-dashboard') {
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'content-security-policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'", 'x-content-type-options': 'nosniff' });
+    return res.end(readFileSync(new URL('./dashboard.html', import.meta.url)));
+  }
   if (pathname === '/healthz') {
     try {
       await verify();
