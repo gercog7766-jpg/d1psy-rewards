@@ -67,6 +67,8 @@ jobs:
           if bash scripts/bootstrap-render-test-db.sh; then exit 1; fi
           export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/multistream_test
           if bash scripts/bootstrap-render-test-db.sh; then exit 1; fi
+      - name: Install PostgreSQL client for test API
+        run: npm install --ignore-scripts --no-audit --no-fund
       - name: Integration smoke test for isolated API
         env:
           PGHOST: localhost
