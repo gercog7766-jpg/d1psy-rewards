@@ -93,3 +93,20 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TEST_API_TOKEN" http://127.0.0.1:18765/api/test/rounds)" = 200
           test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:18765/api/test/rounds)" = 405
           echo 'PASS: API health, authentication and read-only enforcement'
+      - name: Integration test one-shot Render bootstrap
+        env:
+          PGHOST: localhost
+          PGPORT: '5432'
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          ISOLATED_TEST_API: 'true'
+          BOOTSTRAP_ISOLATED_DB: 'true'
+          CONFIRM_TEST_DB_BOOTSTRAP: d1psy_multistream_test_db
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/d1psy_multistream_test_db
+        run: |
+          psql -d multistream_test -v ON_ERROR_STOP=1 -c 'CREATE DATABASE d1psy_multistream_test_db;'
+          node test-api/bootstrap.mjs
+          test "$(psql "$DATABASE_URL" -X -At -c "select count(*) from public.rewards_rounds")" = 2
+          test "$(psql "$DATABASE_URL" -X -At -c "select count(*) from pg_proc where proname='rewards_finalize_round'")" = 1
+          if node test-api/bootstrap.mjs; then echo 'FAIL: repeat bootstrap allowed'; exit 1; fi
+          echo 'PASS: one-shot bootstrap and repeat rejection'
