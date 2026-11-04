@@ -17,6 +17,11 @@ if [[ "$existing" != "0" ]]; then
   echo "Refusing bootstrap: public schema already has $existing tables" >&2
   exit 2
 fi
-psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -1 -f tests/sql/finalize_fixture.sql
+tmp_sql=$(mktemp)
+trap 'rm -f "$tmp_sql"' EXIT
+cat tests/sql/finalize_fixture.sql > "$tmp_sql"
+sed -n '/^create or replace function public.rewards_finalize_round(/,$p' migrations/20261103_multistream_phase1.sql >> "$tmp_sql"
+cat migrations/20261104_active_prize_guard_proposal.sql >> "$tmp_sql"
+psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -1 -f "$tmp_sql"
 echo "Initialized disposable finalization fixture with fictional test prizes."
 echo "This is NOT the full application schema and does NOT enable the test website."
