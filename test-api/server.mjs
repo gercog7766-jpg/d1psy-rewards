@@ -30,7 +30,8 @@ const send = (res, status, body) => {
 };
 const server = http.createServer(async (req, res) => {
   if (req.method !== 'GET') return send(res, 405, { error: 'read_only' });
-  if (req.url === '/healthz') {
+  const pathname = new URL(req.url || '/', 'http://localhost').pathname;
+  if (pathname === '/healthz') {
     try {
       await verify();
       return send(res, 200, { ok: true, isolated: true });
@@ -38,7 +39,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 503, { ok: false });
     }
   }
-  if (req.url === '/api/test/rounds') {
+  if (pathname === '/api/test/rounds') {
     const supplied = req.headers.authorization?.replace(/^Bearer /, '') || '';
     const a = Buffer.from(supplied);
     const b = Buffer.from(token);
