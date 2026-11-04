@@ -69,12 +69,23 @@ const server = http.createServer(async (req, res) => {
       return send(res, 503, { ok: false });
     }
   }
-  if (pathname === '/api/test/rounds' || pathname === '/api/test/streamers' || pathname === '/api/test/overview') {
+  if (pathname === '/api/test/rounds' || pathname === '/api/test/streamers' || pathname === '/api/test/overview' || pathname === '/api/test/twitch-probe-status') {
     const supplied = req.headers.authorization?.replace(/^Bearer /, '') || '';
     const a = Buffer.from(supplied);
     const b = Buffer.from(token);
     if (a.length !== b.length || !timingSafeEqual(a, b)) return send(res, 401, { error: 'unauthorized' });
     try {
+      if (pathname === '/api/test/twitch-probe-status') {
+        return send(res, 200, {
+          isolated: true,
+          enabled: probeConfig(process.env),
+          broadcaster: 'amych',
+          broadcaster_id: '39780903',
+          mode: 'read_only_acknowledgement',
+          subscription_created_by_app: false,
+          giveaway_processing: false
+        });
+      }
       if (pathname === '/api/test/rounds') {
         const result = await pool.query(
           'select id, streamer_id, prize_id, status, completion_reason from public.rewards_rounds order by id limit 100'
