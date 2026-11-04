@@ -116,6 +116,24 @@ jobs:
             test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:18765/api/test/$endpoint")" = 405
           done
           test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:18765/api/test/rounds)" = 405
+          # Exercise the optional webhook on the SAME API, using a synthetic secret.
+          # Never create Twitch subscriptions or access production credentials.
+          export TWITCH_PROBE_ENABLED=true
+          export TWITCH_PROBE_BROADCASTER_ID=39780903
+          export TWITCH_PROBE_SECRET=synthetic-only-test-signing-secret-123456789
+          export PORT=18766
+          node test-api/server.mjs > /tmp/test-api-webhook-smoke.log 2>&1 &
+          probe_pid=$!
+          trap 'kill "$probe_pid" "$api_pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:18766/healthz > /tmp/api-probe-health.json; then break; fi
+            sleep 1
+          done
+          grep -q '"isolated":true' /tmp/api-probe-health.json
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:18766/eventsub/twitch)" = 403
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:18766/test-dashboard)" = 405
+          curl -fsS http://127.0.0.1:18766/test-dashboard | grep -q 'D1PSY / Multi-stream'
+          echo 'PASS: optional webhook rejects unsigned requests while dashboard remains available'
           echo 'PASS: API health, authentication and read-only enforcement'
       - name: Integration test one-shot Render bootstrap
         env:
