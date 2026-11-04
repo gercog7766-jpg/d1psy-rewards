@@ -10,17 +10,19 @@ declare
   v_settings public.rewards_settings%rowtype;
   v_prize uuid;
   v_round uuid;
+  v_primary uuid;
   v_mode text;
   v_interval integer;
   v_threshold integer;
 begin
+  select id into strict v_primary from public.rewards_streamers where is_primary=true and enabled=true;
   select * into v_settings from public.rewards_settings where id=true for update;
   if not found then raise exception 'legacy_settings_missing'; end if;
   if v_settings.twitch_connection_status <> 'connected' then
     raise exception 'twitch_not_connected';
   end if;
   if exists (select 1 from public.rewards_rounds
-    where streamer_id is null and status='active') then
+    where streamer_id=v_primary and status='active') then
     raise exception 'round_already_active';
   end if;
   v_mode := coalesce(p_mode,v_settings.mode);
@@ -37,8 +39,8 @@ begin
     order by random() limit 1 for update of p skip locked;
   if v_prize is null then raise exception 'no_available_prizes'; end if;
   insert into public.rewards_rounds
-    (mode,interval_seconds,message_threshold,status,prize_id)
-  values (v_mode,v_interval,v_threshold,'active',v_prize)
+    (streamer_id,mode,interval_seconds,message_threshold,status,prize_id)
+  values (v_primary,v_mode,v_interval,v_threshold,'active',v_prize)
   returning id into v_round;
   update public.rewards_settings
     set enabled=true,mode=v_mode,interval_seconds=v_interval,
