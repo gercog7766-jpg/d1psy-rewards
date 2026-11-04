@@ -18,8 +18,8 @@ test('isolated Twitch probe HTTP signed challenge, notifications and rejection',
  const server=await startProbe(env);
  await once(server,'listening');
  const port=server.address().port;
- const send=async(type,payload,signingSecret=secret)=>{
-  const id=crypto.randomUUID(),timestamp=new Date().toISOString();
+ const send=async(type,payload,signingSecret=secret,messageId=crypto.randomUUID())=>{
+  const id=messageId,timestamp=new Date().toISOString();
   const body=JSON.stringify(payload);
   const signature='sha256='+crypto.createHmac('sha256',signingSecret).update(id+timestamp+body).digest('hex');
   return fetch('http://127.0.0.1:'+port+'/eventsub/twitch',{method:'POST',headers:{
@@ -40,8 +40,9 @@ test('isolated Twitch probe HTTP signed challenge, notifications and rejection',
   });
   assert.equal(challenge.status,200);
   assert.equal(await challenge.text(),'offline-challenge');
-  assert.equal((await send('notification',notification('39780903'))).status,204);
-  assert.equal((await send('notification',notification('39780903'))).status,204); // repeated delivery is harmless: probe never writes
+  const replayId=crypto.randomUUID();
+  assert.equal((await send('notification',notification('39780903'),secret,replayId)).status,204);
+  assert.equal((await send('notification',notification('39780903'),secret,replayId)).status,204); // same message ID; read-only probe never writes
   assert.equal((await send('webhook_callback_verification',{subscription:{type:'channel.follow',condition:{broadcaster_user_id:'39780903'}},challenge:'invalid-type'})).status,403);
   assert.equal((await send('webhook_callback_verification',{subscription:{type:'channel.chat.message',condition:{broadcaster_user_id:'39780903'}},challenge:''})).status,403);
   assert.equal((await send('notification',notification('511100980'))).status,403);
