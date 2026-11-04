@@ -4,6 +4,7 @@ import { timingSafeEqual } from 'node:crypto';
 import http from 'node:http';
 import { readFileSync } from 'node:fs';
 import { Pool } from 'pg';
+import { probeConfig, handleProbeRequest } from './twitch-probe.mjs';
 
 const port = Number(process.env.PORT || 10000);
 const url = process.env.DATABASE_URL;
@@ -50,6 +51,10 @@ const send = (res, status, body) => {
   res.end(JSON.stringify(body));
 };
 const server = http.createServer(async (req, res) => {
+  if (req.method === 'POST' && req.url === '/eventsub/twitch' && probeConfig(process.env)) {
+    try { return await handleProbeRequest(req, res); }
+    catch { return send(res, 503, { error: 'probe_unavailable' }); }
+  }
   if (req.method !== 'GET') return send(res, 405, { error: 'read_only' });
   const pathname = new URL(req.url || '/', 'http://localhost').pathname;
   if (pathname === '/test-dashboard') {
