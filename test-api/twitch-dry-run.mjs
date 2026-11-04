@@ -1,9 +1,8 @@
 // Offline Twitch EventSub preflight: no network, OAuth, database, or writes.
 import {verifyEventSubMessage} from '../src/eventsub-signature.mjs';
 import {validChatNotification} from '../src/eventsub-payload.mjs';
-import {decideChatRoute} from '../src/chat-route-policy.mjs';
 
-export function inspectSyntheticEventSub({id,timestamp,body,signature,secret,primaryId,secondaryId}){
+export function inspectSyntheticEventSub({id,timestamp,body,signature,secret,secondaryId}){
  if(!verifyEventSubMessage({id,timestamp,body,signature,secret}))return {accepted:false,reason:'signature_invalid'};
  let payload;
  try{payload=JSON.parse(Buffer.from(body).toString('utf8'));}catch{return {accepted:false,reason:'json_invalid'};}
