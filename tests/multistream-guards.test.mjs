@@ -40,14 +40,15 @@ test('round controls use transactional RPCs rather than separate round writes', 
   assert.doesNotMatch(dashboard, /db\.from\('rewards_rounds'\)\s*\.insert/);
 });
 
-test('legacy engine only reads unscoped legacy rounds', () => {
+test('legacy engine only reads migrated primary streamer rounds', () => {
   const legacy = readFileSync(new URL('../src/engine.ts', import.meta.url), 'utf8');
-  assert.match(legacy, /\.is\('streamer_id',null\)\.eq\('status','active'\)/);
-  assert.doesNotMatch(legacy, /insert\(\{streamer_id:/);
+  assert.match(legacy, /eq\('is_primary',true\)/);
+  assert.match(legacy, /eq\('streamer_id',primaryId\)\.eq\('status','active'\)/);
 });
-test('admin and public legacy routes never target secondary active rounds', () => {
-  assert.match(server, /\.eq\('status','active'\)\.is\('streamer_id',null\)\.maybeSingle\(\)/);
-  assert.match(server, /\.eq\('status','active'\)\.is\('streamer_id',null\);if\(stopError\)/);
+test('admin and public state and stop scope to migrated primary ID', () => {
+  assert.match(server, /eq\('is_primary',true\)/);
+  assert.match(server, /eq\('status','active'\)\.eq\('streamer_id',primaryId\)\.maybeSingle\(\)/);
+  assert.match(server, /eq\('status','active'\)\.eq\('streamer_id',primaryId\);if\(stopError\)/);
 });
 test('automatic multi-stream engine uses transactional prize reservation', () => {
   const engine = readFileSync(new URL('../src/multistream-engine.ts', import.meta.url), 'utf8');
