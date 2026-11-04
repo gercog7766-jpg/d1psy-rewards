@@ -31,7 +31,7 @@ try {
     'migrations/20261104_atomic_start_proposal.sql',
     'migrations/20261104_atomic_stop_proposal.sql'
   ]) {
-    const sql = readFileSync(file, 'utf8').replace(/^revoke all on function[\\s\\S]*?;\\s*$/gm, '').replace(/^grant execute on function[\\s\\S]*?;\\s*$/gm, '');
+    const sql = readFileSync(file, 'utf8').split('revoke all on function')[0];
     await client.query(sql);
   }
 
