@@ -34,6 +34,8 @@ try{
  await client.query('SAVEPOINT failed_increment');
  try{await record(secondary,'39780903','retry-event','force-error');throw Error('Injected error did not fail');}
  catch(e){if(!String(e.message).includes('injected_failure'))throw e;await client.query('ROLLBACK TO SAVEPOINT failed_increment');}
+ const {rows:[afterFailure]}=await client.query("select (select count(*)::int from public.rewards_event_dedup where event_id='39780903:retry-event') as dedup,(select count(*)::int from public.rewards_chat_events where twitch_event_id='retry-event') as events,(select message_count from public.rewards_rounds where streamer_id=$1 and status='active') as count",[secondary]);
+ if(afterFailure.dedup!==0||afterFailure.events!==0||afterFailure.count!==1)throw Error('Failed transaction left partial writes '+JSON.stringify(afterFailure));
  if(!(await record(secondary,'39780903','retry-event','viewer-b')).rows[0].recorded)throw Error('Failed event could not retry');
  const {rows:[check]}=await client.query("select (select count(*)::int from public.rewards_event_dedup) as dedup,(select count(*)::int from public.rewards_chat_events) as events,(select message_count from public.rewards_rounds where streamer_id=$1 and status='active') as secondary_count",[secondary]);
  if(check.dedup!==3||check.events!==3||check.secondary_count!==2)throw Error('Atomic accounting mismatch '+JSON.stringify(check));
