@@ -30,7 +30,10 @@ try {
   for (const file of [
     'migrations/20261104_atomic_start_proposal.sql',
     'migrations/20261104_atomic_stop_proposal.sql'
-  ]) await client.query(readFileSync(file, 'utf8'));
+  ]) {
+    const sql = readFileSync(file, 'utf8').replace(/^revoke all on function[\\s\\S]*?;\\s*$/gm, '').replace(/^grant execute on function[\\s\\S]*?;\\s*$/gm, '');
+    await client.query(sql);
+  }
 
   const stop = await client.query('select public.rewards_streamer_stop_round($1) as n', [secondary]);
   if (stop.rows[0].n !== 1) throw new Error('Secondary initial stop did not cancel one round');
