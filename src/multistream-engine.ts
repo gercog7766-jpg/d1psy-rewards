@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { chatDedupKey, isDuplicateInsertError } from './eventsub-dedup.mjs';
 
 const db=createClient(process.env.SUPABASE_URL||'',process.env.SUPABASE_SECRET_KEY||'',{auth:{persistSession:false}});
 const checking=new Set<string>();
@@ -30,9 +31,9 @@ async function startNextRound(streamer:StreamerContext){
 }
 
 export async function recordStreamerChat(messageId:string,event:{chatter_user_id:string},occurredAt:string,streamer:StreamerContext){
-  const dedupId=`${streamer.twitchBroadcasterId}:${messageId}`;
+  const dedupId=chatDedupKey(streamer.twitchBroadcasterId,messageId);
   const {error:dedupError}=await db.from('rewards_event_dedup').insert({event_id:dedupId,event_type:'channel.chat.message'});
-  if(dedupError){if(dedupError.code==='23505')return;throw dedupError}
+  if(dedupError){if(isDuplicateInsertError(dedupError))return;throw dedupError}
   const {data:round,error:roundError}=await db.from('rewards_rounds').select('id,status').eq('streamer_id',streamer.id).eq('status','active').maybeSingle();
   if(roundError) throw roundError;
   const {error:eventError}=await db.from('rewards_chat_events').insert({twitch_event_id:messageId,streamer_id:streamer.id,round_id:round?.id||null,twitch_user_id:event.chatter_user_id,occurred_at:occurredAt});
