@@ -91,6 +91,11 @@ jobs:
           curl -fsS 'http://127.0.0.1:18765/healthz?utm_source=chatgpt.com' | grep -q '"isolated":true'
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18765/api/test/rounds)" = 401
           test "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TEST_API_TOKEN" http://127.0.0.1:18765/api/test/rounds)" = 200
+          for endpoint in streamers overview; do
+            test "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:18765/api/test/$endpoint")" = 401
+            curl -fsS -H "Authorization: Bearer $TEST_API_TOKEN" "http://127.0.0.1:18765/api/test/$endpoint" | grep -q '"streamers":'
+            test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:18765/api/test/$endpoint")" = 405
+          done
           test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:18765/api/test/rounds)" = 405
           echo 'PASS: API health, authentication and read-only enforcement'
       - name: Integration test one-shot Render bootstrap
