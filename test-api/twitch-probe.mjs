@@ -55,7 +55,7 @@ export async function startProbe(env=process.env){
   const result=await pool.query('select current_database() as name');
   if(result.rows[0]?.name!==expectedDb)throw new Error('Isolated database identity mismatch');
  }catch(e){await pool.end();throw e;}
- const server=http.createServer((req,res)=>{void handleProbeRequest(req,res,env).catch(()=>{if(!res.headersSent)res.writeHead(500).end();});});
+ const server=http.createServer((req,res)=>{if(req.method==='GET'&&req.url==='/healthz'){void pool.query('select current_database() as name').then(r=>{res.writeHead(r.rows[0]?.name===expectedDb?200:503).end();}).catch(()=>res.writeHead(503).end());return;}void handleProbeRequest(req,res,env).catch(()=>{if(!res.headersSent)res.writeHead(500).end();});});
  server.listen(Number(env.PORT||10000),'0.0.0.0');
  server.on('close',()=>{void pool.end();});
  return server;
