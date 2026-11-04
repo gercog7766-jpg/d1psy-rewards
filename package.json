@@ -9,12 +9,15 @@
     "start": "node dist/server-entry.js",
     "typecheck": "tsc --noEmit"
   },
-  "engines": {"node": ">=20"},
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "@supabase/supabase-js": "2.78.0",
     "cookie-parser": "1.4.7",
     "express": "5.1.0",
-    "zod": "4.1.12"
+    "zod": "4.1.12",
+    "pg": "8.16.3"
   },
   "devDependencies": {
     "@types/cookie-parser": "1.4.9",
