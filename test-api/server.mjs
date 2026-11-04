@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 // Isolated PostgreSQL test API. Never attach to production Supabase.
 // This is deliberately NOT a replacement for the application's Supabase API.
 import http from 'node:http';
@@ -10,6 +11,8 @@ if (process.env.ISOLATED_TEST_API !== 'true') {
   throw new Error('ISOLATED_TEST_API=true required');
 }
 if (!url) throw new Error('DATABASE_URL required');
+const token = process.env.TEST_API_TOKEN;
+if (!token || token.length < 32) throw new Error('TEST_API_TOKEN of at least 32 characters required');
 const parsed = new URL(url);
 if (parsed.pathname.replace(/^\//, '') !== expectedName) {
   throw new Error('Refusing database URL with unexpected database name');
@@ -36,6 +39,10 @@ const server = http.createServer(async (req, res) => {
     }
   }
   if (req.url === '/api/test/rounds') {
+    const supplied = req.headers.authorization?.replace(/^Bearer /, '') || '';
+    const a = Buffer.from(supplied);
+    const b = Buffer.from(token);
+    if (a.length !== b.length || !timingSafeEqual(a, b)) return send(res, 401, { error: 'unauthorized' });
     try {
       const result = await pool.query(
         'select id, streamer_id, prize_id, status, completion_reason from public.rewards_rounds order by id limit 100'
