@@ -14,7 +14,8 @@ create table public.rewards_prizes (
 );
 create table public.rewards_streamer_settings (
   streamer_id uuid primary key references public.rewards_streamers(id),
-  enabled boolean not null, twitch_connection_status text not null
+  enabled boolean not null, twitch_connection_status text not null,
+  updated_at timestamptz default now()
 );
 create table public.rewards_settings (
   id boolean primary key, twitch_connection_status text not null
