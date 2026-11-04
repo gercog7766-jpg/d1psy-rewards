@@ -48,3 +48,5 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify concurrent prize reservations in disposable PostgreSQL
         run: bash tests/sql/run-concurrency.sh
+      - name: Test real finalization RPC on isolated schema
+        run: bash tests/sql/run-finalize.sh
