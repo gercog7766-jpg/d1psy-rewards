@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import type { Express, RequestHandler } from 'express';
 import { createClient } from '@supabase/supabase-js';
 
@@ -174,6 +175,101 @@ export function installStreamerDashboard(app: Express, requireUser: RequestHandl
     } catch (error) {
       console.error('[STREAMER_DASHBOARD] settings update failed', error);
       return res.status(500).json({ error: 'streamer_settings_update_failed' });
+    }
+  });
+
+
+  // Scoped round controls. Both flags must be explicitly enabled after isolated testing.
+  app.post('/api/streamer/round/:action', requireUser, async (req, res) => {
+    res.set('Cache-Control', 'private, no-store');
+    if (process.env.MULTISTREAM_DB_ENABLED !== 'true' ||
+        process.env.STREAMER_DASHBOARD_WRITES_ENABLED !== 'true') {
+      return res.status(503).json({ error: 'streamer_controls_not_enabled' });
+    }
+    if (req.params.action !== 'start' && req.params.action !== 'stop') {
+      return res.status(404).json({ error: 'unknown_action' });
+    }
+    const session = res.locals.session as Session | undefined;
+    if (!session?.twitchUserId) return res.status(401).json({ error: 'authentication_required' });
+    const origin = req.get('origin');
+    const host = req.get('host');
+    const configuredOrigin = process.env.APP_URL ? new URL(process.env.APP_URL).origin : null;
+    if (!origin || !configuredOrigin || origin !== configuredOrigin || !host ||
+        new URL(origin).host !== host) {
+      return res.status(403).json({ error: 'invalid_origin' });
+    }
+    if (req.body && (typeof req.body !== 'object' || Array.isArray(req.body) ||
+        Object.keys(req.body).length !== 0)) {
+      return res.status(400).json({ error: 'unexpected_body' });
+    }
+
+    try {
+      const { data: streamer, error: streamerError } = await db.from('rewards_streamers')
+        .select('id,enabled,is_primary').eq('twitch_broadcaster_id', session.twitchUserId)
+        .maybeSingle();
+      if (streamerError) throw streamerError;
+      if (!streamer?.enabled || streamer.is_primary) {
+        return res.status(403).json({ error: 'streamer_access_required' });
+      }
+      const { data: settings, error: settingsError } = await db.from('rewards_streamer_settings')
+        .select('enabled,mode,interval_seconds,message_threshold,twitch_connection_status')
+        .eq('streamer_id', streamer.id).single();
+      if (settingsError) throw settingsError;
+
+      if (req.params.action === 'stop') {
+        // Disable automatic next-round creation first. The active round is cancelled
+        // only for the authenticated streamer, never globally.
+        const { error: disableError } = await db.from('rewards_streamer_settings')
+          .update({ enabled: false, updated_at: new Date().toISOString() })
+          .eq('streamer_id', streamer.id);
+        if (disableError) throw disableError;
+        const { data: cancelled, error: cancelError } = await db.from('rewards_rounds')
+          .update({ status: 'cancelled', ended_at: new Date().toISOString(),
+            completion_reason: 'manual_stop' })
+          .eq('streamer_id', streamer.id).eq('status', 'active')
+          .select('id');
+        if (cancelError) throw cancelError;
+        return res.json({ ok: true, cancelledRoundIds: (cancelled || []).map(r => r.id) });
+      }
+
+      if (settings.twitch_connection_status !== 'connected') {
+        return res.status(409).json({ error: 'twitch_not_connected' });
+      }
+      const { data: active, error: activeError } = await db.from('rewards_rounds')
+        .select('id').eq('streamer_id', streamer.id).eq('status', 'active').maybeSingle();
+      if (activeError) throw activeError;
+      if (active) return res.status(409).json({ error: 'round_already_active' });
+      const { data: prizes, error: prizeError } = await db.from('rewards_prizes')
+        .select('id').eq('status', 'available');
+      if (prizeError) throw prizeError;
+      if (!prizes?.length) return res.status(409).json({ error: 'no_available_prizes' });
+      const prize = prizes[crypto.randomInt(prizes.length)];
+      // Unique active-round index is the final concurrency guard.
+      const { data: round, error: insertError } = await db.from('rewards_rounds')
+        .insert({ streamer_id: streamer.id, status: 'active', mode: settings.mode,
+          interval_seconds: settings.interval_seconds,
+          message_threshold: settings.message_threshold, prize_id: prize.id })
+        .select('id').single();
+      if (insertError) {
+        if (insertError.code === '23505') {
+          return res.status(409).json({ error: 'round_already_active' });
+        }
+        throw insertError;
+      }
+      const { error: enableError } = await db.from('rewards_streamer_settings')
+        .update({ enabled: true, updated_at: new Date().toISOString() })
+        .eq('streamer_id', streamer.id);
+      if (enableError) {
+        // Do not leave an unintended active round when enabling the scheduler fails.
+        await db.from('rewards_rounds').update({ status: 'cancelled',
+          ended_at: new Date().toISOString(), completion_reason: 'start_failed' })
+          .eq('id', round.id).eq('streamer_id', streamer.id).eq('status', 'active');
+        throw enableError;
+      }
+      return res.status(201).json({ ok: true, roundId: round.id });
+    } catch (error) {
+      console.error('[STREAMER_DASHBOARD] round control failed', error);
+      return res.status(500).json({ error: 'streamer_round_control_failed' });
     }
   });
 
