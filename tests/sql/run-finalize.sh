@@ -61,3 +61,33 @@ for n in 1 2 3 4; do
   fi
 done
 echo "PASS: finalize versus scoped stop cannot double-award or award cancelled round"
+
+# No eligible participants: round completes without a win and prize remains available.
+psql -X -v ON_ERROR_STOP=1 -c "
+ insert into public.rewards_prizes(id,status) values ('60000000-0000-4000-8000-000000000001','available');
+ insert into public.rewards_rounds(id,streamer_id,prize_id,status) values
+ ('70000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000001','60000000-0000-4000-8000-000000000001','active');
+" >/dev/null
+reason=$(psql -X -At -v ON_ERROR_STOP=1 -c "select completion_reason from public.rewards_finalize_round('70000000-0000-4000-8000-000000000001');")
+test "$reason" = "no_eligible_participants" || { echo "FAIL: no-participants reason $reason"; exit 1; }
+count=$(psql -X -At -c "select count(*) from public.rewards_wins where round_id='70000000-0000-4000-8000-000000000001';")
+test "$count" = "0" || { echo "FAIL: empty round awarded a win"; exit 1; }
+status=$(psql -X -At -c "select status from public.rewards_prizes where id='60000000-0000-4000-8000-000000000001';")
+test "$status" = "available" || { echo "FAIL: empty round consumed prize"; exit 1; }
+echo "PASS: no eligible participants does not award or consume prize"
+
+# Unlimited prize: winner is recorded but the prize stays available.
+psql -X -v ON_ERROR_STOP=1 -c "
+ insert into public.rewards_prizes(id,status,unlimited) values ('60000000-0000-4000-8000-000000000002','available',true);
+ insert into public.rewards_rounds(id,streamer_id,prize_id,status) values
+ ('70000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000000001','60000000-0000-4000-8000-000000000002','active');
+ insert into public.rewards_round_participants(round_id,user_id,eligible) values
+ ('70000000-0000-4000-8000-000000000002','30000000-0000-4000-8000-000000000001',true);
+" >/dev/null
+reason=$(psql -X -At -v ON_ERROR_STOP=1 -c "select completion_reason from public.rewards_finalize_round('70000000-0000-4000-8000-000000000002');")
+test "$reason" = "winner_selected" || { echo "FAIL: unlimited-prize reason $reason"; exit 1; }
+count=$(psql -X -At -c "select count(*) from public.rewards_wins where round_id='70000000-0000-4000-8000-000000000002';")
+test "$count" = "1" || { echo "FAIL: unlimited prize expected one win"; exit 1; }
+status=$(psql -X -At -c "select status from public.rewards_prizes where id='60000000-0000-4000-8000-000000000002';")
+test "$status" = "available" || { echo "FAIL: unlimited prize incorrectly consumed"; exit 1; }
+echo "PASS: unlimited prize awards win without consuming prize"
