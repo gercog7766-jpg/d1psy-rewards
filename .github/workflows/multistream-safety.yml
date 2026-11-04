@@ -85,6 +85,13 @@ jobs:
           ISOLATED_TEST_API: 'true'
           VERIFY_TWITCH_PROBE_HTTP: 'true'
         run: node --test tests/twitch-probe-http.test.mjs
+      - name: Signed synthetic Twitch EventSub on shared isolated dashboard API
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/d1psy_multistream_test_db
+          ISOLATED_TEST_API: 'true'
+          VERIFY_SHARED_TWITCH_HTTP: 'true'
+          TEST_API_TOKEN: integration-test-only-token-at-least-32-characters
+        run: node --test tests/shared-twitch-probe-http.test.mjs
       - name: Integration smoke test for isolated API
         env:
           PGHOST: localhost
