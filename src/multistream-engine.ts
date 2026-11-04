@@ -31,6 +31,21 @@ async function startNextRound(streamer:StreamerContext){
 }
 
 export async function recordStreamerChat(messageId:string,event:{chatter_user_id:string},occurredAt:string,streamer:StreamerContext){
+  // Atomic RPC is opt-in until the proposal is validated and installed on an
+  // explicitly isolated database. Never silently fall back after an RPC error.
+  if(process.env.ATOMIC_CHAT_RPC_ENABLED==='true'){
+    chatDedupKey(streamer.twitchBroadcasterId,messageId);
+    const {data,error}=await db.rpc('rewards_streamer_record_chat_atomic',{
+      p_streamer_id:streamer.id,
+      p_broadcaster_id:streamer.twitchBroadcasterId,
+      p_message_id:messageId,
+      p_twitch_user_id:event.chatter_user_id,
+      p_occurred_at:occurredAt
+    });
+    if(error)throw error;
+    if(data===true)await checkStreamerRound(streamer);
+    return;
+  }
   const dedupId=chatDedupKey(streamer.twitchBroadcasterId,messageId);
   const {error:dedupError}=await db.from('rewards_event_dedup').insert({event_id:dedupId,event_type:'channel.chat.message'});
   if(dedupError){if(isDuplicateInsertError(dedupError))return;throw dedupError}
