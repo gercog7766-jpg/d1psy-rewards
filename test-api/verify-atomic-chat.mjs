@@ -30,10 +30,10 @@ try{
  if(counts.rows.length!==2||counts.rows.some(x=>x.message_count!==1))throw Error('Cross-streamer count mismatch');
  await client.query('SAVEPOINT mismatch');
  try{await record(secondary,'511100980','delivery-2','viewer-a');throw Error('Mismatched broadcaster accepted');}
- catch(e){if(e.message==='Mismatched broadcaster accepted')throw e;await client.query('ROLLBACK TO SAVEPOINT mismatch');}
+ catch(e){if(!String(e.message).includes('streamer_broadcaster_mismatch'))throw e;await client.query('ROLLBACK TO SAVEPOINT mismatch');}
  await client.query('SAVEPOINT failed_increment');
  try{await record(secondary,'39780903','retry-event','force-error');throw Error('Injected error did not fail');}
- catch(e){if(e.message==='Injected error did not fail')throw e;await client.query('ROLLBACK TO SAVEPOINT failed_increment');}
+ catch(e){if(!String(e.message).includes('injected_failure'))throw e;await client.query('ROLLBACK TO SAVEPOINT failed_increment');}
  if(!(await record(secondary,'39780903','retry-event','viewer-b')).rows[0].recorded)throw Error('Failed event could not retry');
  const {rows:[check]}=await client.query("select (select count(*)::int from public.rewards_event_dedup) as dedup,(select count(*)::int from public.rewards_chat_events) as events,(select message_count from public.rewards_rounds where streamer_id=$1 and status='active') as secondary_count",[secondary]);
  if(check.dedup!==3||check.events!==3||check.secondary_count!==2)throw Error('Atomic accounting mismatch '+JSON.stringify(check));
