@@ -46,7 +46,7 @@ returns integer language sql as $$ select 0 $$;
 insert into public.rewards_streamers values
  ('00000000-0000-4000-8000-000000000001',true,true),
  ('00000000-0000-4000-8000-000000000002',true,false);
-insert into public.rewards_streamer_settings values
+insert into public.rewards_streamer_settings(streamer_id,enabled,twitch_connection_status) values
  ('00000000-0000-4000-8000-000000000001',true,'connected'),
  ('00000000-0000-4000-8000-000000000002',true,'connected');
 insert into public.rewards_settings values (true,'connected');
