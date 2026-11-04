@@ -1,4 +1,3 @@
-import crypto from 'node:crypto';
 import type { Express, RequestHandler } from 'express';
 import { createClient } from '@supabase/supabase-js';
 
@@ -264,57 +263,25 @@ export function installStreamerDashboard(app: Express, requireUser: RequestHandl
         .eq('streamer_id', streamer.id).single();
       if (settingsError) throw settingsError;
 
+      // The database RPC owns the entire operation in one transaction.
+      // Never perform prize selection or round mutations in separate HTTP queries.
       if (req.params.action === 'stop') {
-        // Disable automatic next-round creation first. The active round is cancelled
-        // only for the authenticated streamer, never globally.
-        const { error: disableError } = await db.from('rewards_streamer_settings')
-          .update({ enabled: false, updated_at: new Date().toISOString() })
-          .eq('streamer_id', streamer.id);
-        if (disableError) throw disableError;
-        const { data: cancelled, error: cancelError } = await db.from('rewards_rounds')
-          .update({ status: 'cancelled', ended_at: new Date().toISOString(),
-            completion_reason: 'manual_stop' })
-          .eq('streamer_id', streamer.id).eq('status', 'active')
-          .select('id');
-        if (cancelError) throw cancelError;
-        return res.json({ ok: true, cancelledRoundIds: (cancelled || []).map(r => r.id) });
+        const { data: cancelled, error } = await db.rpc('rewards_streamer_stop_round', {
+          p_streamer_id: streamer.id
+        });
+        if (error) throw error;
+        return res.json({ ok: true, cancelledRounds: cancelled });
       }
-
-      if (settings.twitch_connection_status !== 'connected') {
-        return res.status(409).json({ error: 'twitch_not_connected' });
+      const { data: roundId, error } = await db.rpc('rewards_streamer_start_round', {
+        p_streamer_id: streamer.id
+      });
+      if (error) {
+        if (['round_already_active', 'no_available_prizes', 'twitch_not_connected'].some(
+          reason => error.message.includes(reason)
+        )) return res.status(409).json({ error: error.message });
+        throw error;
       }
-      const { data: active, error: activeError } = await db.from('rewards_rounds')
-        .select('id').eq('streamer_id', streamer.id).eq('status', 'active').maybeSingle();
-      if (activeError) throw activeError;
-      if (active) return res.status(409).json({ error: 'round_already_active' });
-      const { data: prizes, error: prizeError } = await db.from('rewards_prizes')
-        .select('id').eq('status', 'available');
-      if (prizeError) throw prizeError;
-      if (!prizes?.length) return res.status(409).json({ error: 'no_available_prizes' });
-      const prize = prizes[crypto.randomInt(prizes.length)];
-      // Unique active-round index is the final concurrency guard.
-      const { data: round, error: insertError } = await db.from('rewards_rounds')
-        .insert({ streamer_id: streamer.id, status: 'active', mode: settings.mode,
-          interval_seconds: settings.interval_seconds,
-          message_threshold: settings.message_threshold, prize_id: prize.id })
-        .select('id').single();
-      if (insertError) {
-        if (insertError.code === '23505') {
-          return res.status(409).json({ error: 'round_already_active' });
-        }
-        throw insertError;
-      }
-      const { error: enableError } = await db.from('rewards_streamer_settings')
-        .update({ enabled: true, updated_at: new Date().toISOString() })
-        .eq('streamer_id', streamer.id);
-      if (enableError) {
-        // Do not leave an unintended active round when enabling the scheduler fails.
-        await db.from('rewards_rounds').update({ status: 'cancelled',
-          ended_at: new Date().toISOString(), completion_reason: 'start_failed' })
-          .eq('id', round.id).eq('streamer_id', streamer.id).eq('status', 'active');
-        throw enableError;
-      }
-      return res.status(201).json({ ok: true, roundId: round.id });
+      return res.status(201).json({ ok: true, roundId });
     } catch (error) {
       console.error('[STREAMER_DASHBOARD] round control failed', error);
       return res.status(500).json({ error: 'streamer_round_control_failed' });
