@@ -26,3 +26,38 @@ grep -q 'round_not_active' /tmp/finalize_repeat.out || { cat /tmp/finalize_repea
 wins=$(psql -X -At -c "select count(*) from public.rewards_wins;")
 test "$wins" = "2" || { echo "FAIL: duplicate win"; exit 1; }
 echo "PASS: two streamer finalizations, prize assignment and duplicate-finalization rejection"
+
+# Concurrent finalize versus scoped stop: either winner or cancellation may win,
+# but never both. Repeat with fresh rounds to exercise scheduling differences.
+psql -X -v ON_ERROR_STOP=1 -f migrations/20261104_atomic_stop_proposal.sql >/dev/null
+for n in 1 2 3 4; do
+  psql -X -v ON_ERROR_STOP=1 -c "
+    update public.rewards_streamer_settings set enabled=true
+      where streamer_id='00000000-0000-4000-8000-000000000002';
+    insert into public.rewards_prizes(id,status) values
+      (('40000000-0000-4000-8000-' || lpad($n::text,12,'0'))::uuid,'available');
+    insert into public.rewards_rounds(id,streamer_id,prize_id,status) values
+      (('50000000-0000-4000-8000-' || lpad($n::text,12,'0'))::uuid,
+       '00000000-0000-4000-8000-000000000002',
+       ('40000000-0000-4000-8000-' || lpad($n::text,12,'0'))::uuid,'active');
+    insert into public.rewards_round_participants(round_id,user_id,eligible) values
+      (('50000000-0000-4000-8000-' || lpad($n::text,12,'0'))::uuid,
+       '30000000-0000-4000-8000-000000000002',true);
+  " >/dev/null
+  rid="50000000-0000-4000-8000-$(printf '%012d' "$n")"
+  psql -X -At -v ON_ERROR_STOP=1 -c "select * from public.rewards_finalize_round('$rid');" >"/tmp/finalize_stop_final_$n.out" 2>&1 &
+  a=$!
+  psql -X -At -v ON_ERROR_STOP=1 -c "select public.rewards_streamer_stop_round('00000000-0000-4000-8000-000000000002');" >"/tmp/finalize_stop_stop_$n.out" 2>&1 &
+  b=$!
+  wait "$a" || true
+  wait "$b" || { cat "/tmp/finalize_stop_stop_$n.out"; exit 1; }
+  state=$(psql -X -At -c "select status from public.rewards_rounds where id='$rid';")
+  test "$state" = "completed" -o "$state" = "cancelled" || { echo "FAIL: unexpected state $state"; exit 1; }
+  win_count=$(psql -X -At -c "select count(*) from public.rewards_wins where round_id='$rid';")
+  if [ "$state" = "completed" ]; then
+    test "$win_count" = "1" || { echo "FAIL: completed round without exactly one win"; exit 1; }
+  else
+    test "$win_count" = "0" || { echo "FAIL: cancelled round received a win"; exit 1; }
+  fi
+done
+echo "PASS: finalize versus scoped stop cannot double-award or award cancelled round"
