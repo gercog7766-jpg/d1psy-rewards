@@ -44,6 +44,7 @@ try{
  const data=await response.json();
  el('status').textContent='Данные загружены.';
  const canWrite=data.controlsEnabled===true && data.streamer.enabled && !data.streamer.isPrimary;
+ const canControlRounds=data.roundControlsEnabled===true && canWrite;
  el('controlNotice').textContent=canWrite?'Управление доступно для вашего канала.':'Управление пока отключено до завершения тестирования.';
  el('mode').value=data.settings?.mode||'time';
  el('interval').value=String(data.settings?.interval_seconds||300);
@@ -53,8 +54,9 @@ try{
  }
  if(canWrite){
    el('saveSettings').disabled=!!data.activeRound;
-   el('startRound').disabled=!!data.activeRound;
-   el('stopRound').disabled=!data.activeRound && !data.settings?.enabled;
+   el('startRound').disabled=!canControlRounds || !!data.activeRound;
+   el('stopRound').disabled=!canControlRounds || (!data.activeRound && !data.settings?.enabled);
+   if(!canControlRounds)el('controlNotice').textContent='Настройки доступны; запуск и остановка заблокированы до атомарного управления призами.';
  }
  el('channel').textContent=data.streamer.displayName||data.streamer.login;
  el('connection').textContent='Twitch: '+(data.settings?.twitch_connection_status||'не подключён');
@@ -152,6 +154,7 @@ export function installStreamerDashboard(app: Express, requireUser: RequestHandl
           isPrimary: streamer.is_primary
         },
         controlsEnabled: process.env.MULTISTREAM_DB_ENABLED === 'true' && process.env.STREAMER_DASHBOARD_WRITES_ENABLED === 'true',
+        roundControlsEnabled: process.env.MULTISTREAM_DB_ENABLED === 'true' && process.env.STREAMER_DASHBOARD_WRITES_ENABLED === 'true' && process.env.STREAMER_ROUND_WRITES_ENABLED === 'true',
         settings: settingsResult.data,
         activeRound: roundResult.data,
         recentRounds: winsResult.data || []
@@ -223,6 +226,10 @@ export function installStreamerDashboard(app: Express, requireUser: RequestHandl
   // Scoped round controls. Both flags must be explicitly enabled after isolated testing.
   app.post('/api/streamer/round/:action', requireUser, async (req, res) => {
     res.set('Cache-Control', 'private, no-store');
+    // Extra kill switch: non-atomic round operations must remain disabled.
+    if (process.env.STREAMER_ROUND_WRITES_ENABLED !== 'true') {
+      return res.status(503).json({ error: 'atomic_round_controls_not_ready' });
+    }
     if (process.env.MULTISTREAM_DB_ENABLED !== 'true' ||
         process.env.STREAMER_DASHBOARD_WRITES_ENABLED !== 'true') {
       return res.status(503).json({ error: 'streamer_controls_not_enabled' });
