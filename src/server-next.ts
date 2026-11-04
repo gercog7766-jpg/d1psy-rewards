@@ -3,6 +3,7 @@ import express from 'express';
 import cookieParser from 'cookie-parser';
 import { createClient } from '@supabase/supabase-js';
 import { eventSubRouter, subscribeToChat } from './eventsub.js';
+import { installStreamerDashboard } from './streamer-dashboard.js';
 
 const PORT=Number(process.env.PORT||10000);
 const APP_URL=process.env.APP_URL||`http://localhost:${PORT}`;
@@ -23,6 +24,7 @@ function encodeSession(s:Session){const p=Buffer.from(JSON.stringify(s)).toStrin
 function readSession(req:express.Request):Session|null{try{const raw=req.cookies?.rewards_session;if(!raw)return null;const [p,s]=raw.split('.');if(!p||!s)return null;const expected=sign(p);if(Buffer.byteLength(s)!==Buffer.byteLength(expected)||!crypto.timingSafeEqual(Buffer.from(s),Buffer.from(expected)))return null;const v=JSON.parse(Buffer.from(p,'base64url').toString()) as Session;return v.exp>Date.now()?v:null}catch{return null}}
 function requireUser(req:express.Request,res:express.Response,next:express.NextFunction){const s=readSession(req);if(!s)return res.status(401).json({error:'authentication_required'});res.locals.session=s;next()}
 async function requireAdmin(req:express.Request,res:express.Response,next:express.NextFunction){const s=readSession(req);if(!s)return res.status(401).json({error:'authentication_required'});const {data,error}=await db.from('rewards_admins').select('twitch_user_id').eq('twitch_user_id',s.twitchUserId).maybeSingle();if(error)return res.status(500).json({error:'admin_lookup_failed'});if(!data)return res.status(403).json({error:'admin_required'});res.locals.session=s;next()}
+installStreamerDashboard(app, requireUser);
 function validTradeUrl(v:string){try{const u=new URL(v);return u.protocol==='https:'&&u.hostname==='steamcommunity.com'&&u.pathname==='/tradeoffer/new/'&&!!u.searchParams.get('partner')&&!!u.searchParams.get('token')}catch{return false}}
 function randomIndex(count:number){if(count<=0)throw new Error('invalid_count');return crypto.randomInt(count)}
 
