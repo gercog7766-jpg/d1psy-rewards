@@ -71,6 +71,12 @@ jobs:
         run: node --test tests/chat-route-policy.test.mjs tests/eventsub-signature.test.mjs tests/eventsub-payload.test.mjs tests/eventsub-dedup.test.mjs
       - name: Install PostgreSQL client for test API
         run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Atomic EventSub accounting on disposable PostgreSQL (ROLLBACK)
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/d1psy_multistream_test_db
+          ISOLATED_TEST_API: 'true'
+          VERIFY_ATOMIC_CHAT: 'true'
+        run: node test-api/verify-atomic-chat.mjs
       - name: Integration smoke test for isolated API
         env:
           PGHOST: localhost
