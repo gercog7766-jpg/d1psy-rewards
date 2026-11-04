@@ -1,5 +1,5 @@
 // Read-only preflight. No Twitch requests, database queries or secret output.
-import {pocOauthAllowed} from '../src/poc-oauth-guard.mjs';
+import {pocOauthAllowed,pocStorageAllowed} from '../src/poc-oauth-guard.mjs';
 import {isolatedCallbackUrl} from '../src/poc-callback-guard.mjs';
 
 export function inspectPocEnvironment(env){
@@ -23,7 +23,7 @@ export function inspectPocEnvironment(env){
    database_configured:!!env.SUPABASE_URL&&!!env.SUPABASE_SECRET_KEY
  };
  // A shared production database is explicitly NOT safe for live OAuth testing.
- const isolatedDb=!!env.SUPABASE_URL&&!env.SUPABASE_URL.includes('ssqjogdcynmjjgtxknng');
+ const isolatedDb=pocStorageAllowed({supabaseUrl:env.SUPABASE_URL||'',isolatedStorageVerified:env.POC_ISOLATED_STORAGE_VERIFIED==='true'});
  checks.production_supabase_not_used=isolatedDb;
  return {ready:Object.values(checks).every(Boolean),checks};
 }
