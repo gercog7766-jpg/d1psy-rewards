@@ -54,3 +54,10 @@ test('automatic multi-stream engine uses transactional prize reservation', () =>
   assert.match(engine, /db\.rpc\('rewards_streamer_start_round'/);
   assert.doesNotMatch(engine, /db\.from\('rewards_rounds'\)\.insert/);
 });
+
+test('legacy automatic and admin starts use atomic reservation RPC', () => {
+  const legacy = readFileSync(new URL('../src/engine.ts', import.meta.url), 'utf8');
+  assert.match(legacy, /db\.rpc\('rewards_legacy_start_round'/);
+  assert.match(server, /db\.rpc\('rewards_legacy_start_round'/);
+  assert.doesNotMatch(legacy, /db\.from\('rewards_rounds'\)\.insert/);
+});
