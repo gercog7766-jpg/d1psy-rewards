@@ -8,7 +8,7 @@ const base={
  MULTISTREAM_DB_ENABLED:'false',TWITCH_POC_LOGIN:'amych',
  TWITCH_POC_BROADCASTER_ID:'39780903',
  TWITCH_CLIENT_ID:'placeholder',TWITCH_CLIENT_SECRET:'placeholder',TWITCH_EVENTSUB_SECRET:'placeholder',
- SUPABASE_URL:'https://isolated-example.supabase.co',SUPABASE_SECRET_KEY:'placeholder'
+ SUPABASE_URL:'https://abcdefghijklmnopqrst.supabase.co',POC_ISOLATED_STORAGE_VERIFIED:'true',SUPABASE_SECRET_KEY:'placeholder'
 };
 test('preflight passes only for explicitly isolated secondary setup',()=>{
  const result=inspectPocEnvironment(base);
@@ -28,7 +28,10 @@ test('preflight rejects production callback, missing credentials and dangerous f
   {ATOMIC_CHAT_RPC_ENABLED:'true'},
   {ENABLE_GIVEAWAYS:'true'},
   {TWITCH_POC_BROADCASTER_ID:'511100980'},
-  {TWITCH_CLIENT_SECRET:''}
+  {TWITCH_CLIENT_SECRET:''},
+  {POC_ISOLATED_STORAGE_VERIFIED:'false'},
+  {SUPABASE_URL:'https://ssqjogdcynmjjgtxknng.supabase.co.evil.example'},
+  {SUPABASE_URL:'https://abcdefghijklmnopqrst.supabase.co.evil.example'}
  ]){
   assert.equal(inspectPocEnvironment({...base,...overrides}).ready,false,JSON.stringify(overrides));
  }
