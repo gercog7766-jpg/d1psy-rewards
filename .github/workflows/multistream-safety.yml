@@ -68,7 +68,7 @@ jobs:
           export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/multistream_test
           if bash scripts/bootstrap-render-test-db.sh; then exit 1; fi
       - name: Twitch broadcaster routing unit tests
-        run: node --test tests/chat-route-policy.test.mjs tests/eventsub-signature.test.mjs
+        run: node --test tests/chat-route-policy.test.mjs tests/eventsub-signature.test.mjs tests/eventsub-payload.test.mjs
       - name: Install PostgreSQL client for test API
         run: npm install --ignore-scripts --no-audit --no-fund
       - name: Integration smoke test for isolated API
