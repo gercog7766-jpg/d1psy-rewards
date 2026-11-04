@@ -55,16 +55,38 @@ const server = http.createServer(async (req, res) => {
       return send(res, 503, { ok: false });
     }
   }
-  if (pathname === '/api/test/rounds') {
+  if (pathname === '/api/test/rounds' || pathname === '/api/test/streamers' || pathname === '/api/test/overview') {
     const supplied = req.headers.authorization?.replace(/^Bearer /, '') || '';
     const a = Buffer.from(supplied);
     const b = Buffer.from(token);
     if (a.length !== b.length || !timingSafeEqual(a, b)) return send(res, 401, { error: 'unauthorized' });
     try {
-      const result = await pool.query(
-        'select id, streamer_id, prize_id, status, completion_reason from public.rewards_rounds order by id limit 100'
+      if (pathname === '/api/test/rounds') {
+        const result = await pool.query(
+          'select id, streamer_id, prize_id, status, completion_reason from public.rewards_rounds order by id limit 100'
+        );
+        return send(res, 200, { rounds: result.rows });
+      }
+      const streamers = await pool.query(
+        `select s.id, s.enabled, s.is_primary, st.enabled as giveaway_enabled,
+                st.twitch_connection_status,
+                count(r.id) filter (where r.status = 'active')::int as active_rounds
+           from public.rewards_streamers s
+           join public.rewards_streamer_settings st on st.streamer_id = s.id
+           left join public.rewards_rounds r on r.streamer_id = s.id
+          group by s.id, s.enabled, s.is_primary, st.enabled, st.twitch_connection_status
+          order by s.is_primary desc, s.id limit 100`
       );
-      return send(res, 200, { rounds: result.rows });
+      if (pathname === '/api/test/streamers') return send(res, 200, { streamers: streamers.rows });
+      const prizes = await pool.query(
+        `select status, count(*)::int as count
+           from public.rewards_prizes group by status order by status`
+      );
+      const rounds = await pool.query(
+        `select streamer_id, status, count(*)::int as count
+           from public.rewards_rounds group by streamer_id, status order by streamer_id, status`
+      );
+      return send(res, 200, { streamers: streamers.rows, prizes: prizes.rows, rounds: rounds.rows });
     } catch {
       return send(res, 503, { error: 'test_schema_unavailable' });
     }
