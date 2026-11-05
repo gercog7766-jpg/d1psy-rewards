@@ -25,7 +25,7 @@ table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:left;b
 <button id="refresh">Загрузить данные</button></div>
 <p id="status" role="status">Для просмотра введите тестовый API-токен. Он не сохраняется и не добавляется в URL.</p>
 </section>
-<section class="panel"><h2>Twitch EventSub · amych</h2><button id="twitch-authorize" type="button" hidden>Подключить amych через Twitch</button><p id="twitch-probe-status" role="status">Статус ещё не проверен. Введите тестовый токен и нажмите «Загрузить данные».</p><small>Показывает только готовность локального обработчика. Не подтверждает подписку Twitch, получение реального чата или работу розыгрышей.</small></section>
+<section class="panel"><h2>Twitch EventSub · amych</h2><button id="twitch-authorize" type="button" hidden>Создать ссылку для amych (15 минут)</button><p id="invite-result" role="status"></p><p id="twitch-probe-status" role="status">Статус ещё не проверен. Введите тестовый токен и нажмите «Загрузить данные».</p><small>Показывает только готовность локального обработчика. Не подтверждает подписку Twitch, получение реального чата или работу розыгрышей.</small></section>
 <div id="streamers" class="cards" aria-live="polite"></div>
 <section class="panel"><h2>Состояние призов</h2><div id="prizes">Данные ещё не загружены.</div></section>
 <section class="panel"><h2>Раунды по стримерам</h2><div id="rounds">Данные ещё не загружены.</div></section>
@@ -37,12 +37,15 @@ $('twitch-authorize').addEventListener('click',async()=>{
  const token=$('token').value.trim();if(!token)return;
  const button=$('twitch-authorize');button.disabled=true;
  try{
-  const response=await fetch('/api/test/twitch/authorize',{method:'POST',headers:{Authorization:'Bearer '+token},cache:'no-store'});
+  const response=await fetch('/api/test/twitch/invite',{method:'POST',headers:{Authorization:'Bearer '+token},cache:'no-store'});
   if(!response.ok)throw new Error('Не удалось начать авторизацию: HTTP '+response.status);
   const data=await response.json();
-  const url=new URL(data.authorization_url);
-  if(url.origin!=='https://id.twitch.tv')throw new Error('Неверный адрес авторизации');
-  window.location.assign(url.href);
+  const url=new URL(data.invite_url);
+  if(url.origin!==location.origin||!url.pathname.startsWith('/oauth/twitch/invite/'))throw new Error('Неверный адрес приглашения');
+  const result=$('invite-result');result.replaceChildren();
+  const label=document.createElement('span');label.textContent='Одноразовая ссылка готова (15 минут). Передай её только amych. ';
+  const copy=document.createElement('button');copy.type='button';copy.textContent='Скопировать ссылку';copy.addEventListener('click',async()=>{await navigator.clipboard.writeText(url.href);copy.textContent='Скопировано'});
+  result.append(label,copy);button.disabled=false;
  }catch(e){$('twitch-probe-status').textContent=e.message;button.disabled=false}
 });
 const cell=(tag,value)=>{const el=document.createElement(tag);el.textContent=String(value);return el};
