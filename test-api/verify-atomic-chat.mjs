@@ -86,6 +86,33 @@ try{
    server.closeAllConnections();
    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
  }
+ // Two independent synthetic chat streams must never advance each other's active round.
+ const {rows:isolatedRounds}=await client.query(
+  "select streamer_id, message_count, status from public.rewards_rounds where streamer_id in ($1,$2) and status='active' order by streamer_id",
+  [primary,secondary]
+ );
+ const byStreamer=new Map(isolatedRounds.map(r=>[r.streamer_id,r.message_count]));
+ if(byStreamer.size!==2||byStreamer.get(primary)!==3||byStreamer.get(secondary)!==2)
+   throw Error('Independent stream round counters diverged '+JSON.stringify(isolatedRounds));
+ // Simulate another secondary chat notification. Primary's round must remain unchanged.
+ if(!(await record(secondary,'39780903','secondary-only-after-primary','viewer-secondary')))
+   throw Error('Secondary synthetic notification was rejected');
+ const {rows:[afterSecondary]}=await client.query(
+  "select (select message_count from public.rewards_rounds where streamer_id=$1 and status='active') as primary_count,(select message_count from public.rewards_rounds where streamer_id=$2 and status='active') as secondary_count",
+  [primary,secondary]
+ );
+ if(afterSecondary.primary_count!==3||afterSecondary.secondary_count!==3)
+   throw Error('Cross-stream chat leakage '+JSON.stringify(afterSecondary));
+ // Simulate a primary-only notification and verify the inverse isolation.
+ if(!(await record(primary,'511100980','primary-only-after-secondary','viewer-primary')))
+   throw Error('Primary synthetic notification was rejected');
+ const {rows:[afterPrimary]}=await client.query(
+  "select (select message_count from public.rewards_rounds where streamer_id=$1 and status='active') as primary_count,(select message_count from public.rewards_rounds where streamer_id=$2 and status='active') as secondary_count",
+  [primary,secondary]
+ );
+ if(afterPrimary.primary_count!==4||afterPrimary.secondary_count!==3)
+   throw Error('Cross-stream chat leakage after primary event '+JSON.stringify(afterPrimary));
+ console.log('PASS: two independent streamer rounds: primary 4, amych 3; dedup and cross-stream isolation');
  // An event without an active round is still recorded once, but cannot credit a round.
  await client.query("update public.rewards_rounds set status='cancelled' where streamer_id=$1 and status='active'",[secondary]);
  if(!(await record(secondary,'39780903','between-rounds','viewer-c')).rows[0].recorded)throw Error('Between-round event not stored');
