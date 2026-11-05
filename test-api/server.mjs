@@ -4,8 +4,8 @@ import { timingSafeEqual } from 'node:crypto';
 import http from 'node:http';
 import { readFileSync } from 'node:fs';
 import { Pool } from 'pg';
-import { probeConfig, handleProbeRequest } from './twitch-probe.mjs';
-import { handleIsolatedOAuthCallback,handleOAuthStart,handleOAuthInvite,readiness,oauthReady } from './twitch-oauth-callback.mjs';
+import { probeConfig, handleProbeRequest, probeMetrics } from './twitch-probe.mjs';
+import { handleIsolatedOAuthCallback,handleOAuthStart,handleOAuthInvite,readiness,oauthReady,currentTwitchSubscription } from './twitch-oauth-callback.mjs';
 
 const port = Number(process.env.PORT || 10000);
 const url = process.env.DATABASE_URL;
@@ -82,6 +82,7 @@ const server = http.createServer(async (req, res) => {
     if (a.length !== b.length || !timingSafeEqual(a, b)) return send(res, 401, { error: 'unauthorized' });
     try {
       if (pathname === '/api/test/twitch-probe-status') {
+        const live = await currentTwitchSubscription();
         return send(res, 200, {
           isolated: true,
           enabled: probeConfig(process.env),
@@ -90,6 +91,14 @@ const server = http.createServer(async (req, res) => {
           mode: 'read_only_acknowledgement',
           subscription_created_by_app: readiness.subscription_created_by_app,
           subscription_status: readiness.status,
+          twitch_live_status: live.status,
+          twitch_live_checked: live.checked,
+          twitch_live_checked_at: live.checked_at || null,
+          verified_challenges: probeMetrics.verified_challenges,
+          verified_chat_notifications: probeMetrics.verified_chat_notifications,
+          last_challenge_at: probeMetrics.last_challenge_at,
+          last_chat_at: probeMetrics.last_chat_at,
+          metrics_scope: 'current_process_only',
           oauth_enabled: oauthReady(),
           giveaway_processing: false
         });
