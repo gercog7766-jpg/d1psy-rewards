@@ -84,3 +84,19 @@ export async function currentPrimarySubscription(env=process.env){
   return {status:match?.status||'not_found',checked:true};
  }catch{return {status:'check_failed',checked:false};}
 }
+
+export async function restorePrimarySubscription(env=process.env){
+ if(!ready(env)||primaryState.broadcaster_id)return false;
+ try{
+  const app=await twitch('https://id.twitch.tv/oauth2/token',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:env.TWITCH_OAUTH_CLIENT_ID,client_secret:env.TWITCH_OAUTH_CLIENT_SECRET,grant_type:'client_credentials'})});
+  const headers={authorization:'Bearer '+app.access_token,'client-id':env.TWITCH_OAUTH_CLIENT_ID};
+  const users=await twitch('https://api.twitch.tv/helix/users?login=d1psy_off',{headers});
+  const id=users.data?.find(u=>u.login?.toLowerCase()==='d1psy_off')?.id;
+  if(!id||id==='39780903')return false;
+  const subs=await twitch('https://api.twitch.tv/helix/eventsub/subscriptions?type=channel.chat.message',{headers});
+  const sub=subs.data?.find(x=>x.type==='channel.chat.message'&&x.status==='enabled'&&x.condition?.broadcaster_user_id===id&&x.condition?.user_id===id&&x.transport?.method==='webhook'&&x.transport?.callback===BASE+'/eventsub/twitch');
+  if(!sub)return false;
+  primaryState.broadcaster_id=id;primaryState.subscription_id=sub.id;primaryState.subscription_status=sub.status;primaryState.last_checked_at=new Date().toISOString();
+  return true;
+ }catch{return false;}
+}
