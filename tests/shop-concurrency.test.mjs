@@ -7,7 +7,7 @@ import {readFile} from 'node:fs/promises';
 const connectionString=process.env.DATABASE_URL;
 test('two different shop items cannot overspend same user', {skip:process.env.VERIFY_SHOP_CONCURRENCY!=='true'}, async()=>{
  const dbName=new URL(connectionString).pathname.slice(1);
- assert.equal(dbName,'d1psy_multistream_test_db');
+ assert.equal(dbName,'shop_concurrency_test');
  const pool=new pg.Pool({connectionString,max:4});
  const user='11111111-1111-4111-8111-111111111111';
  const itemA='22222222-2222-4222-8222-222222222222';
@@ -16,8 +16,7 @@ test('two different shop items cannot overspend same user', {skip:process.env.VE
  const setup=await pool.connect();
  try{
   await setup.query('BEGIN');
-  await setup.query(`CREATE SCHEMA IF NOT EXISTS shop_concurrency_fixture`);
-  // Create fixture tables in public inside a transaction so the test leaves no data or schema behind.
+  // Fixture tables exist only in the disposable GitHub Actions database.
   await setup.query(`CREATE TABLE IF NOT EXISTS public.rewards_users(id uuid PRIMARY KEY)`);
   await setup.query(`CREATE TABLE IF NOT EXISTS public.rewards_shop_items(id uuid PRIMARY KEY,name text,image_url text,price_coins integer,stock integer,status text,updated_at timestamptz)`);
   await setup.query(`CREATE TABLE IF NOT EXISTS public.rewards_shop_item_variants(id uuid PRIMARY KEY,shop_item_id uuid,price_coins integer,available boolean,variant_kind text,wear text)`);
