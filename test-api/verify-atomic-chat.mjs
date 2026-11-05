@@ -15,6 +15,8 @@ try{
  alter table public.rewards_streamers add column twitch_broadcaster_id text;
  update public.rewards_streamers set twitch_broadcaster_id=case when is_primary then '511100980' else '39780903' end;
  alter table public.rewards_rounds add column message_count integer not null default 0;
+ alter table public.rewards_rounds add column mode text not null default 'messages';
+ alter table public.rewards_rounds add column message_threshold integer not null default 100;
  create table public.rewards_event_dedup(event_id text primary key,event_type text not null);
  create table public.rewards_chat_events(twitch_event_id text,streamer_id uuid,round_id uuid,twitch_user_id text,occurred_at timestamptz);
  create function public.rewards_record_chat_message(p_round_id uuid,p_twitch_user_id text)
