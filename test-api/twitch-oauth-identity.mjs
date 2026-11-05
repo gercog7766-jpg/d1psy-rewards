@@ -1,7 +1,7 @@
 // Pure validation for a future isolated Twitch OAuth exchange.
 // No network requests, no token persistence, no authorization endpoint.
 const EXPECTED_BROADCASTER_ID='39780903';
-const REQUIRED_SCOPES=Object.freeze(['user:read:chat']);
+const REQUIRED_SCOPES=Object.freeze(['user:read:chat','user:bot','channel:bot']);
 export function validateIsolatedTwitchIdentity({tokenInfo,userInfo,expectedClientId}={}){
  if(typeof expectedClientId!=='string'||!/^[a-z0-9]{20,64}$/.test(expectedClientId))
   return {ok:false,reason:'missing_isolated_client_id'};
