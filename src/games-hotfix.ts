@@ -1,7 +1,7 @@
 import express from 'express';
 import { randomInt } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
-import { dailyPool, DICTIONARY, moscowDay, normalizeGuess, publicGame } from './wordly.js';
+import { dailyPool, moscowDay, normalizeGuess, publicGame } from './wordly.js';
 import { gamesHtml, wordlyHtml, wordlyJs } from './games-ui.js';
 
 export function installGamesHotfix() {
@@ -45,7 +45,7 @@ export function installGamesHotfix() {
         res.set('Cache-Control','no-store');
         const day=moscowDay(), guess=normalizeGuess(req.body?.guess), requestId=req.body?.requestId;
         if(req.body?.day!==day)return res.status(409).json({error:'new_day'});
-        if(!/^[а-я]{5}$/.test(guess)||!DICTIONARY.has(guess))return res.status(400).json({error:'unknown_word'});
+        if(!/^[а-я]{5}$/.test(guess))return res.status(400).json({error:'invalid_word_format'});
         if(typeof requestId!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId))return res.status(400).json({error:'invalid_request'});
         const id=await user(res); if(!id)return;
         const secret=process.env.SESSION_SECRET;
