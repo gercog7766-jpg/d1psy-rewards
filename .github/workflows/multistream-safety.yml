@@ -1,0 +1,182 @@
+name: Multi-Twitch safety checks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [feature/multistream-safe-cutover]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies (repository has no lockfile)
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Streamer authorization regression tests
+        run: node --test tests/multistream-guards.test.mjs tests/test-api-guards.test.mjs
+      - name: TypeScript check
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
+
+  postgres-concurrency:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: multistream_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d multistream_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify concurrent prize reservations in disposable PostgreSQL
+        run: bash tests/sql/run-concurrency.sh
+      - name: Test real finalization RPC on isolated schema
+        run: bash tests/sql/run-finalize.sh
+      - name: Verify guarded bootstrap on disposable database
+        env:
+          PGHOST: localhost
+          PGPORT: '5432'
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: |
+          psql -d multistream_test -v ON_ERROR_STOP=1 -c 'CREATE DATABASE d1psy_multistream_test_db;'
+          export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/d1psy_multistream_test_db
+          export CONFIRM_TEST_DB_BOOTSTRAP=d1psy_multistream_test_db
+          bash scripts/bootstrap-render-test-db.sh
+          test "$(psql "$DATABASE_URL" -X -At -c "select count(*) from public.rewards_prizes")" = 2
+          test "$(psql "$DATABASE_URL" -X -At -c "select count(*) from pg_proc where proname = 'rewards_finalize_round'")" = 1
+          test "$(psql "$DATABASE_URL" -X -At -c "select count(*) from pg_indexes where indexname = 'rewards_rounds_active_prize_unique_idx'")" = 1
+          if bash scripts/bootstrap-render-test-db.sh; then exit 1; fi
+          export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/multistream_test
+          if bash scripts/bootstrap-render-test-db.sh; then exit 1; fi
+      - name: Install dependencies for Twitch routing tests
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Twitch broadcaster routing unit tests
+        run: node --test tests/chat-route-policy.test.mjs tests/eventsub-signature.test.mjs tests/eventsub-payload.test.mjs tests/eventsub-dedup.test.mjs tests/atomic-chat-wiring.test.mjs tests/eventsub-ack-policy.test.mjs tests/eventsub-ack.test.mjs tests/eventsub-http.test.mjs tests/poc-oauth-guard.test.mjs tests/poc-callback-guard.test.mjs tests/poc-readiness.test.mjs tests/twitch-dry-run.test.mjs tests/twitch-probe.test.mjs tests/isolated-oauth-callback.test.mjs tests/twitch-oauth-state.test.mjs tests/twitch-oauth-identity.test.mjs
+      - name: Install PostgreSQL client for test API
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Concurrent shop purchases on disposable PostgreSQL
+        env:
+          PGHOST: localhost
+          PGPORT: '5432'
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/shop_concurrency_test
+          VERIFY_SHOP_CONCURRENCY: 'true'
+        run: |
+          psql -d multistream_test -v ON_ERROR_STOP=1 -c 'CREATE DATABASE shop_concurrency_test;'
+          node --test tests/shop-concurrency.test.mjs
+      - name: Atomic EventSub accounting on disposable PostgreSQL (ROLLBACK)
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/d1psy_multistream_test_db
+          ISOLATED_TEST_API: 'true'
+          VERIFY_ATOMIC_CHAT: 'true'
+        run: node test-api/verify-atomic-chat.mjs
+      - name: Isolated Twitch EventSub signed HTTP integration test
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/d1psy_multistream_test_db
+          ISOLATED_TEST_API: 'true'
+          VERIFY_TWITCH_PROBE_HTTP: 'true'
+        run: node --test tests/twitch-probe-http.test.mjs
+      - name: Signed synthetic Twitch EventSub on shared isolated dashboard API
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/d1psy_multistream_test_db
+          ISOLATED_TEST_API: 'true'
+          VERIFY_SHARED_TWITCH_HTTP: 'true'
+          TEST_API_TOKEN: integration-test-only-token-at-least-32-characters
+        run: node --test tests/shared-twitch-probe-http.test.mjs
+      - name: Integration smoke test for isolated API
+        env:
+          PGHOST: localhost
+          PGPORT: '5432'
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: |
+          export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/d1psy_multistream_test_db
+          export TEST_API_TOKEN=integration-test-only-token-at-least-32-characters
+          export ISOLATED_TEST_API=true
+          export PORT=18765
+          node test-api/server.mjs > /tmp/test-api-smoke.log 2>&1 &
+          api_pid=$!
+          trap 'kill "$api_pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:18765/healthz > /tmp/api-health.json; then break; fi
+            sleep 1
+          done
+          grep -q '"isolated":true' /tmp/api-health.json
+          curl -fsS http://127.0.0.1:18765/test-dashboard | grep -q 'D1PSY / Multi-stream'
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:18765/test-dashboard)" = 405
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:18765/eventsub/twitch)" = 405
+          curl -fsS 'http://127.0.0.1:18765/healthz?utm_source=chatgpt.com' | grep -q '"isolated":true'
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18765/api/test/rounds)" = 401
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TEST_API_TOKEN" http://127.0.0.1:18765/api/test/rounds)" = 200
+          for endpoint in streamers overview; do
+            test "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:18765/api/test/$endpoint")" = 401
+            curl -fsS -H "Authorization: Bearer $TEST_API_TOKEN" "http://127.0.0.1:18765/api/test/$endpoint" | grep -q '"streamers":'
+            test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:18765/api/test/$endpoint")" = 405
+          done
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:18765/api/test/rounds)" = 405
+          # Exercise the optional webhook on the SAME API, using a synthetic secret.
+          # Never create Twitch subscriptions or access production credentials.
+          export TWITCH_PROBE_ENABLED=true
+          export TWITCH_PROBE_BROADCASTER_ID=39780903
+          export TWITCH_PROBE_SECRET=synthetic-only-test-signing-secret-123456789
+          export PORT=18766
+          node test-api/server.mjs > /tmp/test-api-webhook-smoke.log 2>&1 &
+          probe_pid=$!
+          trap 'kill "$probe_pid" "$api_pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:18766/healthz > /tmp/api-probe-health.json; then break; fi
+            sleep 1
+          done
+          grep -q '"isolated":true' /tmp/api-probe-health.json
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:18766/eventsub/twitch)" = 403
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:18766/test-dashboard)" = 405
+          curl -fsS http://127.0.0.1:18766/test-dashboard | grep -q 'D1PSY / Multi-stream'
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18765/api/test/twitch-probe-status)" = 401
+          curl -fsS -H "Authorization: Bearer $TEST_API_TOKEN" http://127.0.0.1:18765/api/test/twitch-probe-status | grep -q '"enabled":false'
+          curl -fsS -H "Authorization: Bearer $TEST_API_TOKEN" http://127.0.0.1:18766/api/test/twitch-probe-status | grep -q '"enabled":true'
+          echo 'PASS: authenticated Twitch probe readiness and disabled-by-default status'
+          echo 'PASS: optional webhook rejects unsigned requests while dashboard remains available'
+          echo 'PASS: API health, authentication and read-only enforcement'
+      - name: Integration test one-shot Render bootstrap
+        env:
+          PGHOST: localhost
+          PGPORT: '5432'
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          ISOLATED_TEST_API: 'true'
+          BOOTSTRAP_ISOLATED_DB: 'true'
+          CONFIRM_TEST_DB_BOOTSTRAP: d1psy_multistream_test_db
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/d1psy_multistream_test_db
+        run: |
+          psql -d multistream_test -v ON_ERROR_STOP=1 -c 'DROP DATABASE IF EXISTS d1psy_multistream_test_db WITH (FORCE);'
+          psql -d multistream_test -v ON_ERROR_STOP=1 -c 'CREATE DATABASE d1psy_multistream_test_db;'
+          node test-api/bootstrap.mjs
+          test "$(psql "$DATABASE_URL" -X -At -c "select count(*) from public.rewards_rounds")" = 2
+          test "$(psql "$DATABASE_URL" -X -At -c "select count(*) from pg_proc where proname='rewards_finalize_round'")" = 1
+          if node test-api/bootstrap.mjs; then echo 'FAIL: repeat bootstrap allowed'; exit 1; fi
+          echo 'PASS: one-shot bootstrap and repeat rejection'
+          VERIFY_ISOLATED_DB=true node test-api/verify.mjs
+          VERIFY_START_STOP=true node test-api/verify-start-stop.mjs
+          VERIFY_PRIZE_CONCURRENCY=true node test-api/verify-prize-concurrency.mjs
+          test "$(psql "$DATABASE_URL" -X -At -c "select count(*) from public.rewards_wins")" = 0
+          test "$(psql "$DATABASE_URL" -X -At -c "select count(*) from public.rewards_rounds where status='active'")" = 2

@@ -1,5 +1,5 @@
-import crypto from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
+import { chatDedupKey, isDuplicateInsertError } from './eventsub-dedup.mjs';
 
 const db=createClient(process.env.SUPABASE_URL||'',process.env.SUPABASE_SECRET_KEY||'',{auth:{persistSession:false}});
 const checking=new Set<string>();
@@ -20,28 +20,36 @@ async function getSettings(streamerId:string){
 }
 
 async function startNextRound(streamer:StreamerContext){
-  const s=await getSettings(streamer.id);
-  if(!s?.enabled||s.twitch_connection_status!=='connected') return;
-  const {data:active,error:activeError}=await db.from('rewards_rounds').select('id').eq('streamer_id',streamer.id).eq('status','active').maybeSingle();
-  if(activeError) throw activeError;
-  if(active) return;
-  const {data:prizes,error:pErr}=await db.from('rewards_prizes').select('id,name').eq('status','available');
-  if(pErr) throw pErr;
-  if(!prizes?.length){
-    await db.from('rewards_audit_log').insert({action:'round_start_failed',entity_type:'rewards_rounds',details:{reason:'no_available_prizes',streamer_id:streamer.id,streamer_login:streamer.twitchLogin}});
-    return;
+  // Only the database may reserve a prize and create a round. The RPC
+  // serializes competing starts and enforces the active-prize uniqueness index.
+  const {error}=await db.rpc('rewards_streamer_start_round',{p_streamer_id:streamer.id});
+  if(error){
+    if(['round_already_active','no_available_prizes','twitch_not_connected','streamer_not_enabled']
+      .some(reason=>error.message.includes(reason))) return;
+    throw error;
   }
-  const prize=prizes[crypto.randomInt(prizes.length)];
-  const {data:round,error}=await db.from('rewards_rounds').insert({streamer_id:streamer.id,mode:s.mode,interval_seconds:s.interval_seconds,message_threshold:s.message_threshold,status:'active',prize_id:prize.id}).select('id').single();
-  if(error) throw error;
-  await db.from('rewards_streamer_settings').update({selected_prize_id:prize.id,updated_at:new Date().toISOString()}).eq('streamer_id',streamer.id);
-  await db.from('rewards_audit_log').insert({action:'round_prize_randomized',entity_type:'rewards_rounds',entity_id:round.id,details:{streamer_id:streamer.id,streamer_login:streamer.twitchLogin,prize_id:prize.id,prize_name:prize.name,source:'automatic_next_round'}});
 }
 
 export async function recordStreamerChat(messageId:string,event:{chatter_user_id:string},occurredAt:string,streamer:StreamerContext){
-  const dedupId=`${streamer.twitchBroadcasterId}:${messageId}`;
+  // Atomic RPC is opt-in until the proposal is validated and installed on an
+  // explicitly isolated database. Never silently fall back after an RPC error.
+  if(process.env.ATOMIC_CHAT_RPC_ENABLED==='true'){
+    chatDedupKey(streamer.twitchBroadcasterId,messageId);
+    const {data,error}=await db.rpc('rewards_streamer_record_chat_atomic',{
+      p_streamer_id:streamer.id,
+      p_broadcaster_id:streamer.twitchBroadcasterId,
+      p_message_id:messageId,
+      p_twitch_user_id:event.chatter_user_id,
+      p_occurred_at:occurredAt
+    });
+    if(error)throw error;
+    // A retry after an already-committed event can still resume finalization.
+    await checkStreamerRound(streamer);
+    return;
+  }
+  const dedupId=chatDedupKey(streamer.twitchBroadcasterId,messageId);
   const {error:dedupError}=await db.from('rewards_event_dedup').insert({event_id:dedupId,event_type:'channel.chat.message'});
-  if(dedupError){if(dedupError.code==='23505')return;throw dedupError}
+  if(dedupError){if(isDuplicateInsertError(dedupError))return;throw dedupError}
   const {data:round,error:roundError}=await db.from('rewards_rounds').select('id,status').eq('streamer_id',streamer.id).eq('status','active').maybeSingle();
   if(roundError) throw roundError;
   const {error:eventError}=await db.from('rewards_chat_events').insert({twitch_event_id:messageId,streamer_id:streamer.id,round_id:round?.id||null,twitch_user_id:event.chatter_user_id,occurred_at:occurredAt});

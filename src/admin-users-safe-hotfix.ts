@@ -2,6 +2,18 @@ import express from 'express';
 import { createClient } from '@supabase/supabase-js';
 
 const db=createClient(process.env.SUPABASE_URL||'https://ssqjogdcynmjjgtxknng.supabase.co',process.env.SUPABASE_SECRET_KEY||'not-configured',{auth:{persistSession:false}});
+async function allCoinTransactions(userId?:string){
+ const rows:any[]=[];
+ for(let offset=0;offset<100000;offset+=500){
+  let query=db.from('rewards_coin_transactions').select(userId?'id,amount,transaction_type,note,created_at':'user_id,amount').order('created_at',{ascending:true}).order('id',{ascending:true}).range(offset,offset+499);
+  if(userId)query=query.eq('user_id',userId);
+  const {data,error}=await query;
+  if(error)throw error;
+  rows.push(...(data||[]));
+  if((data||[]).length<500)return rows;
+ }
+ throw new Error('coin_history_exceeds_safe_pagination_limit');
+}
 function levelFromXp(x:number){return Math.max(1,Math.floor((Math.sqrt(9+8*Math.max(0,x)/75)-3)/2)+1)}
 function xpForLevel(level:number){return Math.round(37.5*(level-1)*(level+2))}
 
@@ -19,11 +31,12 @@ export function installAdminUsersSafeHotfix(){
   if(!app.locals.__adminUsersSafeInstalled && adminAuth){
    app.locals.__adminUsersSafeInstalled=true;
    app.get('/api/admin/users',adminAuth,async(_req:any,res:any)=>{
-    const [{data:users,error:uErr},{data:wins,error:wErr},{data:coinTx,error:cErr}]=await Promise.all([
+    const [{data:users,error:uErr},{data:wins,error:wErr},coinResult]=await Promise.all([
      db.from('rewards_users').select('id,twitch_user_id,twitch_login,twitch_display_name,steam_trade_url_valid,created_at,participation_restricted,banned,xp_total').order('created_at',{ascending:false}),
      db.from('rewards_wins').select('user_id,choice_status,rewards_prizes(sell_price_coins)'),
-     db.from('rewards_coin_transactions').select('user_id,amount')
+     allCoinTransactions().then(data=>({data,error:null})).catch(error=>({data:null,error}))
     ]);
+    const {data:coinTx,error:cErr}=coinResult;
     if(uErr||wErr||cErr)return res.status(500).json({error:'users_load_failed'});
     const winsCount=new Map<string,number>(),balances=new Map<string,number>(),inventoryValues=new Map<string,number>();
     for(const t of coinTx||[])balances.set(t.user_id,(balances.get(t.user_id)||0)+Number(t.amount||0));
@@ -38,10 +51,11 @@ export function installAdminUsersSafeHotfix(){
     res.json({users:list,userStats:{total:list.length,withTrade:list.filter((u:any)=>u.steam_trade_url_valid).length,withoutTrade:list.filter((u:any)=>!u.steam_trade_url_valid).length}});
    });
    app.get('/api/admin/users/:id/coins',adminAuth,async(req:any,res:any)=>{
-    const [{data:user,error:uErr},{data:tx,error:tErr}]=await Promise.all([
+    const [{data:user,error:uErr},txResult]=await Promise.all([
      db.from('rewards_users').select('id,twitch_login,twitch_display_name').eq('id',req.params.id).maybeSingle(),
-     db.from('rewards_coin_transactions').select('id,amount,transaction_type,note,created_at').eq('user_id',req.params.id).order('created_at',{ascending:true})
+     allCoinTransactions(req.params.id).then(data=>({data,error:null})).catch(error=>({data:null,error}))
     ]);
+    const {data:tx,error:tErr}=txResult;
     if(uErr||!user)return res.status(404).json({error:'user_not_found'});
     if(tErr)return res.status(500).json({error:'coin_history_load_failed'});
     let balance=0;

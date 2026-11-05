@@ -8,8 +8,16 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "allowJs": true
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["src/shop-page-hotfix.ts"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.mts",
+    "src/**/*.mjs",
+    "src/**/*.d.mts"
+  ],
+  "exclude": [
+    "src/shop-page-hotfix.ts"
+  ]
 }
