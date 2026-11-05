@@ -5,7 +5,7 @@ import http from 'node:http';
 import { readFileSync } from 'node:fs';
 import { Pool } from 'pg';
 import { probeConfig, handleProbeRequest } from './twitch-probe.mjs';
-import { handleIsolatedOAuthCallback,handleOAuthStart,readiness,oauthReady } from './twitch-oauth-callback.mjs';
+import { handleIsolatedOAuthCallback,handleOAuthStart,handleOAuthInvite,readiness,oauthReady } from './twitch-oauth-callback.mjs';
 
 const port = Number(process.env.PORT || 10000);
 const url = process.env.DATABASE_URL;
@@ -56,6 +56,7 @@ const server = http.createServer(async (req, res) => {
     try { return await handleProbeRequest(req, res); }
     catch { return send(res, 503, { error: 'probe_unavailable' }); }
   }
+  if (handleOAuthInvite(req, res)) return;
   if (handleOAuthStart(req, res)) return;
   if (new URL(req.url || '/', 'http://localhost').pathname === '/oauth/twitch/callback') {
     await handleIsolatedOAuthCallback(req, res); return;
