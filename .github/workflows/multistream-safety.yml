@@ -73,6 +73,17 @@ jobs:
         run: node --test tests/chat-route-policy.test.mjs tests/eventsub-signature.test.mjs tests/eventsub-payload.test.mjs tests/eventsub-dedup.test.mjs tests/atomic-chat-wiring.test.mjs tests/eventsub-ack-policy.test.mjs tests/eventsub-ack.test.mjs tests/eventsub-http.test.mjs tests/poc-oauth-guard.test.mjs tests/poc-callback-guard.test.mjs tests/poc-readiness.test.mjs tests/twitch-dry-run.test.mjs tests/twitch-probe.test.mjs tests/isolated-oauth-callback.test.mjs tests/twitch-oauth-state.test.mjs tests/twitch-oauth-identity.test.mjs
       - name: Install PostgreSQL client for test API
         run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Concurrent shop purchases on disposable PostgreSQL
+        env:
+          PGHOST: localhost
+          PGPORT: '5432'
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/shop_concurrency_test
+          VERIFY_SHOP_CONCURRENCY: 'true'
+        run: |
+          psql -d multistream_test -v ON_ERROR_STOP=1 -c 'CREATE DATABASE shop_concurrency_test;'
+          node --test tests/shop-concurrency.test.mjs
       - name: Atomic EventSub accounting on disposable PostgreSQL (ROLLBACK)
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/d1psy_multistream_test_db
