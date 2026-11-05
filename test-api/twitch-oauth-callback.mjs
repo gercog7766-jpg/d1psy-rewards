@@ -10,11 +10,11 @@ const pending=new Map();
 export const readiness={subscription_created_by_app:false,status:'not_configured',last_checked_at:null};
 const json=(res,status,value,headers={})=>{res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store','referrer-policy':'no-referrer',...headers});res.end(JSON.stringify(value));};
 function config(env){
- return env.ISOLATED_TEST_API==='true'&&env.TWITCH_OAUTH_ENABLED==='true'&&env.TWITCH_PROBE_ENABLED==='true'&&env.TWITCH_PROBE_BROADCASTER_ID===BROADCASTER&&
+ return (()=>{try{return new URL(env.DATABASE_URL||'').pathname==='/d1psy_multistream_test_db'}catch{return false}})()&&env.ISOLATED_TEST_API==='true'&&env.TWITCH_OAUTH_ENABLED==='true'&&env.TWITCH_PROBE_ENABLED==='true'&&env.TWITCH_PROBE_BROADCASTER_ID===BROADCASTER&&
  /^[a-z0-9]{20,64}$/.test(env.TWITCH_OAUTH_CLIENT_ID||'')&&
  typeof env.TWITCH_OAUTH_CLIENT_SECRET==='string'&&env.TWITCH_OAUTH_CLIENT_SECRET.length>=24&&
  typeof env.TWITCH_PROBE_SECRET==='string'&&env.TWITCH_PROBE_SECRET.length>=32&&
- env.ENABLE_GIVEAWAYS!=='true'&&env.MULTISTREAM_DB_ENABLED!=='true'&&
+ env.ENABLE_GIVEAWAYS!=='true'&&env.MULTISTREAM_DB_ENABLED!=='true'&&env.ATOMIC_CHAT_RPC_ENABLED!=='true'&&
  !env.SUPABASE_URL&&!env.SUPABASE_SECRET_KEY&&!env.TWITCH_CLIENT_SECRET&&!env.TWITCH_CLIENT_ID;
 }
 export function oauthReady(env=process.env){return config(env)}
