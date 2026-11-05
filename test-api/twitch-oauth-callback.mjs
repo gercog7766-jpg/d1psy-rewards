@@ -33,7 +33,9 @@ export function handleOAuthInvite(req,res,env=process.env){
   }
   invites.delete(digest);
   const state=createOAuthState();pending.set(state.value,state);
-  res.writeHead(302,{location:twitchAuthorizeUrl(env,state),'set-cookie':oauthStateCookie(state.value),'cache-control':'no-store','referrer-policy':'no-referrer','x-content-type-options':'nosniff'});res.end();return true;
+  const destination=twitchAuthorizeUrl(env,state);
+  res.writeHead(200,{'content-type':'text/html; charset=utf-8','set-cookie':oauthStateCookie(state.value),'cache-control':'no-store','referrer-policy':'no-referrer','x-content-type-options':'nosniff','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'"});
+  res.end('<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="referrer" content="no-referrer"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Twitch · amych</title><body style="font:16px system-ui;background:#101728;color:#fff;max-width:540px;margin:8vh auto;padding:24px"><h1>Переход на Twitch</h1><p>Приглашение принято. Нажмите кнопку ниже, чтобы открыть официальный сайт Twitch и разрешить доступ для аккаунта <strong>amych</strong>.</p><a rel="noreferrer" href="'+destination.replaceAll('&','&amp;')+'" style="display:inline-block;background:#9146ff;color:white;padding:14px 22px;border-radius:8px;text-decoration:none">Открыть Twitch</a><p>Если переход не происходит автоматически, используйте эту ссылку. Не пересылайте адрес страницы авторизации.</p></body></html>');return true;
  }
  return false;
 }
