@@ -19,7 +19,22 @@ export function prizeInPriceRange(prize,min,max){
  const price=integerWithin(prize?.sell_price_coins,0,1000);
  return prize?.status==='available'&&price!==null&&price>=min&&price<=max;
 }
+// Fail closed when a listing does not explicitly prove its wear and variant.
+export function isOrdinaryFtSkin(item){
+ if(!item||typeof item!=='object')return false;
+ const name=String(item.name||'');
+ if(!name||/(?:stattrak|stat\s*trak|souvenir|сувенир|статтрек|статтрэк|сув\.)/iu.test(name))return false;
+ const wear=String(item.wear||item.exterior||item.condition||'').trim().toLowerCase();
+ const nameFt=/\((?:field-tested|ft|после полевых испытаний)\)/iu.test(name);
+ const explicitFt=['ft','field-tested','после полевых испытаний'].includes(wear);
+ if(!explicitFt&&!nameFt)return false;
+ if(wear&&!explicitFt)return false;
+ if(item.is_stattrak===true||item.stattrak===true||item.is_souvenir===true||item.souvenir===true)return false;
+ const variant=String(item.variant||item.type||'').toLowerCase();
+ if(/stattrak|stat\s*trak|souvenir|сувенир|статтрек|статтрэк/iu.test(variant))return false;
+ return true;
+}
 export function shopItemEligible(item,min=0,max=1000){
  const price=integerWithin(item?.price_coins,0,1000);
- return item?.status==='available'&&price!==null&&price>=min&&price<=max&&Number(item.stock)>0;
+ return isOrdinaryFtSkin(item)&&item?.status==='available'&&price!==null&&price>=min&&price<=max&&Number(item.stock)>0;
 }
