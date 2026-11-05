@@ -68,11 +68,12 @@ export async function handlePrimaryCallback(req,res,env=process.env){
   if(!identity.ok){fail(403,identity.reason);return true;}
   const app=await twitch('https://id.twitch.tv/oauth2/token',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:env.TWITCH_OAUTH_CLIENT_ID,client_secret:env.TWITCH_OAUTH_CLIENT_SECRET,grant_type:'client_credentials'})});
   if(typeof app.access_token!=='string')throw Error('app_token_missing');
+  primaryState.broadcaster_id=identity.broadcaster_id; // Allow the signed Twitch verification challenge during subscription creation.
   const sub=await twitch('https://api.twitch.tv/helix/eventsub/subscriptions',{method:'POST',headers:{authorization:'Bearer '+app.access_token,'client-id':env.TWITCH_OAUTH_CLIENT_ID,'content-type':'application/json'},body:JSON.stringify({type:'channel.chat.message',version:'1',condition:{broadcaster_user_id:identity.broadcaster_id,user_id:identity.broadcaster_id},transport:{method:'webhook',callback:BASE+'/eventsub/twitch',secret:env.TWITCH_PROBE_SECRET}})});
   if(!sub.data?.[0]?.id)throw Error('subscription_missing');
   primaryState.broadcaster_id=identity.broadcaster_id;primaryState.subscription_id=sub.data[0].id;primaryState.subscription_status=sub.data[0].status||'unknown';primaryState.last_checked_at=new Date().toISOString();
   reply(res,200,{ok:true,broadcaster:'d1psy_off',subscription_status:primaryState.subscription_status,isolated:true,giveaway_processing:false},{'set-cookie':clearCookie()});
- }catch{fail(502,'primary_oauth_or_subscription_failed');}
+ }catch{primaryState.broadcaster_id=null;primaryState.subscription_id=null;primaryState.subscription_status='not_configured';fail(502,'primary_oauth_or_subscription_failed');}
  return true;
 }
 export async function currentPrimarySubscription(env=process.env){
