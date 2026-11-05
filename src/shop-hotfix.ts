@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import express from 'express';
 import { createClient } from '@supabase/supabase-js';
+import { fullCoinBalance } from './coin-ledger-paged.js';
 
 const db=createClient(process.env.SUPABASE_URL||'https://ssqjogdcynmjjgtxknng.supabase.co',process.env.SUPABASE_SECRET_KEY||'not-configured',{auth:{persistSession:false}});
 const HIDE_NAMES=new Set(['Glock-18 | Кролик в тени','CZ75-Auto | Фреймворк','AUG | Жуть','USP-S | Silent Shot','XM1014 | Ирэдзуми','M4A4 | Эолова тьма','M4A4 | Стальной каркас','Zeus x27 | Пиксельный камуфляж «Болото»','Tec-9 | Лимонная кислота','SCAR-20 | Песчаная сетка','P90 | Песчаное напыление','P250 | Ледяная корка','MAC-10 | Грозовой камуфляж','M249 | Ледяная корка','Наклейка | Париж-2023','Запечатанный граффити','Автомат «Галиль» | Серый дым']);
@@ -46,14 +47,14 @@ export function installShopHotfix(){
    app.locals.__shopRoutesInstalled=true;
    app.get('/api/me/economy',async(req:any,res:any)=>{
     const u=await currentUser(req,res);if(!u)return;
-    const [{data:tx,error:tErr},{data:shop,error:sErr},{data:purchases,error:pErr},{data:ftVariants,error:vErr}]=await Promise.all([
-     db.from('rewards_coin_transactions').select('amount').eq('user_id',u.id),
+    const [balanceResult,{data:shop,error:sErr},{data:purchases,error:pErr},{data:ftVariants,error:vErr}]=await Promise.all([
+     fullCoinBalance(db,u.id).then(balance=>({balance,error:null})).catch(error=>({balance:0,error})),
      db.from('rewards_shop_items').select('id,name,image_url,price_coins,stock').eq('status','available').order('price_coins',{ascending:true}).order('name',{ascending:true}),
      db.from('rewards_orders').select('id,item_name,image_url,price_coins,status,created_at,sent_at').eq('user_id',u.id).eq('source_type','shop').order('created_at',{ascending:false}),
      db.from('rewards_shop_item_variants').select('shop_item_id,price_coins,available').eq('wear','FT').eq('variant_kind','normal')
     ]);
-    if(tErr||sErr||pErr||vErr)return res.status(500).json({error:'shop_load_failed'});
-    const balance=(tx||[]).reduce((n:number,x:any)=>n+Number(x.amount||0),0);
+    if(balanceResult.error||sErr||pErr||vErr)return res.status(500).json({error:'shop_load_failed'});
+    const balance=balanceResult.balance;
     const ftPriceByItem=new Map((ftVariants||[]).filter((v:any)=>v.available&&v.price_coins!=null).map((v:any)=>[String(v.shop_item_id),Number(v.price_coins)]));
     const visibleShop=(shop||[]).filter((x:any)=>!HIDE_NAMES.has(String(x.name||''))).map((x:any)=>{const ft=ftPriceByItem.get(String(x.id));return ft==null?x:{...x,price_coins:ft}});
     res.set('Cache-Control','no-store');
