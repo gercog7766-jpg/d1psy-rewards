@@ -11,7 +11,7 @@ async function startNextRound(){
   const {data:active}=await db.from('rewards_rounds').select('id').eq('status','active').maybeSingle();
   if(active) return;
 
-  const {data:prizes,error:pErr}=await db.from('rewards_prizes').select('id,name').eq('status','available');
+  const min=Number(s.drop_min_price_coins??2),max=Number(s.drop_max_price_coins??1000);\n  if(!Number.isInteger(min)||!Number.isInteger(max)||min<2||max>1000||min>max)throw new Error('invalid_saved_drop_price_range');\n  const {data:prizes,error:pErr}=await db.from('rewards_prizes').select('id,name,sell_price_coins').eq('status','available').gte('sell_price_coins',min).lte('sell_price_coins',max);
   if(pErr) throw pErr;
   if(!prizes?.length){
     await db.from('rewards_audit_log').insert({action:'round_start_failed',entity_type:'rewards_rounds',details:{reason:'no_available_prizes'}});
@@ -21,7 +21,7 @@ async function startNextRound(){
   const {data:round,error}=await db.from('rewards_rounds').insert({mode:s.mode,interval_seconds:s.interval_seconds,message_threshold:s.message_threshold,status:'active',prize_id:prize.id}).select('id').single();
   if(error) throw error;
   await db.from('rewards_settings').update({selected_prize_id:prize.id,updated_at:new Date().toISOString()}).eq('id',true);
-  await db.from('rewards_audit_log').insert({action:'round_prize_randomized',entity_type:'rewards_rounds',entity_id:round.id,details:{prize_id:prize.id,prize_name:prize.name,source:'automatic_next_round'}});
+  await db.from('rewards_audit_log').insert({action:'round_prize_randomized',entity_type:'rewards_rounds',entity_id:round.id,details:{prize_id:prize.id,prize_name:prize.name,source:'automatic_next_round',min_price:min,max_price:max}});
 }
 
 export async function checkGiveawayRound(){
