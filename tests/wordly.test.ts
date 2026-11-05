@@ -30,3 +30,10 @@ test('answer hidden during play; revealed only on win or sixth guess',()=>{
  assert.equal(lost.status,'lost');assert.equal(lost.answer,'лампа');
  assert(!('answer' in publicGame(null,'2026-11-05')));
 });
+
+test('paid win reports 25 coins; unfinished, lost and legacy games report zero',()=>{
+ assert.equal(publicGame({answer:'лампа',guesses:['лампа'],reward_transaction_id:'paid'},'2026-11-05').rewardCoins,25);
+ assert.equal(publicGame({answer:'лампа',guesses:['лампа']},'2026-11-05').rewardCoins,0);
+ assert.equal(publicGame({answer:'лампа',guesses:Array(6).fill('банан')},'2026-11-05').rewardCoins,0);
+ assert.equal(publicGame(null,'2026-11-05').rewardCoins,0);
+});

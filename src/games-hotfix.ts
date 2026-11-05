@@ -37,7 +37,7 @@ export function installGamesHotfix() {
         res.set('Cache-Control','no-store');
         const id=await user(res); if(!id)return;
         const day=moscowDay();
-        const {data,error}=await db.from('rewards_wordly_games').select('answer,guesses').eq('user_id',id).eq('game_day',day).maybeSingle();
+        const {data,error}=await db.from('rewards_wordly_games').select('answer,guesses,reward_transaction_id').eq('user_id',id).eq('game_day',day).maybeSingle();
         if(error)return res.status(503).json({error:'game_unavailable'});
         res.json(publicGame(data,day));
       });
