@@ -1,5 +1,6 @@
 import express from 'express';
 import { createClient } from '@supabase/supabase-js';
+import { allCoinBalances } from './coin-ledger-paged.js';
 
 export function installAdminUserControlsHotfix(){
  const proto:any=(express as any).application;
@@ -10,15 +11,13 @@ export function installAdminUserControlsHotfix(){
     const originalJson=res.json.bind(res);
     res.json=async(body:any)=>{if(body&&!body.error){
      const db=createClient(process.env.SUPABASE_URL||'https://ssqjogdcynmjjgtxknng.supabase.co',process.env.SUPABASE_SECRET_KEY||'not-configured',{auth:{persistSession:false}});
-     const [{data:users},{data:wins},{data:coinTx}]=await Promise.all([
+     const [{data:users},{data:wins},balances]=await Promise.all([
       db.from('rewards_users').select('id,twitch_user_id,twitch_login,twitch_display_name,steam_trade_url_valid,created_at,participation_restricted,banned').order('created_at',{ascending:false}),
       db.from('rewards_wins').select('user_id,won_at,choice_status,rewards_prizes(sell_price_coins)').order('won_at',{ascending:false}),
-      db.from('rewards_coin_transactions').select('user_id,amount')
+      allCoinBalances(db)
      ]);
      const stats=new Map<string,{count:number,last:string|null}>();
-     const balances=new Map<string,number>();
      const inventoryValues=new Map<string,number>();
-     for(const t of coinTx||[]) balances.set(t.user_id,(balances.get(t.user_id)||0)+Number(t.amount||0));
      for(const w of wins||[]){
       const s=stats.get(w.user_id)||{count:0,last:null};s.count++;if(!s.last)s.last=w.won_at;stats.set(w.user_id,s);
       if(w.choice_status==='awaiting_choice'){
