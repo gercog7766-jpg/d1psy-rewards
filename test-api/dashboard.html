@@ -25,7 +25,7 @@ table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:left;b
 <button id="refresh">Загрузить данные</button></div>
 <p id="status" role="status">Для просмотра введите тестовый API-токен. Он не сохраняется и не добавляется в URL.</p>
 </section>
-<section class="panel"><h2>Twitch EventSub · amych</h2><p id="twitch-probe-status" role="status">Статус ещё не проверен. Введите тестовый токен и нажмите «Загрузить данные».</p><small>Показывает только готовность локального обработчика. Не подтверждает подписку Twitch, получение реального чата или работу розыгрышей.</small></section>
+<section class="panel"><h2>Twitch EventSub · amych</h2><button id="twitch-authorize" type="button" hidden>Подключить amych через Twitch</button><p id="twitch-probe-status" role="status">Статус ещё не проверен. Введите тестовый токен и нажмите «Загрузить данные».</p><small>Показывает только готовность локального обработчика. Не подтверждает подписку Twitch, получение реального чата или работу розыгрышей.</small></section>
 <div id="streamers" class="cards" aria-live="polite"></div>
 <section class="panel"><h2>Состояние призов</h2><div id="prizes">Данные ещё не загружены.</div></section>
 <section class="panel"><h2>Раунды по стримерам</h2><div id="rounds">Данные ещё не загружены.</div></section>
@@ -33,6 +33,18 @@ table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:left;b
 <script>
 'use strict';
 const $=id=>document.getElementById(id);
+$('twitch-authorize').addEventListener('click',async()=>{
+ const token=$('token').value.trim();if(!token)return;
+ const button=$('twitch-authorize');button.disabled=true;
+ try{
+  const response=await fetch('/api/test/twitch/authorize',{method:'POST',headers:{Authorization:'Bearer '+token},cache:'no-store'});
+  if(!response.ok)throw new Error('Не удалось начать авторизацию: HTTP '+response.status);
+  const data=await response.json();
+  const url=new URL(data.authorization_url);
+  if(url.origin!=='https://id.twitch.tv')throw new Error('Неверный адрес авторизации');
+  window.location.assign(url.href);
+ }catch(e){$('twitch-probe-status').textContent=e.message;button.disabled=false}
+});
 const cell=(tag,value)=>{const el=document.createElement(tag);el.textContent=String(value);return el};
 const table=(columns,rows)=>{const t=document.createElement('table'),h=document.createElement('tr');for(const x of columns)h.append(cell('th',x[0]));t.append(h);for(const row of rows){const tr=document.createElement('tr');for(const x of columns)tr.append(cell('td',row[x[1]]??'—'));t.append(tr)}return t};
 $('refresh').addEventListener('click',async()=>{
@@ -60,7 +72,7 @@ $('refresh').addEventListener('click',async()=>{
    const probeResponse=await fetch('/api/test/twitch-probe-status',{headers:{Authorization:'Bearer '+token},cache:'no-store'});
    if(!probeResponse.ok)throw new Error('HTTP '+probeResponse.status);
    const probe=await probeResponse.json();
-   $('twitch-probe-status').textContent=probe.enabled?'Включён — подписанные уведомления amych могут приниматься. Подписка Twitch не подтверждена.':'Выключен — настройки безопасности или обязательные переменные не прошли проверку.';
+   $('twitch-authorize').hidden=!(probe.enabled&&probe.oauth_enabled);$('twitch-probe-status').textContent=probe.subscription_created_by_app?'Подписка создана: '+probe.subscription_status+'. Ожидаем подтверждение Twitch.':probe.enabled?'Включён — подписанные уведомления amych могут приниматься. Подписка Twitch не подтверждена.':'Выключен — настройки безопасности или обязательные переменные не прошли проверку.';
   }catch{
    $('twitch-probe-status').textContent='Не удалось проверить готовность обработчика Twitch.';
   }
