@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {validateRoundInput,prizeInPriceRange,shopItemEligible,isOrdinaryFtSkin} from '../src/round-drop-policy.mjs';
+import {validateRoundInput,prizeInPriceRange,shopItemEligible,isOrdinaryFtSkin,eligibleShopFtVariants} from '../src/round-drop-policy.mjs';
 test('time limits 1 through 3600 and message limits 5 through 2000',()=>{
  for(const [mode,field,min,max] of [['time','intervalSeconds',1,3600],['messages','messageThreshold',5,2000]]){
   for(const value of [min,max])assert.equal(validateRoundInput({mode,[field]:value}).ok,true);
@@ -43,4 +43,20 @@ test('only normal FT variants can be used as shop drop candidates',()=>{
  for(const changes of [{is_stattrak:true},{is_souvenir:true},{wear:'MW'},{variant:'StatTrak'},{type:'Souvenir'}])
   assert.equal(shopItemEligible({...base,...changes}),false,JSON.stringify(changes));
  assert.equal(isOrdinaryFtSkin({name:'Sticker | Example'}),false);
+});
+
+test('shop drop eligibility uses authoritative FT normal variant price, not base item price',()=>{
+ const items=[{id:'a',name:'AK-47 | Redline',status:'available',stock:1,price_coins:1500},{id:'b',status:'available',stock:0},{id:'c',status:'hidden',stock:2}];
+ const variants=[
+  {id:'ft',shop_item_id:'a',wear:'FT',variant_kind:'normal',available:true,price_coins:1000},
+  {id:'mw',shop_item_id:'a',wear:'MW',variant_kind:'normal',available:true,price_coins:900},
+  {id:'st',shop_item_id:'a',wear:'FT',variant_kind:'stattrak',available:true,price_coins:900},
+  {id:'sv',shop_item_id:'a',wear:'FT',variant_kind:'souvenir',available:true,price_coins:900},
+  {id:'too-expensive',shop_item_id:'a',wear:'FT',variant_kind:'normal',available:true,price_coins:1001},
+  {id:'disabled',shop_item_id:'a',wear:'FT',variant_kind:'normal',available:false,price_coins:500},
+  {id:'out-of-stock',shop_item_id:'b',wear:'FT',variant_kind:'normal',available:true,price_coins:500},
+  {id:'hidden',shop_item_id:'c',wear:'FT',variant_kind:'normal',available:true,price_coins:500}
+ ];
+ assert.deepEqual(eligibleShopFtVariants(items,variants,0,1000).map(x=>x.variant_id),['ft']);
+ assert.deepEqual(eligibleShopFtVariants(items,variants,0,999),[]);
 });
