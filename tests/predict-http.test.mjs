@@ -12,7 +12,7 @@ test('real app: navigation, signed user identity, own predictions and admin-only
   if(url.pathname.endsWith('/rewards_admins'))return res.end('[]');
   if(url.pathname.endsWith('/rewards_predict_matches'))return res.end(JSON.stringify([{id:'test-match',starts_at:'2099-01-01T00:00:00Z',status:'scheduled'}]));
   if(url.pathname.endsWith('/rewards_predictions')){readFilter=url.searchParams.get('user_id');return res.end('[]')}
-  if(url.pathname.endsWith('/rpc/rewards_save_prediction')){let body='';for await(const chunk of req)body+=chunk;rpcBody=JSON.parse(body);return res.end(JSON.stringify({winner:rpcBody.p_winner,score:rpcBody.p_score,top_player:rpcBody.p_top_player,updated_at:new Date().toISOString()}))}
+  if(url.pathname.endsWith('/rpc/rewards_save_prediction')){let body='';for await(const chunk of req)body+=chunk;rpcBody=JSON.parse(body);if(rpcBody.p_top_player==='late'){res.statusCode=400;return res.end(JSON.stringify({code:'P0001',message:'predictions_closed'}))}return res.end(JSON.stringify({winner:rpcBody.p_winner,score:rpcBody.p_score,top_player:rpcBody.p_top_player,updated_at:new Date().toISOString()}))}
   res.end('[]');
  });
  await new Promise(r=>mock.listen(0,'127.0.0.1',r));const mockPort=mock.address().port;
@@ -31,6 +31,7 @@ test('real app: navigation, signed user identity, own predictions and admin-only
   const page=await fetch(origin+'/predict',{headers});assert.equal(page.status,200);assert((await page.text()).includes('До 10 монет'));
   const list=await fetch(origin+'/api/me/predict',{headers});assert.equal(list.status,200);assert.equal((await list.json()).matches[0].closes_at,'2098-12-31T23:45:00.000Z');assert.equal(readFilter,'eq.'+userId);
   const save=await fetch(origin+'/api/me/predict/test-match',{method:'POST',headers,body:JSON.stringify({winner:'b',score:'2:1',topPlayer:'b1t',user_id:'spoofed'})});assert.equal(save.status,200);assert.equal(rpcBody.p_user_id,userId);assert.equal(rpcBody.p_top_player,'b1t');
+  const closed=await fetch(origin+'/api/me/predict/test-match',{method:'POST',headers,body:JSON.stringify({winner:'b',score:'2:1',topPlayer:'late'})});assert.equal(closed.status,409);assert.equal((await closed.json()).error,'predictions_closed');
   const invalid=await fetch(origin+'/api/me/predict/test-match',{method:'POST',headers,body:JSON.stringify({winner:'b',score:'2:2',topPlayer:'b1t'})});assert.equal(invalid.status,400);
   const admin=await fetch(origin+'/api/admin/predict/test-match/settle',{method:'POST',headers,body:JSON.stringify({winner:'b',score:'2:1',topPlayers:['b1t']})});assert.equal(admin.status,403);
   const image=await fetch(origin+'/predict-assets/parivision.png');assert.equal(image.status,200);assert.equal(image.headers.get('Content-Type'),'image/png');

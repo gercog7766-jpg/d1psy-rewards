@@ -43,7 +43,7 @@ box.addEventListener('click',async e=>{
  if(button.dataset.kind!=='save'||!d.winner||!d.score||!d.topPlayer)return;
  saving.add(id);revision++;messages.delete(id);render();
  try{const r=await fetch('/api/me/predict/'+encodeURIComponent(id),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({winner:d.winner,score:d.score,topPlayer:d.topPlayer})});
- if(r.status===401){location.href='/';return}const j=await r.json();if(!r.ok){if(j.error==='predictions_closed'){m.closes_at=new Date(now()-1).toISOString();d.dirty=false;messages.set(id,{type:'error',text:'Приём уже закрыт. Новые изменения не приняты.'});await load();return}throw Error(j.error)}
+ if(r.status===401){location.href='/';return}const j=await r.json();if(!r.ok){if(j.error==='predictions_closed'){m.closes_at=new Date(now()-1).toISOString();drafts.set(id,{winner:m.prediction?.winner||'',score:m.prediction?.score||'',topPlayer:m.prediction?.top_player||'',dirty:false});messages.set(id,{type:'error',text:'Приём уже закрыт. Новые изменения не приняты.'});await load();return}throw Error(j.error)}
  m.prediction={...j.prediction,winner_coins:0,score_coins:0,player_coins:0};d.dirty=false;messages.set(id,{type:'success',text:'Прогноз сохранён. Удачи!'});
  }catch(e){messages.set(id,{type:'error',text:'Не удалось подтвердить сохранение. Повторите — прогноз не создастся дважды.'})}finally{saving.delete(id);render()}
 });
