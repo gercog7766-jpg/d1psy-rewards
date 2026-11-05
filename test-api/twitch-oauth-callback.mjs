@@ -40,7 +40,19 @@ export function handleOAuthInvite(req,res,env=process.env){
  return false;
 }
 
-export const readiness={subscription_created_by_app:false,status:'not_configured',last_checked_at:null};
+export const readiness={subscription_created_by_app:false,status:'not_configured',last_checked_at:null,subscription_id:null};
+export async function currentTwitchSubscription(env=process.env){
+ if(!config(env))return {status:'not_configured',checked:false};
+ try{
+  const app=await twitch('https://id.twitch.tv/oauth2/token',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:env.TWITCH_OAUTH_CLIENT_ID,client_secret:env.TWITCH_OAUTH_CLIENT_SECRET,grant_type:'client_credentials'})});
+  if(typeof app.access_token!=='string')throw new Error('app_token_invalid');
+  const query=readiness.subscription_id?'?id='+encodeURIComponent(readiness.subscription_id):'?type=channel.chat.message';
+  const result=await twitch('https://api.twitch.tv/helix/eventsub/subscriptions'+query,{headers:{authorization:'Bearer '+app.access_token,'client-id':env.TWITCH_OAUTH_CLIENT_ID}});
+  const entries=Array.isArray(result.data)?result.data:[];
+  const match=entries.find(x=>x.type==='channel.chat.message'&&x.condition?.broadcaster_user_id===BROADCASTER&&x.transport?.method==='webhook'&&x.transport?.callback==='https://d1psy-multistream-isolated-api.onrender.com/eventsub/twitch');
+  return {status:match?.status||'not_found',checked:true,checked_at:new Date().toISOString()};
+ }catch{return {status:'check_failed',checked:false,checked_at:new Date().toISOString()};}
+}
 const json=(res,status,value,headers={})=>{res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store','referrer-policy':'no-referrer',...headers});res.end(JSON.stringify(value));};
 function config(env){
  return (()=>{try{return new URL(env.DATABASE_URL||'').pathname==='/d1psy_multistream_test_db'}catch{return false}})()&&env.ISOLATED_TEST_API==='true'&&env.TWITCH_OAUTH_ENABLED==='true'&&env.TWITCH_PROBE_ENABLED==='true'&&env.TWITCH_PROBE_BROADCASTER_ID===BROADCASTER&&
@@ -95,6 +107,7 @@ export async function handleIsolatedOAuthCallback(req,res,env=process.env){
   if(typeof app.access_token!=='string'){fail(502,'app_token_invalid');return true}
   const sub=await twitch('https://api.twitch.tv/helix/eventsub/subscriptions',{method:'POST',headers:{authorization:'Bearer '+app.access_token,'client-id':env.TWITCH_OAUTH_CLIENT_ID,'content-type':'application/json'},body:JSON.stringify({type:'channel.chat.message',version:'1',condition:{broadcaster_user_id:BROADCASTER,user_id:BROADCASTER},transport:{method:'webhook',callback:'https://d1psy-multistream-isolated-api.onrender.com/eventsub/twitch',secret:env.TWITCH_PROBE_SECRET}})});
   readiness.subscription_created_by_app=Array.isArray(sub.data)&&sub.data.length>0;
+  readiness.subscription_id=sub.data?.[0]?.id||null;
   readiness.status=sub.data?.[0]?.status||'unknown';
   readiness.last_checked_at=new Date().toISOString();
   json(res,200,{ok:readiness.subscription_created_by_app,subscription_status:readiness.status,broadcaster:'amych',isolated:true,giveaway_processing:false},headers);
