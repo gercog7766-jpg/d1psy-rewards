@@ -5,7 +5,7 @@ import http from 'node:http';
 import { readFileSync } from 'node:fs';
 import { Pool } from 'pg';
 import { probeConfig, handleProbeRequest } from './twitch-probe.mjs';
-import { handleIsolatedOAuthCallback } from './twitch-oauth-callback.mjs';
+import { handleIsolatedOAuthCallback,handleOAuthStart,readiness,oauthReady } from './twitch-oauth-callback.mjs';
 
 const port = Number(process.env.PORT || 10000);
 const url = process.env.DATABASE_URL;
@@ -56,7 +56,10 @@ const server = http.createServer(async (req, res) => {
     try { return await handleProbeRequest(req, res); }
     catch { return send(res, 503, { error: 'probe_unavailable' }); }
   }
-  if (handleIsolatedOAuthCallback(req, res)) return;
+  if (handleOAuthStart(req, res)) return;
+  if (new URL(req.url || '/', 'http://localhost').pathname === '/oauth/twitch/callback') {
+    await handleIsolatedOAuthCallback(req, res); return;
+  }
   if (req.method !== 'GET') return send(res, 405, { error: 'read_only' });
   const pathname = new URL(req.url || '/', 'http://localhost').pathname;
   if (pathname === '/test-dashboard') {
@@ -84,7 +87,9 @@ const server = http.createServer(async (req, res) => {
           broadcaster: 'amych',
           broadcaster_id: '39780903',
           mode: 'read_only_acknowledgement',
-          subscription_created_by_app: false,
+          subscription_created_by_app: readiness.subscription_created_by_app,
+          subscription_status: readiness.status,
+          oauth_enabled: oauthReady(),
           giveaway_processing: false
         });
       }
