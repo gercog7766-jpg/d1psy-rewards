@@ -13,6 +13,6 @@ test('OAuth callback is disabled, does not expose code, and does not redirect',a
  assert.equal(headers.location,undefined);
  assert.equal(body.includes(secret),false);
  assert.equal(JSON.parse(body).error,'isolated_oauth_disabled');
- assert.equal(handleIsolatedOAuthCallback({method:'GET',url:'/other'},res),false);
- assert.equal(handleIsolatedOAuthCallback({method:'POST',url:'/oauth/twitch/callback'},res),false);
+ assert.equal(await handleIsolatedOAuthCallback({method:'GET',url:'/other'},res),false);
+ assert.equal(await handleIsolatedOAuthCallback({method:'POST',url:'/oauth/twitch/callback'},res),false);
 });
