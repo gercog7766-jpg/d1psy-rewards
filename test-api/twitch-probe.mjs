@@ -5,10 +5,11 @@ import {Pool} from 'pg';
 import {verifyEventSubMessage} from '../src/eventsub-signature.mjs';
 import {validChatNotification} from '../src/eventsub-payload.mjs';
 import {chatSimulation} from './isolated-chat-simulation.mjs';
+import {primaryState} from './twitch-primary-oauth.mjs';
 
 const expectedDb='d1psy_multistream_test_db';
 const expectedBroadcaster='39780903';
-export const probeMetrics={verified_challenges:0,verified_chat_notifications:0,last_challenge_at:null,last_chat_at:null};
+export const probeMetrics={verified_challenges:0,verified_chat_notifications:0,last_challenge_at:null,last_chat_at:null,primary_chat_notifications:0,primary_challenges:0};
 export function probeConfig(env){
  try{
   const parsed=new URL(env.DATABASE_URL||'');
@@ -41,15 +42,17 @@ export async function handleProbeRequest(req,res,env=process.env){
   if(!verifyEventSubMessage({id,timestamp,signature,body,secret:env.TWITCH_PROBE_SECRET}))return send(403);
   let payload;try{payload=JSON.parse(body.toString('utf8'));}catch{return send(400);}
   if(type==='webhook_callback_verification'){
-   if(payload?.subscription?.type!=='channel.chat.message'||payload?.subscription?.condition?.broadcaster_user_id!==expectedBroadcaster||typeof payload.challenge!=='string'||payload.challenge.length===0||payload.challenge.length>1024)return send(403);
+   if(payload?.subscription?.type!=='channel.chat.message'||![expectedBroadcaster,primaryState.broadcaster_id].includes(payload?.subscription?.condition?.broadcaster_user_id)||typeof payload.challenge!=='string'||payload.challenge.length===0||payload.challenge.length>1024)return send(403);
+   if(payload.subscription.condition.broadcaster_user_id===primaryState.broadcaster_id)probeMetrics.primary_challenges++;
    probeMetrics.verified_challenges++;probeMetrics.last_challenge_at=new Date().toISOString();
    res.writeHead(200,{'content-type':'text/plain','cache-control':'no-store'});
    return res.end(String(payload.challenge||''));
   }
   if(type!=='notification'||!validChatNotification(payload))return send(400);
-  if(payload.event.broadcaster_user_id!==expectedBroadcaster)return send(403);
+  if(![expectedBroadcaster,primaryState.broadcaster_id].includes(payload.event.broadcaster_user_id))return send(403);
+  if(payload.event.broadcaster_user_id===primaryState.broadcaster_id)probeMetrics.primary_chat_notifications++;
   probeMetrics.verified_chat_notifications++;probeMetrics.last_chat_at=new Date().toISOString();
-  if(typeof payload.event.message_id==='string')chatSimulation.record({broadcasterId:expectedBroadcaster,messageId:payload.event.message_id});
+  if(typeof payload.event.message_id==='string')chatSimulation.record({broadcasterId:payload.event.broadcaster_user_id===primaryState.broadcaster_id?'511100980':expectedBroadcaster,messageId:payload.event.message_id});
   // Never persist chat or create/complete rounds. Acknowledge verified delivery only.
   return send(204);
  }
