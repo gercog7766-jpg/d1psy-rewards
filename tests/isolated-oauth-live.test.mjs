@@ -19,7 +19,7 @@ test('authorize requires test API token and creates one-time cookie',()=>{
  const denied=response();handleOAuthStart({...req,headers:{}},denied,isolated);assert.equal(denied.status,401);
  const res=response();assert.equal(handleOAuthStart(req,res,isolated),true);assert.equal(res.status,200);
  const body=JSON.parse(res.body);const u=new URL(body.authorization_url);
- assert.equal(u.hostname,'id.twitch.tv');assert.equal(u.searchParams.get('scope'),'user:read:chat');
+ assert.equal(u.hostname,'id.twitch.tv');assert.equal(u.searchParams.get('scope'),'user:read:chat user:bot channel:bot');
  assert.match(res.headers['set-cookie'],/HttpOnly; SameSite=Lax/);
  assert.equal(readiness.subscription_created_by_app,false);
 });
@@ -34,7 +34,7 @@ test('valid amych OAuth callback creates only the isolated read-only subscriptio
  const client=isolated.TWITCH_OAUTH_CLIENT_ID;
  globalThis.fetch=async(url,options={})=>{
   const address=String(url);calls.push({address,options});
-  if(address.endsWith('/oauth2/validate'))return {ok:true,json:async()=>({client_id:client,user_id:'39780903',login:'amych',scopes:['user:read:chat'],expires_in:3600})};
+  if(address.endsWith('/oauth2/validate'))return {ok:true,json:async()=>({client_id:client,user_id:'39780903',login:'amych',scopes:['user:read:chat','user:bot','channel:bot'],expires_in:3600})};
   if(address.endsWith('/helix/users'))return {ok:true,json:async()=>({data:[{id:'39780903',login:'amych'}]})};
   if(address.endsWith('/helix/eventsub/subscriptions'))return {ok:true,json:async()=>({data:[{status:'webhook_callback_verification_pending'}]})};
   if(address.endsWith('/oauth2/token'))return {ok:true,json:async()=>({access_token:calls.filter(x=>x.address.endsWith('/oauth2/token')).length===1?'user-token':'app-token'})};
