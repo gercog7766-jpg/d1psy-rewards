@@ -27,3 +27,41 @@ test('callback rejects absent state before any token exchange',async()=>{
  const res=response();assert.equal(await handleIsolatedOAuthCallback({method:'GET',url:'/oauth/twitch/callback?code=abcde&state=invalid',headers:{}},res,isolated),true);
  assert.equal(res.status,403);assert.equal(JSON.parse(res.body).error,'invalid_oauth_state');
 });
+
+test('valid amych OAuth callback creates only the isolated read-only subscription',async(t)=>{
+ const originalFetch=globalThis.fetch;
+ const calls=[];
+ const client=isolated.TWITCH_OAUTH_CLIENT_ID;
+ globalThis.fetch=async(url,options={})=>{
+  const address=String(url);calls.push({address,options});
+  if(address.endsWith('/oauth2/validate'))return {ok:true,json:async()=>({client_id:client,user_id:'39780903',login:'amych',scopes:['user:read:chat'],expires_in:3600})};
+  if(address.endsWith('/helix/users'))return {ok:true,json:async()=>({data:[{id:'39780903',login:'amych'}]})};
+  if(address.endsWith('/helix/eventsub/subscriptions'))return {ok:true,json:async()=>({data:[{status:'webhook_callback_verification_pending'}]})};
+  if(address.endsWith('/oauth2/token'))return {ok:true,json:async()=>({access_token:calls.filter(x=>x.address.endsWith('/oauth2/token')).length===1?'user-token':'app-token'})};
+  throw new Error('Unexpected network request: '+address);
+ };
+ t.after(()=>{globalThis.fetch=originalFetch;});
+ const start=response();
+ handleOAuthStart({method:'POST',url:'/api/test/twitch/authorize',headers:{authorization:'Bearer '+isolated.TEST_API_TOKEN}},start,isolated);
+ assert.equal(start.status,200);
+ const state=new URL(JSON.parse(start.body).authorization_url).searchParams.get('state');
+ const cookie=start.headers['set-cookie'].split(';')[0];
+ const result=response();
+ await handleIsolatedOAuthCallback({method:'GET',url:'/oauth/twitch/callback?state='+state+'&code=synthetic-code',headers:{cookie}},result,isolated);
+ assert.equal(result.status,200);
+ const body=JSON.parse(result.body);
+ assert.equal(body.isolated,true);
+ assert.equal(body.giveaway_processing,false);
+ assert.equal(body.subscription_status,'webhook_callback_verification_pending');
+ const subscription=calls.find(x=>x.address.endsWith('/helix/eventsub/subscriptions'));
+ assert.ok(subscription);
+ const payload=JSON.parse(subscription.options.body);
+ assert.equal(payload.type,'channel.chat.message');
+ assert.equal(payload.condition.broadcaster_user_id,'39780903');
+ assert.equal(payload.transport.callback,'https://d1psy-multistream-isolated-api.onrender.com/eventsub/twitch');
+ assert.equal(calls.length,5);
+ const replay=response();
+ await handleIsolatedOAuthCallback({method:'GET',url:'/oauth/twitch/callback?state='+state+'&code=synthetic-code',headers:{cookie}},replay,isolated);
+ assert.equal(replay.status,403);
+ assert.equal(calls.length,5);
+});
