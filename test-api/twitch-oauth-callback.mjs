@@ -21,12 +21,17 @@ export function handleOAuthInvite(req,res,env=process.env){
   const token=randomBytes(32).toString('base64url');invites.set(inviteDigest(token),Date.now()+INVITE_TTL_MS);
   json(res,200,{invite_url:'https://d1psy-multistream-isolated-api.onrender.com/oauth/twitch/invite/'+token,expires_in_seconds:900});return true;
  }
- if(req.method==='GET'&&path.startsWith('/oauth/twitch/invite/')){
+ if((req.method==='GET'||req.method==='POST')&&path.startsWith('/oauth/twitch/invite/')){
   if(!config(env))return json(res,503,{error:'isolated_oauth_disabled'}),true;
   const token=path.slice('/oauth/twitch/invite/'.length);
   if(!/^[A-Za-z0-9_-]{43}$/.test(token))return json(res,403,{error:'invalid_or_expired_invite'}),true;
-  cleanup();const digest=inviteDigest(token),expiresAt=invites.get(digest);invites.delete(digest);
+  cleanup();const digest=inviteDigest(token),expiresAt=invites.get(digest);
   if(!expiresAt||expiresAt<=Date.now())return json(res,403,{error:'invalid_or_expired_invite'}),true;
+  if(req.method==='GET'){
+   res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','referrer-policy':'no-referrer','x-content-type-options':'nosniff','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"});
+   res.end('<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Подключение Twitch · amych</title><body style="font:16px system-ui;background:#101728;color:#fff;max-width:540px;margin:8vh auto;padding:24px"><h1>Подключить Twitch · amych</h1><p>Войдите в Twitch под аккаунтом <strong>amych</strong>. Это изолированная проверка EventSub без розыгрышей и выдачи призов.</p><form method="post"><button style="background:#9146ff;color:white;padding:14px 22px;border:0;border-radius:8px;cursor:pointer;font-size:16px">Продолжить через Twitch</button></form><p>Ссылка одноразовая и действует 15 минут. Простое открытие страницы не расходует приглашение.</p></body></html>');return true;
+  }
+  invites.delete(digest);
   const state=createOAuthState();pending.set(state.value,state);
   res.writeHead(302,{location:twitchAuthorizeUrl(env,state),'set-cookie':oauthStateCookie(state.value),'cache-control':'no-store','referrer-policy':'no-referrer','x-content-type-options':'nosniff'});res.end();return true;
  }
