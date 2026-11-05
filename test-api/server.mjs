@@ -77,10 +77,11 @@ const server = http.createServer(async (req, res) => {
       let input;try{input=JSON.parse(body.toString('utf8'));}catch{return send(res,400,{error:'invalid_json'});}
       if(input?.streamer!=='d1psy_off'||typeof input?.message_id!=='string'||!/^synthetic-[a-zA-Z0-9_-]{1,80}$/.test(input.message_id))
         return send(res,400,{error:'primary_synthetic_only'});
+      if(primaryState.broadcaster_id)return send(res,409,{error:'primary_real_twitch_connected'});
       const counted=chatSimulation.record({broadcasterId:STREAMS.d1psy_off,messageId:input.message_id});
       return send(res,200,{counted,...chatSimulation.snapshot()});
     }
-    return send(res,200,chatSimulation.snapshot());
+    return send(res,200,{...chatSimulation.snapshot(),primary_real_connected:Boolean(primaryState.broadcaster_id)});
   }
   if (req.method !== 'GET') return send(res, 405, { error: 'read_only' });
   const pathname = new URL(req.url || '/', 'http://localhost').pathname;
@@ -104,6 +105,7 @@ const server = http.createServer(async (req, res) => {
     try {
       if (pathname === '/api/test/twitch-probe-status') {
         const live = await currentTwitchSubscription();
+        const primaryLive=primaryState.broadcaster_id?await currentPrimarySubscription():{status:'not_configured',checked:false};
         return send(res, 200, {
           isolated: true,
           enabled: probeConfig(process.env),
@@ -117,6 +119,10 @@ const server = http.createServer(async (req, res) => {
           twitch_live_checked_at: live.checked_at || null,
           verified_challenges: probeMetrics.verified_challenges,
           verified_chat_notifications: probeMetrics.verified_chat_notifications,
+          primary_live_status: primaryLive.status,
+          primary_real_connected: Boolean(primaryState.broadcaster_id),
+          primary_chat_notifications: probeMetrics.primary_chat_notifications,
+          primary_challenges: probeMetrics.primary_challenges,
           last_challenge_at: probeMetrics.last_challenge_at,
           last_chat_at: probeMetrics.last_chat_at,
           metrics_scope: 'current_process_only',
