@@ -7,7 +7,7 @@ import { Pool } from 'pg';
 import { probeConfig, handleProbeRequest, probeMetrics } from './twitch-probe.mjs';
 import {chatSimulation,STREAMS} from './isolated-chat-simulation.mjs';
 import {handlePrimaryInvite,handlePrimaryCallback,primaryState,currentPrimarySubscription,restorePrimarySubscription} from './twitch-primary-oauth.mjs';
-import { handleIsolatedOAuthCallback,handleOAuthStart,handleOAuthInvite,readiness,oauthReady,currentTwitchSubscription } from './twitch-oauth-callback.mjs';
+import { handleIsolatedOAuthCallback,handleOAuthStart,handleOAuthInvite,readiness,oauthReady,currentTwitchSubscription,restoreAmychSubscription } from './twitch-oauth-callback.mjs';
 
 const port = Number(process.env.PORT || 10000);
 const url = process.env.DATABASE_URL;
@@ -48,7 +48,7 @@ const verify = async () => {
   if (result.rows[0]?.name !== expectedName) throw new Error('Database identity mismatch');
 };
 await verify();
-await restorePrimarySubscription();
+await Promise.all([restorePrimarySubscription(),restoreAmychSubscription()]);
 
 const send = (res, status, body) => {
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
