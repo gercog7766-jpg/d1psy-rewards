@@ -36,7 +36,7 @@ export function handleOAuthStart(req,res,env=process.env){
  const state=createOAuthState();
  for(const [key,value] of pending)if(value.expiresAt<Date.now())pending.delete(key);
  pending.set(state.value,state);
- const params=new URLSearchParams({response_type:'code',client_id:env.TWITCH_OAUTH_CLIENT_ID,redirect_uri:REDIRECT,scope:'user:read:chat',state:state.value,force_verify:'true'});
+ const params=new URLSearchParams({response_type:'code',client_id:env.TWITCH_OAUTH_CLIENT_ID,redirect_uri:REDIRECT,scope:'user:read:chat user:bot channel:bot',state:state.value,force_verify:'true'});
  json(res,200,{authorization_url:'https://id.twitch.tv/oauth2/authorize?'+params.toString()},{'set-cookie':oauthStateCookie(state.value)});
  return true;
 }
