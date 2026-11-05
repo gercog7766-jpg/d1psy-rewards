@@ -1,6 +1,6 @@
 import express from 'express';
 import crypto from 'node:crypto';
-import {validateRoundInput} from './round-drop-policy.mjs';
+import {validateRoundInput,eligibleShopFtVariants} from './round-drop-policy.mjs';
 import { createClient } from '@supabase/supabase-js';
 
 const db=createClient(process.env.SUPABASE_URL||'https://ssqjogdcynmjjgtxknng.supabase.co',process.env.SUPABASE_SECRET_KEY||'not-configured',{auth:{persistSession:false}});
