@@ -78,11 +78,16 @@ test('one-time friend invite is admin-created, short-lived and cannot read dashb
  const url=new URL(body.invite_url);
  assert.equal(url.origin,'https://d1psy-multistream-isolated-api.onrender.com');
  const request={method:'GET',url:url.pathname,headers:{}};
- const first=response();handleOAuthInvite(request,first,isolated);
+ const preview=response();handleOAuthInvite(request,preview,isolated);
+ assert.equal(preview.status,200);
+ assert.match(preview.body,/Продолжить через Twitch/);
+ const secondPreview=response();handleOAuthInvite(request,secondPreview,isolated);
+ assert.equal(secondPreview.status,200);
+ const first=response();handleOAuthInvite({...request,method:'POST'},first,isolated);
  assert.equal(first.status,302);
  assert.equal(new URL(first.headers.location).hostname,'id.twitch.tv');
  assert.match(first.headers['set-cookie'],/HttpOnly; SameSite=Lax/);
- const second=response();handleOAuthInvite(request,second,isolated);
+ const second=response();handleOAuthInvite({...request,method:'POST'},second,isolated);
  assert.equal(second.status,403);
  const invalid=response();handleOAuthInvite({method:'GET',url:'/oauth/twitch/invite/invalid',headers:{}},invalid,isolated);
  assert.equal(invalid.status,403);
