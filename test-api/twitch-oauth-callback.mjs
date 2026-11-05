@@ -118,3 +118,21 @@ export async function handleIsolatedOAuthCallback(req,res,env=process.env){
  }
  return true;
 }
+
+// Recover the existing amych EventSub subscription after an isolated Render restart.
+// This only reads Twitch state; it never creates subscriptions or processes giveaways.
+export async function restoreAmychSubscription(env=process.env){
+ if(!config(env))return false;
+ try{
+  const app=await twitch('https://id.twitch.tv/oauth2/token',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:env.TWITCH_OAUTH_CLIENT_ID,client_secret:env.TWITCH_OAUTH_CLIENT_SECRET,grant_type:'client_credentials'})});
+  if(typeof app.access_token!=='string')return false;
+  const result=await twitch('https://api.twitch.tv/helix/eventsub/subscriptions?type=channel.chat.message',{headers:{authorization:'Bearer '+app.access_token,'client-id':env.TWITCH_OAUTH_CLIENT_ID}});
+  const match=result.data?.find(x=>x.type==='channel.chat.message'&&x.status==='enabled'&&x.condition?.broadcaster_user_id===BROADCASTER&&x.condition?.user_id===BROADCASTER&&x.transport?.method==='webhook'&&x.transport?.callback==='https://d1psy-multistream-isolated-api.onrender.com/eventsub/twitch');
+  if(!match)return false;
+  readiness.subscription_id=match.id;
+  readiness.subscription_created_by_app=true;
+  readiness.status=match.status;
+  readiness.last_checked_at=new Date().toISOString();
+  return true;
+ }catch{return false;}
+}
