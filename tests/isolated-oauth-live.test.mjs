@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {EventEmitter} from 'node:events';
-import {handleOAuthStart,handleIsolatedOAuthCallback,oauthReady,readiness} from '../test-api/twitch-oauth-callback.mjs';
+import {handleOAuthStart,handleOAuthInvite,handleIsolatedOAuthCallback,oauthReady,readiness} from '../test-api/twitch-oauth-callback.mjs';
 
 function response(){
  const r=new EventEmitter();r.status=0;r.headers={};r.writeHead=(status,headers)=>{r.status=status;r.headers=headers;return r};r.end=(body)=>{r.body=body;return r};return r;
@@ -64,4 +64,28 @@ test('valid amych OAuth callback creates only the isolated read-only subscriptio
  await handleIsolatedOAuthCallback({method:'GET',url:'/oauth/twitch/callback?state='+state+'&code=synthetic-code',headers:{cookie}},replay,isolated);
  assert.equal(replay.status,403);
  assert.equal(calls.length,5);
+});
+
+test('one-time friend invite is admin-created, short-lived and cannot read dashboard data',async()=>{
+ const unauth=response();
+ assert.equal(handleOAuthInvite({method:'POST',url:'/api/test/twitch/invite',headers:{}},unauth,isolated),true);
+ assert.equal(unauth.status,401);
+ const created=response();
+ handleOAuthInvite({method:'POST',url:'/api/test/twitch/invite',headers:{authorization:'Bearer '+isolated.TEST_API_TOKEN}},created,isolated);
+ assert.equal(created.status,200);
+ const body=JSON.parse(created.body);
+ assert.equal(body.expires_in_seconds,900);
+ const url=new URL(body.invite_url);
+ assert.equal(url.origin,'https://d1psy-multistream-isolated-api.onrender.com');
+ const request={method:'GET',url:url.pathname,headers:{}};
+ const first=response();handleOAuthInvite(request,first,isolated);
+ assert.equal(first.status,302);
+ assert.equal(new URL(first.headers.location).hostname,'id.twitch.tv');
+ assert.match(first.headers['set-cookie'],/HttpOnly; SameSite=Lax/);
+ const second=response();handleOAuthInvite(request,second,isolated);
+ assert.equal(second.status,403);
+ const invalid=response();handleOAuthInvite({method:'GET',url:'/oauth/twitch/invite/invalid',headers:{}},invalid,isolated);
+ assert.equal(invalid.status,403);
+ const blocked=response();handleOAuthInvite(request,blocked,{...isolated,DATABASE_URL:'postgresql://localhost/production'});
+ assert.equal(blocked.status,503);
 });
