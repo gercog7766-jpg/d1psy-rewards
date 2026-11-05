@@ -5,6 +5,7 @@ import http from 'node:http';
 import { readFileSync } from 'node:fs';
 import { Pool } from 'pg';
 import { probeConfig, handleProbeRequest, probeMetrics } from './twitch-probe.mjs';
+import {chatSimulation,STREAMS} from './isolated-chat-simulation.mjs';
 import { handleIsolatedOAuthCallback,handleOAuthStart,handleOAuthInvite,readiness,oauthReady,currentTwitchSubscription } from './twitch-oauth-callback.mjs';
 
 const port = Number(process.env.PORT || 10000);
@@ -60,6 +61,23 @@ const server = http.createServer(async (req, res) => {
   if (handleOAuthStart(req, res)) return;
   if (new URL(req.url || '/', 'http://localhost').pathname === '/oauth/twitch/callback') {
     await handleIsolatedOAuthCallback(req, res); return;
+  }
+  const simulationPath = new URL(req.url || '/', 'http://localhost').pathname;
+  if(simulationPath==='/api/test/chat-simulation' && (req.method==='GET'||req.method==='POST')){
+    const supplied=req.headers.authorization?.replace(/^Bearer /,'')||'';
+    const a=Buffer.from(supplied),b=Buffer.from(token);
+    if(a.length!==b.length||!timingSafeEqual(a,b))return send(res,401,{error:'unauthorized'});
+    if(!probeConfig(process.env))return send(res,503,{error:'isolated_probe_required'});
+    if(req.method==='POST'){
+      let body=Buffer.alloc(0);
+      for await(const chunk of req){body=Buffer.concat([body,chunk]);if(body.length>1024)return send(res,413,{error:'too_large'});}
+      let input;try{input=JSON.parse(body.toString('utf8'));}catch{return send(res,400,{error:'invalid_json'});}
+      if(input?.streamer!=='d1psy_off'||typeof input?.message_id!=='string'||!/^synthetic-[a-zA-Z0-9_-]{1,80}$/.test(input.message_id))
+        return send(res,400,{error:'primary_synthetic_only'});
+      const counted=chatSimulation.record({broadcasterId:STREAMS.d1psy_off,messageId:input.message_id});
+      return send(res,200,{counted,...chatSimulation.snapshot()});
+    }
+    return send(res,200,chatSimulation.snapshot());
   }
   if (req.method !== 'GET') return send(res, 405, { error: 'read_only' });
   const pathname = new URL(req.url || '/', 'http://localhost').pathname;
