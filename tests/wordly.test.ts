@@ -8,12 +8,14 @@ test('Moscow reset boundary and next reset',()=>{
  assert.equal(nextReset('2026-11-05'),'2026-11-05T21:00:00.000Z');
  assert.equal(moscowDay(new Date('2026-12-31T21:00:00Z')),'2027-01-01');
 });
-test('15 unique valid words daily; pool stable within day and rotates',()=>{
+test('20 unique valid words daily; seven distinct weekday pools',()=>{
  const pool=dailyPool('2026-11-05','test-secret');
- assert.equal(new Set(pool).size,15);
+ assert.equal(new Set(pool).size,20);
  assert(pool.every(x=>/^[а-я]{5}$/.test(x)&&DICTIONARY.has(x)));
  assert.deepEqual(pool,dailyPool('2026-11-05','test-secret'));
  assert.notDeepEqual(pool,dailyPool('2026-11-06','test-secret'));
+ assert.deepEqual(pool,dailyPool('2026-11-12','test-secret'));
+ assert.equal(new Set(Array.from({length:7},(_,i)=>dailyPool(`2026-11-${String(9+i).padStart(2,'0')}`,'test-secret')).flat()).size,140);
 });
 test('duplicate letters consume only available occurrences',()=>{
  assert.deepEqual(grade('сосна','насос'),['present','present','correct','present','present']);
