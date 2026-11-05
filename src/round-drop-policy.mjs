@@ -38,3 +38,12 @@ export function shopItemEligible(item,min=0,max=1000){
  const price=integerWithin(item?.price_coins,0,1000);
  return isOrdinaryFtSkin(item)&&item?.status==='available'&&price!==null&&price>=min&&price<=max&&Number(item.stock)>0;
 }
+
+export function eligibleShopFtVariants(items,variants,min=0,max=1000){
+ const byId=new Map((items||[]).filter(item=>item?.status==='available'&&Number(item.stock)>0).map(item=>[String(item.id),item]));
+ return (variants||[]).filter(variant=>{
+  const item=byId.get(String(variant?.shop_item_id));
+  const price=integerWithin(variant?.price_coins,0,1000);
+  return !!item&&variant?.wear==='FT'&&variant?.variant_kind==='normal'&&variant?.available===true&&price!==null&&price>=min&&price<=max;
+ }).map(variant=>({shop_item_id:variant.shop_item_id,variant_id:variant.id,price_coins:variant.price_coins,item:byId.get(String(variant.shop_item_id))}));
+}
