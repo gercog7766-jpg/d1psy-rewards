@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {EventEmitter} from 'node:events';
-import {handleOAuthStart,handleOAuthInvite,handleIsolatedOAuthCallback,oauthReady,readiness} from '../test-api/twitch-oauth-callback.mjs';
+import {handleOAuthStart,handleOAuthInvite,handleIsolatedOAuthCallback,oauthReady,readiness,currentTwitchSubscription} from '../test-api/twitch-oauth-callback.mjs';
 
 function response(){
  const r=new EventEmitter();r.status=0;r.headers={};r.writeHead=(status,headers)=>{r.status=status;r.headers=headers;return r};r.end=(body)=>{r.body=body;return r};return r;
@@ -96,4 +96,23 @@ test('one-time friend invite is admin-created, short-lived and cannot read dashb
  assert.equal(invalid.status,403);
  const blocked=response();handleOAuthInvite(request,blocked,{...isolated,DATABASE_URL:'postgresql://localhost/production'});
  assert.equal(blocked.status,503);
+});
+
+test('live Twitch status checks only isolated matching EventSub subscription',async(t)=>{
+ const originalFetch=globalThis.fetch;
+ const calls=[];
+ globalThis.fetch=async(url,options={})=>{
+  calls.push(String(url));
+  if(String(url).endsWith('/oauth2/token'))return {ok:true,json:async()=>({access_token:'app-token'})};
+  if(String(url).includes('/helix/eventsub/subscriptions'))return {ok:true,json:async()=>({data:[
+   {type:'channel.chat.message',status:'enabled',condition:{broadcaster_user_id:'other'},transport:{method:'webhook',callback:'https://d1psy-multistream-isolated-api.onrender.com/eventsub/twitch'}},
+   {type:'channel.chat.message',status:'enabled',condition:{broadcaster_user_id:'39780903'},transport:{method:'webhook',callback:'https://d1psy-multistream-isolated-api.onrender.com/eventsub/twitch'}}
+  ]})};
+  throw Error('unexpected');
+ };
+ t.after(()=>{globalThis.fetch=originalFetch;});
+ assert.deepEqual(await currentTwitchSubscription({...isolated,DATABASE_URL:'postgresql://localhost/production'}),{status:'not_configured',checked:false});
+ const status=await currentTwitchSubscription(isolated);
+ assert.equal(status.checked,true);assert.equal(status.status,'enabled');
+ assert.equal(calls.length,2);
 });
