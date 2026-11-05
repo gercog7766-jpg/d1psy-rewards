@@ -85,8 +85,10 @@ test('one-time friend invite is admin-created, short-lived and cannot read dashb
  const secondPreview=response();handleOAuthInvite(request,secondPreview,isolated);
  assert.equal(secondPreview.status,200);
  const first=response();handleOAuthInvite({...request,method:'POST'},first,isolated);
- assert.equal(first.status,302);
- assert.equal(new URL(first.headers.location).hostname,'id.twitch.tv');
+ assert.equal(first.status,200);
+ assert.match(first.body,/Открыть Twitch/);
+ assert.match(first.body,/https:\/\/id\.twitch\.tv\/oauth2\/authorize/);
+ assert.match(first.headers['content-security-policy'],/default-src 'none'/);
  assert.match(first.headers['set-cookie'],/HttpOnly; SameSite=Lax/);
  const second=response();handleOAuthInvite({...request,method:'POST'},second,isolated);
  assert.equal(second.status,403);
