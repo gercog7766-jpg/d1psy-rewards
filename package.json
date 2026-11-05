@@ -8,7 +8,7 @@
     "build": "tsc",
     "start": "node dist/server-entry.js",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test tests/wordly.test.ts tests/wordly-db.test.mjs tests/predict-db.test.mjs tests/predict-http.test.mjs tests/tic-tac-toe-db.test.mjs"
+    "test": "node --import tsx --test tests/wordly.test.ts tests/wordly-db.test.mjs tests/predict-db.test.mjs tests/predict-http.test.mjs tests/tic-tac-toe-db.test.mjs tests/game-bp.test.mjs"
   },
   "engines": {
     "node": ">=20"

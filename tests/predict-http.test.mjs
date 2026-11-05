@@ -9,6 +9,8 @@ test('real app: navigation, signed user identity, own predictions and admin-only
  const mock=http.createServer(async(req,res)=>{
   res.setHeader('Content-Type','application/json');const url=new URL(req.url,'http://test');
   if(url.pathname.endsWith('/rewards_users'))return res.end(JSON.stringify({id:userId,twitch_display_name:'Test'}));
+  if(url.pathname.endsWith('/rewards_season_daily_schedule'))return res.end(JSON.stringify(['ttt_win','wordly_win','predict_winner'].map(task_key=>({task_key,target:1,reward:150}))));
+  if(url.pathname.endsWith('/rewards_season_task_progress'))return res.end(JSON.stringify([{task_key:'ttt_win',period_key:new Date(Date.now()+10800000).toISOString().slice(0,10),progress:1,completed_at:new Date().toISOString()}]));
   if(url.pathname.endsWith('/rewards_admins'))return res.end('[]');
   if(url.pathname.endsWith('/rewards_predict_matches'))return res.end(JSON.stringify([{id:'test-match',starts_at:'2099-01-01T00:00:00Z',status:'scheduled'}]));
   if(url.pathname.endsWith('/rewards_predictions')){readFilter=url.searchParams.get('user_id');return res.end('[]')}
@@ -43,6 +45,7 @@ test('real app: navigation, signed user identity, own predictions and admin-only
   assert.equal((await fetch(origin+'/api/me/tic-tac-toe?room=bad',{headers})).status,400);
   assert.equal((await fetch(origin+'/api/me/tic-tac-toe/'+roomId+'/move',{method:'POST',headers,body:JSON.stringify({cell:9,revision:1})})).status,400);
   const gamesPage=await(await fetch(origin+'/games',{headers})).text();assert(gamesPage.includes('href="/games/tic-tac-toe"'));assert(gamesPage.includes('Вордли'));
+  const bpResponse=await fetch(origin+'/api/me/season',{headers});assert.equal(bpResponse.status,200);const bp=await bpResponse.json();assert.deepEqual(bp.daily.map(x=>x.key),['ttt_win','wordly_win','predict_winner']);assert(bp.daily.every(x=>x.reward===150&&x.target===1));assert.equal(bp.daily[0].done,true);assert.match(bp.daily[0].title,/крестики-нолики/);assert.match(bp.daily[2].title,/победителя матча/);
   const image=await fetch(origin+'/predict-assets/parivision.png');assert.equal(image.status,200);assert.equal(image.headers.get('Content-Type'),'image/png');
  }finally{server.kill();await new Promise(r=>mock.close(r));}
 });
