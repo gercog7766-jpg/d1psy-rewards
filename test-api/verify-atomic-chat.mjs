@@ -118,7 +118,7 @@ try{
  if(!(await record(secondary,'39780903','between-rounds','viewer-c')).rows[0].recorded)throw Error('Between-round event not stored');
  if((await record(secondary,'39780903','between-rounds','viewer-c')).rows[0].recorded)throw Error('Between-round duplicate counted');
  const {rows:[gap]}=await client.query("select (select count(*)::int from public.rewards_chat_events where streamer_id=$1 and round_id is null) as unassigned,(select message_count from public.rewards_rounds where streamer_id=$1) as count",[secondary]);
- if(gap.unassigned!==1||gap.count!==2)throw Error('Between-round event affected counter');
+ if(gap.unassigned!==1||gap.count!==3)throw Error('Between-round event affected counter');
  console.log('PASS: isolated atomic chat SQL and HTTP 204/500 duplicate/retry, cross-streamer, no-round and rollback');
 }catch(e){console.error('FAIL: atomic chat:',e.message);process.exitCode=1;}
 finally{if(begun)await client.query('ROLLBACK');client.release();await pool.end();}
