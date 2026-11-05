@@ -28,7 +28,7 @@ test('real app: navigation, signed user identity, own predictions and admin-only
   assert.equal((await fetch(origin+'/api/me/predict')).status,401);
   const html=await (await fetch(origin+'/account')).text();
   assert(/id="gamesLink"[^>]*>Игры<\/a><a id="predictLink"[^>]*>Предикт<\/a><a[^>]*href="\/upgrader"/.test(html));
-  const page=await fetch(origin+'/predict',{headers});assert.equal(page.status,200);assert((await page.text()).includes('До 10 монет'));
+  const page=await fetch(origin+'/predict',{headers});assert.equal(page.status,200);const pageHtml=await page.text();assert(pageHtml.includes('<h1>Предикт</h1>'));assert(!pageHtml.includes('До 10 монет'));
   const list=await fetch(origin+'/api/me/predict',{headers});assert.equal(list.status,200);assert.equal((await list.json()).matches[0].closes_at,'2098-12-31T23:45:00.000Z');assert.equal(readFilter,'eq.'+userId);
   const save=await fetch(origin+'/api/me/predict/test-match',{method:'POST',headers,body:JSON.stringify({winner:'b',score:'2:1',topPlayer:'b1t',user_id:'spoofed'})});assert.equal(save.status,200);assert.equal(rpcBody.p_user_id,userId);assert.equal(rpcBody.p_top_player,'b1t');
   const closed=await fetch(origin+'/api/me/predict/test-match',{method:'POST',headers,body:JSON.stringify({winner:'b',score:'2:1',topPlayer:'late'})});assert.equal(closed.status,409);assert.equal((await closed.json()).error,'predictions_closed');
