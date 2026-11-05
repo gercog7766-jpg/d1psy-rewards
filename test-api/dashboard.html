@@ -25,7 +25,7 @@ table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:left;b
 <button id="refresh">Загрузить данные</button></div>
 <p id="status" role="status">Для просмотра введите тестовый API-токен. Он не сохраняется и не добавляется в URL.</p>
 </section>
-<section class="panel"><h2>Twitch EventSub · amych</h2><button id="twitch-authorize" type="button" hidden>Создать ссылку для amych (15 минут)</button><p id="invite-result" role="status"></p><p id="twitch-probe-status" role="status">Статус ещё не проверен. Введите тестовый токен и нажмите «Загрузить данные».</p><small>Показывает только готовность локального обработчика. Не подтверждает подписку Twitch, получение реального чата или работу розыгрышей.</small></section>
+<section class="panel"><h2>Twitch EventSub · amych</h2><button id="twitch-authorize" type="button" hidden>Создать ссылку для amych (15 минут)</button><p id="invite-result" role="status"></p><p id="twitch-probe-status" role="status">Статус ещё не проверен. Введите тестовый токен и нажмите «Загрузить данные».</p><small>Текущий статус запрашивается у Twitch при загрузке. Счётчики учитывают только проверенные события в памяти текущего процесса и сбрасываются при перезапуске. Текст чата не сохраняется. Розыгрыши отключены.</small></section>
 <div id="streamers" class="cards" aria-live="polite"></div>
 <section class="panel"><h2>Состояние призов</h2><div id="prizes">Данные ещё не загружены.</div></section>
 <section class="panel"><h2>Раунды по стримерам</h2><div id="rounds">Данные ещё не загружены.</div></section>
@@ -75,7 +75,7 @@ $('refresh').addEventListener('click',async()=>{
    const probeResponse=await fetch('/api/test/twitch-probe-status',{headers:{Authorization:'Bearer '+token},cache:'no-store'});
    if(!probeResponse.ok)throw new Error('HTTP '+probeResponse.status);
    const probe=await probeResponse.json();
-   $('twitch-authorize').hidden=!(probe.enabled&&probe.oauth_enabled);$('twitch-probe-status').textContent=probe.subscription_created_by_app?'Подписка создана: '+probe.subscription_status+'. Ожидаем подтверждение Twitch.':probe.enabled?'Включён — подписанные уведомления amych могут приниматься. Подписка Twitch не подтверждена.':'Выключен — настройки безопасности или обязательные переменные не прошли проверку.';
+   $('twitch-authorize').hidden=!(probe.enabled&&probe.oauth_enabled);$('twitch-probe-status').textContent=probe.enabled?('Twitch: '+(probe.twitch_live_checked?probe.twitch_live_status:'не удалось проверить')+' · исходный статус: '+probe.subscription_status+' · подтверждений webhook: '+probe.verified_challenges+' · сообщений чата: '+probe.verified_chat_notifications+' · последнее сообщение: '+(probe.last_chat_at||'нет')+' · счётчики с последнего запуска сервиса.'):'Выключен — настройки безопасности или обязательные переменные не прошли проверку.';
   }catch{
    $('twitch-probe-status').textContent='Не удалось проверить готовность обработчика Twitch.';
   }
