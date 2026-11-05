@@ -1,12 +1,38 @@
 // Opt-in, isolated Twitch OAuth + EventSub subscription. No database writes or token persistence.
 import {createOAuthState,validateOAuthState,oauthStateCookie,clearOAuthStateCookie} from './twitch-oauth-state.mjs';
 import {validateIsolatedTwitchIdentity} from './twitch-oauth-identity.mjs';
-import {timingSafeEqual} from 'node:crypto';
+import {timingSafeEqual,randomBytes,createHash} from 'node:crypto';
 
 const BROADCASTER='39780903';
 const REDIRECT='https://d1psy-multistream-isolated-api.onrender.com/oauth/twitch/callback';
 const COOKIE='__Host-isolated-oauth-state';
 const pending=new Map();
+const invites=new Map();
+const INVITE_TTL_MS=15*60*1000;
+const inviteDigest=token=>createHash('sha256').update(token).digest('hex');
+function cleanup(){const now=Date.now();for(const [k,v] of pending)if(v.expiresAt<=now)pending.delete(k);for(const [k,v] of invites)if(v<=now)invites.delete(k)}
+function twitchAuthorizeUrl(env,state){const params=new URLSearchParams({response_type:'code',client_id:env.TWITCH_OAUTH_CLIENT_ID,redirect_uri:REDIRECT,scope:'user:read:chat user:bot channel:bot',state:state.value,force_verify:'true'});return 'https://id.twitch.tv/oauth2/authorize?'+params.toString()}
+export function handleOAuthInvite(req,res,env=process.env){
+ const path=new URL(req.url||'/', 'http://localhost').pathname;
+ if(path==='/api/test/twitch/invite'&&req.method==='POST'){
+  if(!config(env))return json(res,503,{error:'isolated_oauth_disabled'}),true;
+  if(!bearerOk(req,env))return json(res,401,{error:'unauthorized'}),true;
+  cleanup();if(invites.size>=100)return json(res,429,{error:'too_many_pending_invites'}),true;
+  const token=randomBytes(32).toString('base64url');invites.set(inviteDigest(token),Date.now()+INVITE_TTL_MS);
+  json(res,200,{invite_url:'https://d1psy-multistream-isolated-api.onrender.com/oauth/twitch/invite/'+token,expires_in_seconds:900});return true;
+ }
+ if(req.method==='GET'&&path.startsWith('/oauth/twitch/invite/')){
+  if(!config(env))return json(res,503,{error:'isolated_oauth_disabled'}),true;
+  const token=path.slice('/oauth/twitch/invite/'.length);
+  if(!/^[A-Za-z0-9_-]{43}$/.test(token))return json(res,403,{error:'invalid_or_expired_invite'}),true;
+  cleanup();const digest=inviteDigest(token),expiresAt=invites.get(digest);invites.delete(digest);
+  if(!expiresAt||expiresAt<=Date.now())return json(res,403,{error:'invalid_or_expired_invite'}),true;
+  const state=createOAuthState();pending.set(state.value,state);
+  res.writeHead(302,{location:twitchAuthorizeUrl(env,state),'set-cookie':oauthStateCookie(state.value),'cache-control':'no-store','referrer-policy':'no-referrer','x-content-type-options':'nosniff'});res.end();return true;
+ }
+ return false;
+}
+
 export const readiness={subscription_created_by_app:false,status:'not_configured',last_checked_at:null};
 const json=(res,status,value,headers={})=>{res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store','referrer-policy':'no-referrer',...headers});res.end(JSON.stringify(value));};
 function config(env){
@@ -34,10 +60,9 @@ export function handleOAuthStart(req,res,env=process.env){
  if(!config(env))return json(res,503,{error:'isolated_oauth_disabled'}),true;
  if(!bearerOk(req,env))return json(res,401,{error:'unauthorized'}),true;
  const state=createOAuthState();
- for(const [key,value] of pending)if(value.expiresAt<Date.now())pending.delete(key);
+ cleanup();
  pending.set(state.value,state);
- const params=new URLSearchParams({response_type:'code',client_id:env.TWITCH_OAUTH_CLIENT_ID,redirect_uri:REDIRECT,scope:'user:read:chat user:bot channel:bot',state:state.value,force_verify:'true'});
- json(res,200,{authorization_url:'https://id.twitch.tv/oauth2/authorize?'+params.toString()},{'set-cookie':oauthStateCookie(state.value)});
+ json(res,200,{authorization_url:twitchAuthorizeUrl(env,state)},{'set-cookie':oauthStateCookie(state.value)});
  return true;
 }
 export async function handleIsolatedOAuthCallback(req,res,env=process.env){
