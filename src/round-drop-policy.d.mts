@@ -3,3 +3,4 @@ export declare function integerWithin(value:unknown,min:number,max:number):numbe
 export declare function validateRoundInput(body?:Record<string,unknown>):{ok:true;mode:'time'|'messages';interval:number;threshold:number;min:number;max:number}|{ok:false;error:string};
 export declare function prizeInPriceRange(prize:unknown,min:number,max:number):boolean;
 export declare function shopItemEligible(item:unknown,min?:number,max?:number):boolean;
+export declare function isOrdinaryFtSkin(item:unknown):boolean;
