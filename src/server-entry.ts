@@ -1,3 +1,4 @@
+import { installTicTacToe } from './tic-tac-toe-hotfix.js';
 import { installPredictHotfix } from './predict-hotfix.js';
 import { installGamesHotfix } from './games-hotfix.js';
 import { installAccountHotfix } from './account-hotfix.js';
@@ -66,6 +67,7 @@ import { installAccountInventoryV2Hotfix } from './account-inventory-v2-hotfix.j
 
 // Install raw HTTP legal handling first so /privacy and /rules are not dependent
 // on the heavily wrapped Express application.get chain.
+installTicTacToe();
 installPredictHotfix();
 installGamesHotfix();
 installLegalPagesHotfix();

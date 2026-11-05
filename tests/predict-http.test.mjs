@@ -12,6 +12,7 @@ test('real app: navigation, signed user identity, own predictions and admin-only
   if(url.pathname.endsWith('/rewards_admins'))return res.end('[]');
   if(url.pathname.endsWith('/rewards_predict_matches'))return res.end(JSON.stringify([{id:'test-match',starts_at:'2099-01-01T00:00:00Z',status:'scheduled'}]));
   if(url.pathname.endsWith('/rewards_predictions')){readFilter=url.searchParams.get('user_id');return res.end('[]')}
+  if(url.pathname.includes('/rpc/rewards_ttt_')){let body='';for await(const chunk of req)body+=chunk;rpcBody=JSON.parse(body);if(url.pathname.endsWith('_state'))return res.end(JSON.stringify({serverNow:new Date().toISOString(),room:null,currentRoomId:null,rooms:[],history:[]}));return res.end(JSON.stringify({ok:true,roomId:rpcBody.p_room}))}
   if(url.pathname.endsWith('/rpc/rewards_save_prediction')){let body='';for await(const chunk of req)body+=chunk;rpcBody=JSON.parse(body);if(rpcBody.p_top_player==='late'){res.statusCode=400;return res.end(JSON.stringify({code:'P0001',message:'predictions_closed'}))}return res.end(JSON.stringify({winner:rpcBody.p_winner,score:rpcBody.p_score,top_player:rpcBody.p_top_player,updated_at:new Date().toISOString()}))}
   res.end('[]');
  });
@@ -34,6 +35,14 @@ test('real app: navigation, signed user identity, own predictions and admin-only
   const closed=await fetch(origin+'/api/me/predict/test-match',{method:'POST',headers,body:JSON.stringify({winner:'b',score:'2:1',topPlayer:'late'})});assert.equal(closed.status,409);assert.equal((await closed.json()).error,'predictions_closed');
   const invalid=await fetch(origin+'/api/me/predict/test-match',{method:'POST',headers,body:JSON.stringify({winner:'b',score:'2:2',topPlayer:'b1t'})});assert.equal(invalid.status,400);
   const admin=await fetch(origin+'/api/admin/predict/test-match/settle',{method:'POST',headers,body:JSON.stringify({winner:'b',score:'2:1',topPlayers:['b1t']})});assert.equal(admin.status,403);
+  assert.equal((await fetch(origin+'/games/tic-tac-toe')).status,401);
+  const tttPage=await fetch(origin+'/games/tic-tac-toe',{headers});assert.equal(tttPage.status,200);assert((await tttPage.text()).includes('Крестики-нолики'));
+  const roomId='12345678-1234-4123-8123-123456789abc';
+  const created=await fetch(origin+'/api/me/tic-tac-toe/create',{method:'POST',headers,body:JSON.stringify({roomId,isPrivate:true,password:'secret-pass',user_id:'spoofed'})});assert.equal(created.status,200);assert.equal(rpcBody.p_user,userId);assert.match(rpcBody.p_password_hash,/^[a-f0-9]{64}$/);assert(!JSON.stringify(rpcBody).includes('secret-pass'));
+  const joined=await fetch(origin+'/api/me/tic-tac-toe/'+roomId+'/join',{method:'POST',headers,body:JSON.stringify({password:'secret-pass'})});assert.equal(joined.status,200);assert.equal(typeof rpcBody.p_host_x,'boolean');
+  assert.equal((await fetch(origin+'/api/me/tic-tac-toe?room=bad',{headers})).status,400);
+  assert.equal((await fetch(origin+'/api/me/tic-tac-toe/'+roomId+'/move',{method:'POST',headers,body:JSON.stringify({cell:9,revision:1})})).status,400);
+  const gamesPage=await(await fetch(origin+'/games',{headers})).text();assert(gamesPage.includes('href="/games/tic-tac-toe"'));assert(gamesPage.includes('Вордли'));
   const image=await fetch(origin+'/predict-assets/parivision.png');assert.equal(image.status,200);assert.equal(image.headers.get('Content-Type'),'image/png');
  }finally{server.kill();await new Promise(r=>mock.close(r));}
 });
