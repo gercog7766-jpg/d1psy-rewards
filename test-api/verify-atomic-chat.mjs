@@ -112,6 +112,17 @@ try{
  );
  if(afterPrimary.primary_count!==4||afterPrimary.secondary_count!==3)
    throw Error('Cross-stream chat leakage after primary event '+JSON.stringify(afterPrimary));
+ // Threshold evaluation is scoped by round/streamer, never by total chat across channels.
+ await client.query("update public.rewards_rounds set mode='messages',message_threshold=4 where streamer_id=$1 and status='active'",[primary]);
+ await client.query("update public.rewards_rounds set mode='messages',message_threshold=5 where streamer_id=$1 and status='active'",[secondary]);
+ const {rows:eligibility}=await client.query(
+  "select streamer_id,(message_count>=message_threshold) as due from public.rewards_rounds where status='active' and streamer_id in ($1,$2)",
+  [primary,secondary]
+ );
+ const due=new Map(eligibility.map(r=>[r.streamer_id,r.due]));
+ if(due.get(primary)!==true||due.get(secondary)!==false)
+   throw Error('Cross-stream threshold contamination '+JSON.stringify(eligibility));
+ console.log('PASS: separate message thresholds: primary round due, amych round not due');
  console.log('PASS: two independent streamer rounds: primary 4, amych 3; dedup and cross-stream isolation');
  // An event without an active round is still recorded once, but cannot credit a round.
  await client.query("update public.rewards_rounds set status='cancelled' where streamer_id=$1 and status='active'",[secondary]);
