@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [feature/multistream-safe-cutover]
+    branches: [feature/multistream-safe-cutover, feature/isolated-amych-oauth-eventsub]
   workflow_dispatch:
 
 permissions:
