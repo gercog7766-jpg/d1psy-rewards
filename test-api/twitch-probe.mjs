@@ -4,6 +4,7 @@ import http from 'node:http';
 import {Pool} from 'pg';
 import {verifyEventSubMessage} from '../src/eventsub-signature.mjs';
 import {validChatNotification} from '../src/eventsub-payload.mjs';
+import {chatSimulation} from './isolated-chat-simulation.mjs';
 
 const expectedDb='d1psy_multistream_test_db';
 const expectedBroadcaster='39780903';
@@ -48,6 +49,7 @@ export async function handleProbeRequest(req,res,env=process.env){
   if(type!=='notification'||!validChatNotification(payload))return send(400);
   if(payload.event.broadcaster_user_id!==expectedBroadcaster)return send(403);
   probeMetrics.verified_chat_notifications++;probeMetrics.last_chat_at=new Date().toISOString();
+  if(typeof payload.event.message_id==='string')chatSimulation.record({broadcasterId:expectedBroadcaster,messageId:payload.event.message_id});
   // Never persist chat or create/complete rounds. Acknowledge verified delivery only.
   return send(204);
  }
