@@ -48,7 +48,8 @@ const verify = async () => {
   if (result.rows[0]?.name !== expectedName) throw new Error('Database identity mismatch');
 };
 await verify();
-await Promise.all([restorePrimarySubscription(),restoreAmychSubscription()]);
+const [primaryRestored,amychRestored] = await Promise.all([restorePrimarySubscription(),restoreAmychSubscription()]);
+console.log('Isolated EventSub recovery:', JSON.stringify({d1psy_off:primaryRestored?'restored':'not_restored',amych:amychRestored?'restored':'not_restored'}));
 
 const send = (res, status, body) => {
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
