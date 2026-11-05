@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { Pool } from 'pg';
 import { probeConfig, handleProbeRequest, probeMetrics } from './twitch-probe.mjs';
 import {chatSimulation,STREAMS} from './isolated-chat-simulation.mjs';
+import {handlePrimaryInvite,handlePrimaryCallback,primaryState,currentPrimarySubscription} from './twitch-primary-oauth.mjs';
 import { handleIsolatedOAuthCallback,handleOAuthStart,handleOAuthInvite,readiness,oauthReady,currentTwitchSubscription } from './twitch-oauth-callback.mjs';
 
 const port = Number(process.env.PORT || 10000);
@@ -57,9 +58,11 @@ const server = http.createServer(async (req, res) => {
     try { return await handleProbeRequest(req, res); }
     catch { return send(res, 503, { error: 'probe_unavailable' }); }
   }
+  if (handlePrimaryInvite(req, res)) return;
   if (handleOAuthInvite(req, res)) return;
   if (handleOAuthStart(req, res)) return;
   if (new URL(req.url || '/', 'http://localhost').pathname === '/oauth/twitch/callback') {
+    if(await handlePrimaryCallback(req,res))return;
     await handleIsolatedOAuthCallback(req, res); return;
   }
   const simulationPath = new URL(req.url || '/', 'http://localhost').pathname;
