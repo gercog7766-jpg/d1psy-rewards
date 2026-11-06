@@ -1,8 +1,9 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';import {PGlite} from '@electric-sql/pglite';import {readFile} from 'node:fs/promises';import {createHmac,randomUUID} from 'node:crypto';import {spawn} from 'node:child_process';import {JSDOM,VirtualConsole} from 'jsdom';import http from 'node:http';
 test('full prediction result UI: winner/loser, player comparison, claim/retry/reload and own reward only',{timeout:30000},async()=>{
- const db=new PGlite(),users=[randomUUID(),randomUUID(),randomUUID(),randomUUID(),randomUUID()],match='2026-11-06-parivision-navi';
+ const db=new PGlite(),users=[randomUUID(),randomUUID(),randomUUID(),randomUUID(),randomUUID()],match='test-result-ui-match';
  await db.exec('create role anon;create role authenticated;create role service_role bypassrls;create table rewards_users(id uuid primary key,banned boolean default false);create table rewards_coin_transactions(id uuid primary key default gen_random_uuid(),user_id uuid,amount integer,transaction_type text,note text);');for(const u of users)await db.query('insert into rewards_users(id) values($1)',[u]);
  for(const file of ['20261105213416_predict_matches.sql','20261106102846_predict_claim_rewards.sql'])await db.exec(await readFile(new URL('../supabase/migrations/'+file,import.meta.url),'utf8'));
+ await db.query("update rewards_predict_matches set id=$1 where id='2026-11-06-parivision-navi'",[match]);
  await db.query("update rewards_predict_matches set starts_at=clock_timestamp()+interval '1 hour' where id=$1",[match]);
  const picks=[['b','2:1','w0nderful'],['a','2:0','Jame'],['a','2:1','w0nderful'],['b','2:0','Jame']];for(let i=0;i<picks.length;i++)await db.query('select rewards_save_prediction($1,$2,$3,$4,$5)',[users[i],match,...picks[i]]);await db.query("update rewards_predict_matches set starts_at=clock_timestamp()-interval '1 hour' where id=$1",[match]);await db.query("select rewards_settle_predictions($1,'b','2:1',array['w0nderful'])",[match]);let claimedUser;
  const mock=http.createServer(async(req,res)=>{res.setHeader('Content-Type','application/json');const url=new URL(req.url,'http://mock');

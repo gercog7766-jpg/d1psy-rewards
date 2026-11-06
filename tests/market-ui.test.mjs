@@ -36,7 +36,7 @@ test('full shop UI: variant favorites, goal, budget/quality filters, sort, persi
   const spoof=await fetch(base+'/api/me/market',{method:'POST',headers:{Cookie:cookie,'Content-Type':'application/json'},body:JSON.stringify({action:'clear_goal',user_id:randomUUID()})});assert.equal(spoof.status,200);assert.equal(rpcParams.p_user,user);
   const invalid=await fetch(base+'/api/me/market',{method:'POST',headers:{Cookie:cookie,'Content-Type':'application/json'},body:JSON.stringify({action:'favorite',itemId:item,variantId:'bad'})});assert.equal(invalid.status,400);
   const html=await(await fetch(base+'/shop',{headers:{Cookie:cookie}})).text(),client=await(await fetch(base+'/shop-v2.js')).text(),account=await(await fetch(base+'/account')).text();
-  assert(html.includes('D1PSY MARKET'));assert(html.includes('id="marketModalActions"'));assert(html.includes('id="cartTop"'));assert(account.includes('id="marketProfileLink"'));assert(client.includes('marketVariantsReady=vr.ok;'));
+  assert(html.includes('D1PSY MARKET'));assert(html.includes('id="shopMarketDesign"'));assert(html.includes('data-market-design="cards"'));assert(html.includes('marketHeading'));assert(html.includes('id="marketModalActions"'));assert(html.includes('id="cartTop"'));assert(account.includes('id="marketProfileLink"'));assert(client.includes('marketVariantsReady=vr.ok;'));
   const errors=[];
   async function mount(view=''){
    if(dom)dom.window.close();const vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));dom=new JSDOM(html,{runScripts:'outside-only',url:base+'/shop'+view,virtualConsole:vc});const w=dom.window;
@@ -54,7 +54,7 @@ test('full shop UI: variant favorites, goal, budget/quality filters, sort, persi
    return w;
   }
   let w=await mount();const q=s=>w.document.querySelector(s),all=s=>[...w.document.querySelectorAll(s)],cards=()=>all('#grid .item');
-  assert.equal(cards().length,2);assert(cards()[0].textContent.includes('Обычный · FT'));assert(cards()[0].querySelector('.coins').textContent.includes('100'));
+  assert.equal(cards().length,2);assert.equal(cards()[0].dataset.marketCard,'true');assert.equal(cards()[0].querySelector('.mkt-model').textContent,'AK-47');assert.equal(cards()[0].querySelector('.mkt-finish').textContent,'Test');assert.equal(cards()[0].querySelector('.mkt-currency').textContent,' монет');assert(cards()[0].textContent.includes('Обычный · FT'));assert(cards()[0].querySelector('.coins').textContent.includes('100'));
   q('[data-market-budget="near"]').click();assert.equal(cards().length,1);assert(cards()[0].textContent.includes('AK-47'));
   q('[data-market-budget="affordable"]').click();assert.equal(cards().length,2);assert(cards().some(c=>c.textContent.includes('Sticker')));const affordableSkin=cards().find(c=>c.textContent.includes('AK-47'));assert(affordableSkin.textContent.includes('Обычный · BS'));affordableSkin.querySelector('.buy').click();assert.equal(q('#wears .on').dataset.w,'BS');assert(q('#mp').textContent.includes('60'));q('#close').click();
   q('#reset').click();q('[data-kind="normal"]').checked=true;q('[data-kind="normal"]').dispatchEvent(new w.Event('change',{bubbles:true}));q('[data-market-budget="affordable"]').click();assert(cards().some(c=>c.textContent.includes('Sticker')));q('#reset').click();q('[data-wear="FN"]').checked=true;q('[data-wear="FN"]').dispatchEvent(new w.Event('change',{bubbles:true}));q('[data-kind="stattrak"]').checked=true;q('[data-kind="stattrak"]').dispatchEvent(new w.Event('change',{bubbles:true}));
