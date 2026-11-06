@@ -15,7 +15,7 @@ body[data-account-design="neon"] .brand-mark{background:linear-gradient(140deg,#
 body[data-account-design="neon"] .economybar{width:100%;margin:0;gap:7px;flex-wrap:wrap;align-items:center;justify-content:flex-start}
 body[data-account-design="neon"] .shoplink{display:inline-flex;align-items:center;justify-content:center;min-height:36px;box-sizing:border-box;font-family:inherit;line-height:16px;font-size:12px;padding:9px 11px;background:#241530;border-color:#674080;border-radius:8px}
 body[data-account-design="neon"] .shoplink:hover{background:#3b1e52;border-color:#c077ff}
-body[data-account-design="neon"] .coinbox{display:inline-flex;align-items:center;gap:4px;min-height:36px;box-sizing:border-box;line-height:16px;border-color:#b48c344d;background:#221b14;border-radius:8px;white-space:nowrap}
+body[data-account-design="neon"] .coinbox{display:inline-flex;align-items:center;gap:4px;min-height:36px;box-sizing:border-box;line-height:16px;border:1px solid #d8aa485c;background:linear-gradient(135deg,#3a2918,#211912 70%);border-radius:10px;white-space:nowrap;box-shadow:inset 0 1px 0 #ffe8a31f,0 0 16px #e6af2514}body[data-account-design="neon"] .coinbox b{color:#ffda78;font-weight:850;letter-spacing:.02em;font-variant-numeric:tabular-nums;text-shadow:0 0 12px #ffc64d55}
 body[data-account-design="neon"] .card{background:linear-gradient(135deg,#21142cf2,#15101ff5);border:1px solid #683e805e;border-radius:14px;box-shadow:0 12px 30px #0002}
 body[data-account-design="neon"] .card h2{font-size:22px;letter-spacing:-.5px}
 body[data-account-design="neon"] .live{padding:16px 20px;background:linear-gradient(110deg,#271638,#191121);border-color:#8f4bb555}
@@ -64,7 +64,8 @@ body[data-account-design="neon"] .d1psy-footer{max-width:1080px;background:#100b
 export function accountDesignHtml(body:string){
  if(!/<title>Личный кабинет — d1psy Rewards\s*<\/title>/.test(body)||body.includes('id="accountNeonDesign"'))return body;
  // Remove only redundant header copy; keep the avatar and account data hook.
- body=body.replace('<span>D1PSY REWARDS</span>','')
+ body=body.replace(/(<div\b[^>]*class="coinbox"[^>]*>)\s*Баланс:\s*/,'$1')
+  .replace('<span>D1PSY REWARDS</span>','')
   .replace(/<div><a id="channelLink"[\s\S]*?<\/div><\/div>/,'')
   .replace('<a class="brand" href="/account">','<a class="brand" href="/account" aria-label="На главную аккаунта">');
  return body.replace('</head>','<style id="accountNeonDesign">'+css+'</style></head>')
