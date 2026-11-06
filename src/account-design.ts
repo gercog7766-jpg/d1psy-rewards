@@ -72,9 +72,9 @@ export function accountDesignHtml(body:string){
  const wallet=body.match(/<div\b[^>]*class="coinbox"[^>]*>[\s\S]*?<\/div>/)?.[0];
  const saleValue=/<div id="inventoryValue" class="inventory-value">[\s\S]*?<\/div>/;
  if(wallet&&saleValue.test(body)){
-  body=body.replace(wallet,'').replace(saleValue,wallet)
-   .replace(/function updateInventoryValue\(\)\{[\s\S]*?\}function renderWins\(/,'function updateInventoryValue(){}function renderWins(');
+  body=body.replace(wallet,'').replace(saleValue,value=>'<div class="inventory-totals">'+wallet+value+'</div>');
  }
+ body=body.replace('</head>','<style>.inventory-totals{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.inventory-totals .coinbox,.inventory-totals .inventory-value{margin:0;white-space:nowrap}@media(max-width:620px){.inventory-totals{width:100%}.inventory-totals .inventory-value{width:auto}}</style></head>');
  return body.replace('</head>','<style id="accountNeonDesign">'+css+'</style></head>')
   .replace(/<body\b([^>]*)>/,'<body$1 data-account-design="neon">'+banners);
 }
