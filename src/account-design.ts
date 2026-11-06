@@ -50,6 +50,13 @@ body[data-account-design="neon"] .d1psy-footer{max-width:1080px;background:#100b
 @media(max-width:1399px){.account-art-rails{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:1080px;margin:16px auto 0;padding:0 28px}.account-art{position:relative;inset:auto;width:100%;height:120px;max-height:none;aspect-ratio:auto;border-radius:10px}.account-art img{object-fit:cover}.account-art-left img{object-position:50% 34%}.account-art-right img{object-position:50% 64%}.account-art span{left:auto;top:0;bottom:0;width:45%;display:flex;flex-direction:column;justify-content:center;padding:12px;background:linear-gradient(90deg,transparent,#0d0716df 40%);font-size:9px}.account-art b{font-size:12px}}
 @media(max-width:760px){body[data-account-design="neon"] main{padding:20px 16px 32px;border:0}body[data-account-design="neon"] .top{align-items:stretch;gap:14px}body[data-account-design="neon"] .top-right{justify-content:space-between;min-width:0}body[data-account-design="neon"] .economybar{justify-content:flex-start;gap:6px}body[data-account-design="neon"] .inventory{grid-template-columns:repeat(2,minmax(0,1fr))}body[data-account-design="neon"] .card{padding:16px}body[data-account-design="neon"] .seasonAccountHero{padding:22px;min-height:205px}body[data-account-design="neon"] .seasonAccountOpen{position:relative;right:auto;bottom:auto;margin-top:16px;display:inline-block}body[data-account-design="neon"] .seasonAccountCopy{width:100%}body[data-account-design="neon"] .d1psy-footer{padding:22px 16px}.account-art-rails{padding:0 16px;gap:10px}.account-art{height:102px}.account-art span{width:55%}.account-art b{font-size:10px}}
 @media(max-width:380px){body[data-account-design="neon"] .inventory{grid-template-columns:1fr}.account-art span{width:65%;letter-spacing:0}}
+/* Desktop artwork fills both viewport gutters and stays fixed while scrolling. */
+@media(min-width:1400px){
+.account-art{top:0;bottom:0;width:calc((100vw - 1080px)/2);height:100vh;height:100dvh;max-height:none;aspect-ratio:auto;border:0;border-radius:0;box-shadow:none}
+.account-art-left{left:0;right:auto}.account-art-right{right:0;left:auto}
+.account-art img{object-fit:cover;object-position:center}
+.account-art:hover,.account-art:focus-visible{border:0;box-shadow:none;outline:2px solid #dfc1ff;outline-offset:-3px}
+}
 @media(prefers-reduced-motion:reduce){.account-art,body[data-account-design="neon"] .item{transition:none}}
 `;
 
