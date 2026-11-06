@@ -8,7 +8,7 @@
     "build": "tsc",
     "start": "node dist/server-entry.js",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test tests/wordly.test.ts tests/wordly-db.test.mjs tests/predict-db.test.mjs tests/predict-http.test.mjs tests/tic-tac-toe-db.test.mjs tests/game-bp.test.mjs tests/market-db.test.mjs tests/market-ui.test.mjs tests/contracts-ui.test.mjs tests/contracts-db.test.mjs"
+    "test": "node --import tsx --test tests/wordly.test.ts tests/wordly-db.test.mjs tests/predict-db.test.mjs tests/predict-http.test.mjs tests/tic-tac-toe-db.test.mjs tests/game-bp.test.mjs tests/market-db.test.mjs tests/market-ui.test.mjs tests/contracts-ui.test.mjs tests/contracts-db.test.mjs tests/pwa-db.test.mjs tests/pwa-runtime.test.mjs tests/pwa-ui.test.mjs"
   },
   "engines": {
     "node": ">=20"
@@ -17,6 +17,7 @@
     "@supabase/supabase-js": "2.78.0",
     "cookie-parser": "1.4.7",
     "express": "5.1.0",
+    "web-push": "3.6.7",
     "zod": "4.1.12"
   },
   "devDependencies": {
@@ -24,6 +25,7 @@
     "@types/cookie-parser": "1.4.9",
     "@types/express": "5.0.3",
     "@types/node": "24.9.1",
+    "@types/web-push": "3.6.4",
     "jsdom": "26.1.0",
     "tsx": "4.20.6",
     "typescript": "5.9.3"
