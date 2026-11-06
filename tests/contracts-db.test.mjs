@@ -21,10 +21,17 @@ test('contracts: atomic inventory exchange, ownership, replay, stale items, roll
  await db.query("insert into rewards_shop_item_variants values($1,$2,300,'FT','stattrak',true)",[variant,shop]);
  await db.query('insert into rewards_coin_transactions values($1,123)',[u]);
  await db.exec(migration);
+ await db.exec(await readFile(new URL('../supabase/migrations/20261106024833_contracts_five_tier_odds.sql',import.meta.url),'utf8'));
+ for(const price of [150,210,390,540])await db.query("insert into rewards_shop_item_variants values($1,$2,$3,'FT','stattrak',true)",[randomUUID(),shop,price]);
+ const expected=[[40,60,15],[61,80,25],[81,105,30],[106,150,20],[151,200,10]];
+ const counts=new Map();
+ for(let roll=0;roll<100;roll++){const b=(await db.query('select rewards_contract_bounds($1) b',[roll])).rows[0].b;const k=b.join('-');counts.set(k,(counts.get(k)||0)+1)}
+ assert.deepEqual([...counts],expected.map(([lo,hi,n])=>[lo+'-'+hi,n]));
+ await assert.rejects(db.query('select rewards_contract_bounds(-1)'),/invalid_roll/);await assert.rejects(db.query('select rewards_contract_bounds(100)'),/invalid_roll/);
  const sources=async(owner=u,status='awaiting_choice',delivery='awaiting_choice')=>{const ids=[randomUUID(),randomUUID(),randomUUID()];for(const id of ids)await db.query('insert into rewards_wins(id,user_id,prize_id,choice_status,delivery_status) values($1,$2,$3,$4,$5)',[id,owner,prize,status,delivery]);return ids};
  const run=async(ids,key=randomUUID(),user=u)=>(await db.query('select rewards_run_contract($1,$2,$3) result',[user,ids,key])).rows[0].result;
  let ids=await sources(),key=randomUUID();await db.exec('set role service_role');
- const [a,b]=await Promise.all([run(ids,key),run([...ids].reverse(),key)]);assert.deepEqual(a,b);assert.equal(a.reward.price,300);assert.equal(a.reward.kind,'stattrak');assert.equal(a.reward.wear,'FT');assert.equal(a.reward.name,'StatTrak™ AK-47 | Test');
+ const [a,b]=await Promise.all([run(ids,key),run([...ids].reverse(),key)]);assert.deepEqual(a,b);assert([150,210,300,390,540].includes(a.reward.price));assert.equal(a.reward.kind,'stattrak');assert.equal(a.reward.wear,'FT');assert.equal(a.reward.name,'StatTrak™ AK-47 | Test');
  assert.equal((await db.query("select count(*)::int n from rewards_wins where choice_status='contracted'")).rows[0].n,3);
  assert.equal((await db.query("select count(*)::int n from rewards_wins where source_type='contract' and choice_status='awaiting_choice'")).rows[0].n,1);
  await assert.rejects(run(ids),/source_not_available/);
@@ -36,14 +43,18 @@ test('contracts: atomic inventory exchange, ownership, replay, stale items, roll
  const fresh=await sources();await assert.rejects(run(fresh,key),/request_conflict/);
  for(const [status,delivery] of [['sold','pending'],['claimed','pending'],['upgraded','pending'],['awaiting_choice','received']]){const stale=await sources(u,status,delivery);await assert.rejects(run(stale),/source_not_available/)}
  const alien=await sources(other);await assert.rejects(run([fresh[0],fresh[1],alien[0]]),/source_not_available/);
- await db.exec('reset role');await db.query('update rewards_shop_item_variants set available=false');await db.exec('set role service_role');await assert.rejects(run(fresh),/no_contract_result/);
+ await db.exec('reset role');await db.query('update rewards_shop_item_variants set available=false where price_coins=150');await db.exec('set role service_role');await assert.rejects(run(fresh),/no_contract_result/);
  assert.equal((await db.query('select count(*)::int n from rewards_contracts')).rows[0].n,1);assert.equal((await db.query("select count(*)::int n from rewards_wins where id=any($1) and choice_status='awaiting_choice'",[fresh])).rows[0].n,3);
+ // A populated middle tier cannot silently replace a missing low tier.
+ assert.equal((await db.query('select count(*)::int n from rewards_shop_item_variants where available')).rows[0].n,4);
  // Failure after consumption and prize insertion must roll back the whole exchange.
  await db.exec('reset role; update rewards_shop_item_variants set available=true;');
  await db.exec("create function fail_contract() returns trigger language plpgsql as $$begin raise exception 'forced_failure'; end$$;create trigger fail_contract before insert on rewards_contracts for each row execute function fail_contract();set role service_role;");
  const before=(await db.query('select count(*)::int n from rewards_prizes')).rows[0].n;await assert.rejects(run(fresh),/forced_failure/);assert.equal((await db.query('select count(*)::int n from rewards_prizes')).rows[0].n,before);
  assert.equal((await db.query("select count(*)::int n from rewards_wins where id=any($1) and choice_status='awaiting_choice'",[fresh])).rows[0].n,3);
  assert.equal((await db.query('select sum(amount)::int n from rewards_coin_transactions')).rows[0].n,123);
- for(const role of ['anon','authenticated']){await db.exec('reset role;set role '+role);await assert.rejects(run(fresh),/permission denied/);await assert.rejects(db.query('select * from rewards_contracts'),/permission denied/)}
+ await db.exec('reset role;drop trigger fail_contract on rewards_contracts;set role service_role;');
+ for(let i=0;i<40;i++){const input=await sources(),result=await run(input);const pct=(await db.query('select rolled_percent p from rewards_contracts where id=$1',[result.contractId])).rows[0].p;const [lo,hi]=expected.find(([lo,hi])=>pct>=lo&&pct<=hi);assert(result.reward.price*100>=300*lo&&result.reward.price*100<=300*hi,'actual reward stays in the drawn tier')}
+ for(const role of ['anon','authenticated']){await db.exec('reset role;set role '+role);await assert.rejects(run(fresh),/permission denied/);await assert.rejects(db.query('select rewards_contract_bounds(0)'),/permission denied/);await assert.rejects(db.query('select * from rewards_contracts'),/permission denied/)}
  }finally{await db.close()}
 });
