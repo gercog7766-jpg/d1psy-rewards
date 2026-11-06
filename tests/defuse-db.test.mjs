@@ -26,7 +26,7 @@ test('Defuse: rolling shared eight-hour cooldown, authoritative stages/deadline,
  // Existing attempts receive the eight-hour wait without changing their outcome or reward.
  await db.query("update rewards_defuse_games set next_available_at=started_at+interval '4 hours' where id=$1",[id]);
  await db.exec(await readFile(new URL('../supabase/migrations/20261106041635_defuse_eight_hour_cooldown.sql',import.meta.url),'utf8'));
- const migrated=(await rows('select * from rewards_defuse_games where id=$1',[id]))[0];assert.equal(Date.parse(migrated.next_available_at)-Date.parse(migrated.started_at),8*3600000);assert.equal(migrated.status,'won');assert.equal(migrated.reward_transaction_id,won.game.reward_transaction_id);assert.equal(Date.parse(migrated.deadline),Date.parse(won.game.deadline));
+ const migrated=(await rows('select * from rewards_defuse_games where id=$1',[id]))[0];assert.equal(Date.parse(migrated.next_available_at)-Date.parse(migrated.started_at),8*3600000);assert.equal(migrated.status,'won');assert.equal(migrated.reward_transaction_id,won.game.reward_transaction_id);assert.equal(new Date(migrated.deadline).getTime(),Date.parse(won.game.deadline));
  // Shared cooldown persists after winning, losing and across a Moscow midnight.
  assert.equal((await start(a,randomUUID(),'swat')).game.id,id);
  await db.query("update rewards_defuse_games set next_available_at=clock_timestamp()-interval '1 millisecond' where id=$1",[id]);
