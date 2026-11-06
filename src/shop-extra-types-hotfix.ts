@@ -1,6 +1,9 @@
 import express from 'express';
 
 export const rarityByName:Record<string,string>={
+  'm4a1-s | опустошитель':'classified',
+  'm4a1-s | стратосфера':'classified',
+  'glock-18 | реактор':'army',
   'awp | градиент':'covert',
   'ak-47 | неоновый гонщик':'covert',
   'five-seven | капилляры':'army','dual berettas | хищные растения':'restricted','desert eagle | послание коринфянам':'army','m4a1-s | эмфорозавр-s':'restricted','m4a1-s | ночной ужас':'restricted','пп-19 «бизон» | космокот':'restricted','m4a1-s | electrum':'restricted','револьвер r8 | янтарный градиент':'classified','mp9 | слизь':'restricted','m4a1-s | уединение':'classified','p250 | лучшее вино':'restricted','dual berettas | милые ангелочки':'restricted','awp | бог червей':'restricted','awp | экзотермия':'restricted','nova | умная пушка':'restricted','ak-47 | колымага':'restricted','dual berettas | турбодвойники':'classified','ak-47 | сланец':'restricted','p90 | взор врага':'classified','mp9 | гидра':'classified','mp7 | дух бездны':'classified','dual berettas | плод воображения':'classified','famas | быстрые движения глаз':'classified','famas | пульс':'restricted','zeus x27 | сон дракона':'classified','tec-9 | топливный инжектор':'classified','m4a4 | 龍王 (король драконов)':'classified','ak-47 | афродита':'covert','awp | кортисейра':'classified','five-seven | сказка':'classified','usp-s | следы асфальта':'restricted','автомат «галиль» | леденец':'army'

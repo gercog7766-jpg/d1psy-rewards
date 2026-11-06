@@ -1,0 +1,19 @@
+-- Shop catalog only: no prize pools, drops or coin transactions are modified.
+do $seed$
+declare product jsonb; variant jsonb; item uuid;
+begin
+ for product in select value from jsonb_array_elements($catalog$[{"name": "M4A1-S | Опустошитель", "image": "https://community.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL8ypexwjFS4_ega6F_H_eAMWrEwL9JtORqRiSygRI1jDGMnYftb3iUb1dxW5ImFLNftxCxktflZLm2tgaP2otGyn_-hytOvy9q5elQV_A7uvqA6CRSoZY", "price": 1110, "variants": [{"wear": "FN", "kind": "normal", "price": 3335}, {"wear": "MW", "kind": "normal", "price": 1630}, {"wear": "FT", "kind": "normal", "price": 1110}, {"wear": "WW", "kind": "normal", "price": 1250}, {"wear": "BS", "kind": "normal", "price": 1120}, {"wear": "FN", "kind": "stattrak", "price": 7300}, {"wear": "MW", "kind": "stattrak", "price": 4200}, {"wear": "FT", "kind": "stattrak", "price": 2500}, {"wear": "WW", "kind": "stattrak", "price": 3220}, {"wear": "BS", "kind": "stattrak", "price": 2300}]}, {"name": "Коготь | Ультрафиолет", "image": "https://community.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL6kJ_m-B1M5vahf6lsK_WBMXSf_v5jovFlSha_nBovp3PTzIuudXLGbVMkWJd0ELEPsEa6wNa0PunktASMj44QzSr2hiwcuHxt_a9cBqbhUpOe", "price": 21600, "variants": [{"wear": "FN", "kind": "normal", "price": null}, {"wear": "MW", "kind": "normal", "price": 33600}, {"wear": "FT", "kind": "normal", "price": 26400}, {"wear": "WW", "kind": "normal", "price": 27500}, {"wear": "BS", "kind": "normal", "price": 21600}]}, {"name": "M4A1-S | Стратосфера", "image": "https://community.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL8ypexwjFS4_ega6F_H_OGC1iD1fx3pO56XyG2hxgYvzSCkpu3eSjEOgUkDsRxR7RYsRexwNe0Y-O05VeNg90UmX2q33lJ7itvt-cKB71lpPNheQHx2Q", "price": 250, "variants": [{"wear": "FN", "kind": "normal", "price": 2800}, {"wear": "MW", "kind": "normal", "price": 950}, {"wear": "FT", "kind": "normal", "price": 350}, {"wear": "WW", "kind": "normal", "price": 390}, {"wear": "BS", "kind": "normal", "price": 250}]}, {"name": "Glock-18 | Реактор", "image": "https://community.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL2kpnj9h1a4s2gfadhJfGBMXeR1fpzou84cC6_mh4sjDGMnYftb3yTbAQjA5NxR-4MtRjumtzkM-yzsVDegtkWyyX43ytBvC9tsrpRAKE7uvqAUKOQcp4", "price": 885, "variants": [{"wear": "FN", "kind": "normal", "price": 4400}, {"wear": "MW", "kind": "normal", "price": 1500}, {"wear": "FT", "kind": "normal", "price": 1250}, {"wear": "WW", "kind": "normal", "price": 900}, {"wear": "BS", "kind": "normal", "price": 885}]}]$catalog$::jsonb) loop
+  if (select count(*) from public.rewards_shop_items where name=product->>'name')>1 then raise exception 'duplicate_shop_name';end if;
+  select id into item from public.rewards_shop_items where name=product->>'name';
+  if item is null then
+   insert into public.rewards_shop_items(name,image_url,price_coins,status) values(product->>'name',product->>'image',(product->>'price')::integer,'available') returning id into item;
+  else
+   update public.rewards_shop_items set image_url=product->>'image',price_coins=(product->>'price')::integer,status='available',updated_at=now() where id=item;
+  end if;
+  for variant in select value from jsonb_array_elements(product->'variants') loop
+   insert into public.rewards_shop_item_variants(shop_item_id,wear,variant_kind,stattrak,price_coins,available)
+   values(item,variant->>'wear',variant->>'kind',variant->>'kind'='stattrak',(variant->>'price')::integer,variant->>'price' is not null)
+   on conflict(shop_item_id,wear,variant_kind) do update set price_coins=excluded.price_coins,available=excluded.available,stattrak=excluded.stattrak,updated_at=now();
+  end loop;
+ end loop;
+end $seed$;
