@@ -6,7 +6,7 @@ const migration=await readFile(new URL('../supabase/migrations/20261106135601_li
 test('Live wagers: limits, odds, debit, idempotency, settlement, refund, history and restricted access',async()=>{
  const db=new PGlite();try{
  await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;create table rewards_users(id uuid primary key,banned boolean default false,participation_restricted boolean default false);create table rewards_coin_transactions(id uuid primary key default gen_random_uuid(),user_id uuid references rewards_users(id),amount integer,transaction_type text,note text);`);
- await db.exec(await readFile(new URL('../supabase/migrations/20261106132609_live_test_markets.sql',import.meta.url),'utf8'));await db.exec(migration);
+ await db.exec(await readFile(new URL('../supabase/migrations/20261106132609_live_test_markets.sql',import.meta.url),'utf8'));await db.exec(migration);await db.exec(await readFile(new URL('../supabase/migrations/20261106225838_live_editable_odds.sql',import.meta.url),'utf8'));
  const u='11111111-1111-4111-8111-111111111111';let seq=0;const request=()=>`22222222-2222-4222-8222-${String(++seq).padStart(12,'0')}`;
  await db.query('insert into rewards_users(id) values($1)',[u]);await db.query("insert into rewards_coin_transactions(user_id,amount) values($1,1000)",[u]);
  const balance=async()=>Number((await db.query('select sum(amount) n from rewards_coin_transactions where user_id=$1',[u])).rows[0].n);
@@ -28,6 +28,14 @@ test('Live wagers: limits, odds, debit, idempotency, settlement, refund, history
  await update('ace',0,true,null);await db.query('update rewards_users set banned=true where id=$1',[u]);await assert.rejects(bet('ace','yes',5,1),/user_unavailable/);await db.query('update rewards_users set banned=false where id=$1',[u]);
  await db.query('insert into rewards_coin_transactions(user_id,amount) values($1,-3704)',[u]);await assert.rejects(bet('ace','yes',5,1),/insufficient_coins/);
  const state=(await db.query('select rewards_live_user_state($1) s',[u])).rows[0].s;assert.equal(state.bets.length,5);assert.equal(state.balance,0);
- for(const role of ['anon','authenticated']){await db.exec('set role '+role);await assert.rejects(db.query('select * from rewards_live_bets'),/permission denied/);await assert.rejects(db.query('select rewards_live_user_state($1)',[u]),/permission denied/);await assert.rejects(bet('ace','yes',5,1),/permission denied/);await db.exec('reset role')}
+ const configure=(version,odds,result=null)=>db.query('select rewards_live_configure($1,$2,$3,$4,$5) m',['ace',version,result===null,result,odds]);
+ for(const bad of [{yes:0,no:1.2},{yes:1001,no:1.2},{yes:1.234,no:1.2},{yes:'2',no:1.2},{yes:2},{yes:2,no:1.2,other:3},{p1:2,p2:3}])await assert.rejects(configure(1,bad),/invalid_odds/);
+ await db.query('insert into rewards_coin_transactions(user_id,amount) values($1,100)',[u]);
+ await configure(1,{yes:7.25,no:1.25});assert.equal(await balance(),100);
+ const quoted=(await bet('ace','yes',10,2)).rows[0].b;assert.equal(Number(quoted.odds),7.25);
+ await configure(2,{yes:9.5,no:1.4});await assert.rejects(bet('ace','yes',10,2),/live_changed/);await assert.rejects(configure(2,{yes:3,no:2}),/live_changed/);
+ const later=(await bet('ace','yes',10,3)).rows[0].b;assert.equal(Number(later.odds),9.5);
+ await configure(3,{yes:10,no:1.4},'yes');const settled=(await db.query('select odds,payout from rewards_live_bets where id=$1 or id=$2 order by payout',[quoted.id,later.id])).rows;assert.deepEqual(settled.map(b=>Number(b.odds)),[7.25,9.5]);assert.deepEqual(settled.map(b=>b.payout),[73,95]);assert.equal(await balance(),248);
+ for(const role of ['anon','authenticated']){await db.exec('set role '+role);await assert.rejects(db.query('select * from rewards_live_bets'),/permission denied/);await assert.rejects(db.query('select rewards_live_user_state($1)',[u]),/permission denied/);await assert.rejects(bet('ace','yes',5,1),/permission denied/);await assert.rejects(configure(4,{yes:3,no:2}),/permission denied/);await db.exec('reset role')}
  }finally{await db.close()}
 });
