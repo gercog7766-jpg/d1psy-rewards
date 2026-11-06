@@ -14,7 +14,7 @@ test('free online tic-tac-toe: privacy, joins, turns, win/draw, timeouts and per
  try{
  await db.exec('create role anon;create role authenticated;create role service_role bypassrls;create table public.rewards_users(id uuid primary key,twitch_login text,twitch_display_name text);grant select,update on public.rewards_users to service_role;create table public.rewards_coin_transactions(id uuid,amount integer);');
  for(let i=0;i<u.length;i++)await db.query('insert into public.rewards_users values($1,$2,$2)',[u[i],'Player'+i]);
- await db.exec(await readFile(new URL('../supabase/migrations/20261105223516_tic_tac_toe_rooms.sql',import.meta.url),'utf8'));await db.exec('set role service_role');
+ await db.exec(await readFile(new URL('../supabase/migrations/20261105223516_tic_tac_toe_rooms.sql',import.meta.url),'utf8'));await db.exec(await readFile(new URL('../supabase/migrations/20261106194825_tic_tac_toe_five_by_five.sql',import.meta.url),'utf8'));await db.exec('set role service_role');
  const pub=randomUUID();await create(0,pub);await create(0,pub);assert.equal((await state(1)).rooms.length,1);
  await assert.rejects(create(0,randomUUID()),/already_in_room/);
  await join(0,pub);assert.equal((await state(0,pub)).room.status,'waiting');
@@ -42,3 +42,4 @@ test('free online tic-tac-toe: privacy, joins, turns, win/draw, timeouts and per
  await db.exec('reset role');assert.equal((await db.query('select count(*)::int as n from public.rewards_coin_transactions')).rows[0].n,0);
  }finally{await db.close()}
 });
+
