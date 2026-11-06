@@ -1,3 +1,4 @@
+import {mobileAccountMenu} from './mobile-account-menu.js';
 import express from 'express';
 import {createClient} from '@supabase/supabase-js';
 import {usersHtml,profileHtml,usersJs,presenceJs} from './users-ui.js';
@@ -10,6 +11,7 @@ export function installUsers(){
  response.send=function(body:any){const path=this.req?.path||'';
   if(typeof body==='string'&&/<html\b/i.test(body)&&body.includes('</head>')&&!/^\/(?:api|admin|obs|pwa\/offline|auth)(?:\/|$)/.test(path)){
    if(path==='/account'&&!body.includes('id="usersLink"'))body=body.replace(/(<a\b[^>]*href="\/contracts"[^>]*>[\s\S]*?<\/a>)/,'$1<a id="usersLink" class="shoplink" href="/users">Пользователи</a>');
+   if(path==='/account'&&!body.includes('mobileAccountMenuScript'))body=body.replace('</head>',mobileAccountMenu+'</head>');
    if(path!=='/'&&!body.includes('id="sitePresenceScript"'))body=body.replace('</head>','<script id="sitePresenceScript" src="/site-presence.js" defer></script></head>');
   }return send.call(this,body);
  };
