@@ -15,8 +15,10 @@ function enhanceHtml(body:any,path:string){
  if(typeof body!=='string'||!/<html\b/i.test(body)||!body.includes('</head>')||/^\/(api(?:\/|$)|admin|obs|pwa\/offline)/.test(path)||/\.js$/.test(path)||body.includes('href="/manifest.webmanifest"'))return body;
  body=body.replace('</head>',pwaHead+'</head>');
  if(path==='/account'&&!body.includes('id="d1PwaPanel"')){
-  if(body.includes('<section id="seasonAccountHero"'))body=body.replace('<section id="seasonAccountHero"',pwaPanel+'<section id="seasonAccountHero"');
-  else body=body.replace('</main>',pwaPanel+'</main>');
+  const button='<button type="button" id="d1PwaOpen" class="shoplink" aria-haspopup="dialog" aria-controls="d1PwaPanel" style="cursor:pointer">Приложение</button>';
+  body=body.replace(/(<a\b[^>]*href="\/shop"[^>]*>Магазин<\/a>)/,'$1'+button);
+  if(!body.includes('id="d1PwaOpen"'))body=body.replace('<main>','<main>'+button);
+  body=body.replace('</body>',pwaPanel+'</body>');
  }
  return body;
 }
