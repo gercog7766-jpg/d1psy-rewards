@@ -24,16 +24,28 @@ self.addEventListener('notificationclick',event=>{
  })());
 });`;
 export const pwaHead=`<link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#21112f"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="D1PSY"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><link rel="apple-touch-icon" href="/pwa/icon/apple.png"><script src="/pwa.js" defer></script>`;
-export const pwaPanel=String.raw`<section id="d1PwaPanel" style="padding:16px 18px;margin:16px 0;border:1px solid #674080;border-radius:14px;background:linear-gradient(130deg,#291638,#171020);font:14px/1.5 Arial,sans-serif;color:#f4eaff"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><div><strong style="font-size:16px">D1PSY в твоём телефоне</strong><div style="font-size:12px;color:#c8b0da;margin-top:4px">Быстрый запуск с главного экрана и уведомления о твоих дропах.</div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" id="d1Install" style="border:1px solid #ad6aff;border-radius:9px;padding:10px 13px;background:#7833bd;color:white;font:700 13px Arial;cursor:pointer">Установить приложение</button><button type="button" id="d1Push" disabled style="border:1px solid #77508e;border-radius:9px;padding:10px 13px;background:#2b193b;color:#f5eaff;font:700 13px Arial;cursor:pointer">Загрузка уведомлений…</button><button type="button" id="d1PushTest" hidden style="border:1px solid #77508e;border-radius:9px;padding:10px 13px;background:#2b193b;color:#f5eaff;font:700 13px Arial;cursor:pointer">Проверить push</button></div></div><p id="d1PwaStatus" role="status" style="margin:9px 0 0;font-size:12px;color:#c6aed8"></p><div id="d1InstallHelp" hidden style="margin-top:12px;padding-top:12px;border-top:1px solid #624076;color:#decbed;font-size:13px"></div></section>`;
+export const pwaPanel=String.raw`<style id="d1PwaDialogStyle">
+#d1PwaPanel{width:min(720px,calc(100% - 24px));max-height:88vh;max-height:88dvh;overflow:auto;overscroll-behavior:contain;margin:auto;padding:0;border:1px solid #795096;border-radius:20px;background:linear-gradient(140deg,#281635,#130e1c);color:#f6eeff;font:14px/1.6 Arial,Helvetica,sans-serif;box-shadow:0 28px 100px #0009}
+#d1PwaPanel::backdrop{background:#07040cc9;backdrop-filter:blur(6px)}
+#d1PwaPanel .pwa-inner{padding:26px}#d1PwaPanel .pwa-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}#d1PwaPanel h2{margin:0;font-size:25px;line-height:1.2}#d1PwaPanel .pwa-subtitle{margin:8px 0 20px;color:#c3acd3;font-size:13px}
+#d1PwaPanel .pwa-close{flex:none;width:36px;height:36px;border:1px solid #77508e;border-radius:10px;background:#352041;color:#fff;font:24px Arial;cursor:pointer}
+#d1PwaPanel .pwa-platforms{display:grid;grid-template-columns:1fr 1fr;gap:12px}#d1PwaPanel .pwa-guide{padding:17px;border:1px solid #634078;border-radius:13px;background:#140e1e77}#d1PwaPanel h3{margin:0 0 9px;font-size:17px;color:#e5c7ff}#d1PwaPanel ol{padding-left:20px;margin:0}#d1PwaPanel li{padding-left:3px;margin:0 0 9px;color:#d5c3e1}#d1PwaPanel li:last-child{margin-bottom:0}#d1PwaPanel b{color:#fff}
+#d1PwaPanel .pwa-note{margin:13px 0 0;color:#bda7ce;font-size:12px}#d1PwaPanel .pwa-push{margin-top:20px;padding-top:20px;border-top:1px solid #654079}#d1PwaPanel .pwa-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:15px}
+#d1PwaPanel .pwa-action{border:1px solid #9860bd;border-radius:10px;padding:10px 14px;background:#30203e;color:#f7eeff;font:700 13px Arial;cursor:pointer}#d1PwaPanel .pwa-primary{background:#7d36c7;border-color:#b97ff2}#d1PwaPanel button:disabled{opacity:.5;cursor:not-allowed}#d1PwaPanel button[hidden]{display:none}#d1PwaPanel button:focus-visible{outline:2px solid #edceff;outline-offset:3px}
+#d1PwaStatus{color:#d3b6e5;font-size:13px;margin:12px 0 0;min-height:20px}
+@media(max-width:560px){#d1PwaPanel .pwa-inner{padding:20px 16px}#d1PwaPanel .pwa-platforms{grid-template-columns:1fr}#d1PwaPanel h2{font-size:22px}#d1PwaPanel .pwa-action{flex:1}}
+</style><dialog id="d1PwaPanel" aria-labelledby="d1PwaTitle" aria-describedby="d1PwaSubtitle"><div class="pwa-inner"><div class="pwa-header"><div><h2 id="d1PwaTitle">Приложение D1PSY</h2><p class="pwa-subtitle" id="d1PwaSubtitle">Установи сайт на главный экран и включи уведомления о своих дропах.</p></div><button type="button" class="pwa-close" id="d1PwaClose" aria-label="Закрыть окно приложения">×</button></div>
+<div id="d1InstallHelp" class="pwa-platforms"><section class="pwa-guide"><h3>Android</h3><ol><li>Открой сайт D1PSY в <b>Google Chrome</b> и войди в аккаунт.</li><li>Нажми <b>«Установить приложение»</b> ниже. Если кнопки установки нет: меню Chrome <b>⋮ → «Установить приложение»</b> или <b>«Добавить на главный экран»</b>.</li><li>Подтверди установку и запусти D1PSY с новой иконки.</li></ol></section><section class="pwa-guide"><h3>iPhone / iPad</h3><ol><li>Открой сайт D1PSY в <b>Safari</b> и войди в аккаунт.</li><li>Нажми <b>«Поделиться» → «На экран Домой» → «Добавить»</b>.</li><li>Закрой Safari и запусти D1PSY с новой иконки на главном экране.</li></ol><p class="pwa-note">Для push нужен iOS / iPadOS 16.4 или новее и запуск именно с иконки приложения.</p></section></div>
+<p class="pwa-note">На компьютере: меню Chrome / Edge → «Установить D1PSY Rewards» или значок установки в адресной строке.</p><p class="pwa-note">Вход сохраняется между запусками. Если установленное приложение попросит войти впервые — войди в нём один раз.</p><div class="pwa-actions"><button type="button" id="d1Install" class="pwa-action pwa-primary" hidden>Установить приложение</button></div>
+<section class="pwa-push"><h3>Уведомления о дропах</h3><ol><li>В установленном приложении открой <b>«Приложение»</b> и нажми <b>«Включить уведомления»</b>.</li><li>В запросе телефона выбери <b>«Разрешить»</b>.</li><li>Нажми <b>«Проверить push»</b> — должно прийти тестовое уведомление.</li></ol><p class="pwa-note">Когда тебе выпадет предмет в стримовом розыгрыше, придёт уведомление. Если push не приходит, проверь разрешение уведомлений для D1PSY и ограничения работы браузера в фоне в настройках телефона.</p><div class="pwa-actions"><button type="button" id="d1Push" class="pwa-action pwa-primary" disabled>Загрузка уведомлений…</button><button type="button" id="d1PushTest" class="pwa-action" hidden>Проверить push</button></div><p id="d1PwaStatus" role="status" aria-live="polite"></p></section></div></dialog>`;
 export const pwaJs=String.raw`(()=>{
-if(!('serviceWorker' in navigator)||!window.isSecureContext)return;
 let installEvent=null,registration=null,config=null,subscription=null,busy=false;
 const $=id=>document.getElementById(id),status=s=>{if($('d1PwaStatus'))$('d1PwaStatus').textContent=s};
 const standalone=()=>matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
 const ios=()=>/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installEvent=e;syncInstall()});
 window.addEventListener('appinstalled',()=>{installEvent=null;syncInstall();status('Приложение установлено. Открывай D1PSY с главного экрана.')});
-function syncInstall(){const b=$('d1Install');if(b){b.hidden=standalone();b.textContent=installEvent?'Установить приложение':'Как установить'}}
+function syncInstall(){const b=$('d1Install');if(b){b.hidden=standalone()||!installEvent;b.textContent='Установить приложение'}}
 async function request(path,body,method='POST'){const r=await fetch(path,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body),credentials:'same-origin'});if(!r.ok){if(r.status===401)throw Error('Войди в аккаунт, чтобы включить уведомления.');throw Error('Не удалось сохранить настройки. Попробуй ещё раз.')}return r.json()}
 function keyBytes(key){const a=atob(key.replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from(a,c=>c.charCodeAt(0))}
 function syncPush(){const b=$('d1Push');if(!b)return;
@@ -53,7 +65,7 @@ async function init(){try{
  }catch{status('Не удалось подключить приложение. Проверь интернет и обнови страницу.')}}
 if($('d1Install'))$('d1Install').onclick=async()=>{
  if(installEvent){const event=installEvent;installEvent=null;await event.prompt();await event.userChoice;syncInstall();return}
- const help=$('d1InstallHelp');help.hidden=!help.hidden;help.textContent=ios()?'iPhone / iPad: открой сайт в Safari → «Поделиться» → «На экран Домой» → «Добавить». Затем запусти D1PSY с новой иконки. Если приложение попросит войти впервые, войди в нём один раз.':'Android: открой меню браузера ⋮ → «Установить приложение» или «Добавить на главный экран». Если такого пункта нет, попробуй Chrome. На компьютере используй значок установки в адресной строке.';
+ $('d1InstallHelp')?.scrollIntoView({block:'nearest',behavior:'smooth'});
 };
 if($('d1Push'))$('d1Push').onclick=async()=>{
  if(busy||!registration||!config?.ready)return;busy=true;syncPush();
@@ -70,5 +82,11 @@ if($('d1Push'))$('d1Push').onclick=async()=>{
  finally{busy=false;syncPush()}
 };
 if($('d1PushTest'))$('d1PushTest').onclick=async()=>{const b=$('d1PushTest');b.disabled=true;try{await request('/api/me/push/test',{});status('Проверочное уведомление отправлено в очередь.')}catch(e){status(e.message)}finally{b.disabled=false}};
-syncInstall();init();
+const dialog=$('d1PwaPanel'),open=$('d1PwaOpen');
+function closeApp(){if(dialog?.open){dialog.close();open?.focus()}}
+if(open&&dialog)open.onclick=()=>{if(!dialog.open)dialog.showModal()};
+if($('d1PwaClose'))$('d1PwaClose').onclick=closeApp;
+if(dialog){dialog.addEventListener('cancel',e=>{e.preventDefault();closeApp()});dialog.addEventListener('click',e=>{if(e.target===dialog){const rect=dialog.getBoundingClientRect();if(e.clientX<rect.left||e.clientX>rect.right||e.clientY<rect.top||e.clientY>rect.bottom)closeApp()}})}
+syncInstall();
+if(!('serviceWorker' in navigator)||!window.isSecureContext){if($('d1Push')){$('d1Push').textContent='Push не поддерживается';$('d1Push').disabled=true}status('Открой сайт в современном браузере по HTTPS. Инструкции по установке приведены выше.')}else init();
 })();`;
