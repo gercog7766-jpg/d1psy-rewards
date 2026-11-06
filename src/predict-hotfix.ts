@@ -37,12 +37,13 @@ export function installPredictHotfix() {
         const id=await user(res);if(!id)return;
         const {data:matches,error}=await db.from('rewards_predict_matches').select('*').order('starts_at',{ascending:false}).limit(60);
         if(error)return res.status(503).json({error:'predict_unavailable'});
-        const ids=(matches||[]).map(m=>m.id);
+        const visibleMatches=(matches||[]).filter(m=>!['2026-11-06-parivision-navi','2026-11-06-betboom-furia'].includes(m.id));
+        const ids=visibleMatches.map(m=>m.id);
         const {data:predictions,error:pe}=ids.length?await db.from('rewards_predictions')
           .select('match_id,winner,score,top_player,updated_at,winner_coins,score_coins,player_coins,settled_at,claimed_at')
           .eq('user_id',id).in('match_id',ids):{data:[],error:null};
         if(pe)return res.status(503).json({error:'predict_unavailable'});
-        res.json({serverNow:new Date().toISOString(),matches:(matches||[]).sort((a,b)=>{const rank=(m:any)=>m.status==='scheduled'?(Date.parse(m.starts_at)>Date.now()?0:1):2;const group=rank(a)-rank(b);return group||(rank(a)===0?a.starts_at.localeCompare(b.starts_at):b.starts_at.localeCompare(a.starts_at))}).map(m=>({...m,closes_at:new Date(Date.parse(m.starts_at)-900000).toISOString(),prediction:predictions?.find(p=>p.match_id===m.id)||null}))});
+        res.json({serverNow:new Date().toISOString(),matches:visibleMatches.sort((a,b)=>{const rank=(m:any)=>m.status==='scheduled'?(Date.parse(m.starts_at)>Date.now()?0:1):2;const group=rank(a)-rank(b);return group||(rank(a)===0?a.starts_at.localeCompare(b.starts_at):b.starts_at.localeCompare(a.starts_at))}).map(m=>({...m,closes_at:new Date(Date.parse(m.starts_at)-900000).toISOString(),prediction:predictions?.find(p=>p.match_id===m.id)||null}))});
       });
       app.post('/api/me/predict/:id',userAuth,async(req:any,res:any)=>{
         res.set('Cache-Control','no-store');
