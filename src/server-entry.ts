@@ -1,3 +1,4 @@
+import {installLive} from './live-hotfix.js';
 import { installUsers } from './users-hotfix.js';
 import { installDefuse } from './defuse-hotfix.js';
 import { installPwa } from './pwa-hotfix.js';
@@ -73,6 +74,7 @@ import { installAccountInventoryV2Hotfix } from './account-inventory-v2-hotfix.j
 
 // Install raw HTTP legal handling first so /privacy and /rules are not dependent
 // on the heavily wrapped Express application.get chain.
+installLive();
 installUsers();
 installPwa();
 installAccountDesign();
