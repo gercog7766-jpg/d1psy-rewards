@@ -1,5 +1,5 @@
 import {randomInt} from 'node:crypto';
-export const DEFUSE_LEVELS={rookie:{name:'Новичок',reward:10,seconds:90,digits:4,symbols:3,signals:3},swat:{name:'Спецназ',reward:20,seconds:60,digits:5,symbols:4,signals:4},expert:{name:'Эксперт',reward:30,seconds:45,digits:6,symbols:5,signals:5}} as const;
+export const DEFUSE_LEVELS={rookie:{name:'Новичок',reward:10,seconds:45,digits:4,symbols:3,signals:3},swat:{name:'Спецназ',reward:20,seconds:35,digits:5,symbols:4,signals:4},expert:{name:'Эксперт',reward:30,seconds:25,digits:6,symbols:5,signals:5}} as const;
 export type DefuseDifficulty=keyof typeof DEFUSE_LEVELS;
 export function createDefusePuzzles(level:DefuseDifficulty){
  const config=DEFUSE_LEVELS[level];
