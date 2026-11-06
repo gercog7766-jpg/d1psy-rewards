@@ -50,6 +50,29 @@ test('game XP and future Battle Pass dailies: once per win/day, correct predicti
  assert.equal((await rows("select sp from public.rewards_season_progress where user_id=$1",[a]))[0].sp,450);
  assert.equal((await rows("select count(*)::int as n from public.rewards_season_task_progress where user_id=$1 and task_key='predict_winner'",[b]))[0].n,0);
  assert((await rows("select task_key,progress,sp_awarded from public.rewards_season_task_progress where user_id=$1 and period_key='2026-11-07'",[a])).every(x=>x.progress===1&&x.sp_awarded===150));
+ // Apply the cap with existing XP already earned on this real Moscow day.
+ await db.exec('reset role');await db.exec(await file('../supabase/migrations/20261106000905_tic_tac_toe_daily_xp_cap.sql'));await db.exec('set role service_role');
+ await win();await win();assert.equal((await rows('select xp_total from public.rewards_users where id=$1',[a]))[0].xp_total,30);
+ // At the XP ceiling, a newly available BP win still completes normally.
+ await db.exec("reset role;delete from public.rewards_season_task_progress where task_key='ttt_win';update public.rewards_season_progress set sp=sp-150;set role service_role");
+ await win();assert.equal((await rows('select sp from public.rewards_season_progress where user_id=$1',[a]))[0].sp,450);
+ assert.equal((await rows('select xp_total from public.rewards_users where id=$1',[a]))[0].xp_total,30);
+ // Move the previous game's XP to yesterday to verify a fresh Moscow-day quota.
+ await db.exec("update public.rewards_xp_history set created_at=created_at-interval '24 hours' where source_type='tic_tac_toe_win'");
+ await db.query("select * from public.rewards_award_xp($1,100,'Other XP','admin_adjustment',$2)",[a,randomUUID()]);
+ const drawId=randomUUID();await ttt('create',{p_user:a,p_room:drawId,p_password_hash:null});await ttt('join',{p_user:b,p_room:drawId,p_password_hash:null,p_host_x:true});
+ let rev=1;for(const [i,cell]of[0,1,2,4,3,5,7,6,8].entries())await ttt('move',{p_user:i%2===0?a:b,p_room:drawId,p_cell:cell,p_revision:rev++});
+ assert.equal((await rows('select xp_total from public.rewards_users where id=$1',[a]))[0].xp_total,130);
+ for(let i=0;i<5;i++)await win();
+ assert.equal((await rows('select xp_total from public.rewards_users where id=$1',[a]))[0].xp_total,160);
+ const quota=(await rows("select sum(amount)::int as xp,count(*)::int as n from public.rewards_xp_history where user_id=$1 and source_type='tic_tac_toe_win' and created_at>=((now() at time zone 'Europe/Moscow')::date::timestamp at time zone 'Europe/Moscow')",[a]))[0];assert.equal(quota.xp,30);assert.equal(quota.n,3);
+ // Exact Moscow midnight boundary: 23:59:59 belongs to yesterday, 00:00:00 to today.
+ await db.query("insert into public.rewards_xp_history(user_id,amount,reason,source_type,source_id,created_at) values($1,30,'Past day','tic_tac_toe_win',$2,((now() at time zone 'Europe/Moscow')::date::timestamp at time zone 'Europe/Moscow')-interval '1 second')",[b,randomUUID()]);
+ await db.query('update public.rewards_users set xp_total=30 where id=$1',[b]);
+ async function guestWin(){const id=randomUUID();await ttt('create',{p_user:b,p_room:id,p_password_hash:null});await ttt('join',{p_user:a,p_room:id,p_password_hash:null,p_host_x:true});let rev=1;for(const[user,cell]of[[b,0],[a,3],[b,1],[a,4],[b,2]])await ttt('move',{p_user:user,p_room:id,p_cell:cell,p_revision:rev++})}
+ await guestWin();assert.equal((await rows('select xp_total from public.rewards_users where id=$1',[b]))[0].xp_total,40);
+ await db.query("insert into public.rewards_xp_history(user_id,amount,reason,source_type,source_id,created_at) values($1,20,'Midnight','tic_tac_toe_win',$2,((now() at time zone 'Europe/Moscow')::date::timestamp at time zone 'Europe/Moscow'))",[b,randomUUID()]);
+ await db.query('update public.rewards_users set xp_total=xp_total+20 where id=$1',[b]);await guestWin();assert.equal((await rows('select xp_total from public.rewards_users where id=$1',[b]))[0].xp_total,60);
  // Re-seeding tomorrow cannot rewrite current tasks or duplicate the future three.
  await db.exec('select public.rewards_s1_seed_daily_schedule()');assert.equal((await rows("select count(*)::int as n from public.rewards_season_daily_schedule where day='2026-11-07'"))[0].n,3);
  }finally{await db.close()}
