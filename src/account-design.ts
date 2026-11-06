@@ -60,7 +60,7 @@ body[data-account-design="neon"] .d1psy-footer{max-width:1080px;background:#100b
 @media(prefers-reduced-motion:reduce){.account-art,body[data-account-design="neon"] .item{transition:none}}
 `;
 
-/** Presentation only: no account scripts, handlers or API payloads are replaced. */
+/** Account presentation: preserve wallet hooks, history handlers and API payloads. */
 export function accountDesignHtml(body:string){
  if(!/<title>Личный кабинет — d1psy Rewards\s*<\/title>/.test(body)||body.includes('id="accountNeonDesign"'))return body;
  // Remove only redundant header copy; keep the avatar and account data hook.
@@ -68,6 +68,13 @@ export function accountDesignHtml(body:string){
   .replace('<span>D1PSY REWARDS</span>','')
   .replace(/<div><a id="channelLink"[\s\S]*?<\/div><\/div>/,'')
   .replace('<a class="brand" href="/account">','<a class="brand" href="/account" aria-label="На главную аккаунта">');
+ // Move the existing wallet hook so live balance updates and history keep working.
+ const wallet=body.match(/<div\b[^>]*class="coinbox"[^>]*>[\s\S]*?<\/div>/)?.[0];
+ const saleValue=/<div id="inventoryValue" class="inventory-value">[\s\S]*?<\/div>/;
+ if(wallet&&saleValue.test(body)){
+  body=body.replace(wallet,'').replace(saleValue,wallet)
+   .replace(/function updateInventoryValue\(\)\{[\s\S]*?\}function renderWins\(/,'function updateInventoryValue(){}function renderWins(');
+ }
  return body.replace('</head>','<style id="accountNeonDesign">'+css+'</style></head>')
   .replace(/<body\b([^>]*)>/,'<body$1 data-account-design="neon">'+banners);
 }
