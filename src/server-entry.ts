@@ -1,3 +1,4 @@
+import { installDefuse } from './defuse-hotfix.js';
 import { installPwa } from './pwa-hotfix.js';
 import {installAccountDesign} from './account-design.js';
 import { installContracts } from './contracts-hotfix.js';
@@ -75,6 +76,7 @@ installPwa();
 installAccountDesign();
 installContracts();
 installMarket();
+installDefuse();
 installTicTacToe();
 installPredictHotfix();
 installGamesHotfix();
