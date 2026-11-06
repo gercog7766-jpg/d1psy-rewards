@@ -39,7 +39,7 @@ export function installPredictHotfix() {
         if(error)return res.status(503).json({error:'predict_unavailable'});
         const ids=(matches||[]).map(m=>m.id);
         const {data:predictions,error:pe}=ids.length?await db.from('rewards_predictions')
-          .select('match_id,winner,score,top_player,updated_at,winner_coins,score_coins,player_coins,settled_at')
+          .select('match_id,winner,score,top_player,updated_at,winner_coins,score_coins,player_coins,settled_at,claimed_at')
           .eq('user_id',id).in('match_id',ids):{data:[],error:null};
         if(pe)return res.status(503).json({error:'predict_unavailable'});
         res.json({serverNow:new Date().toISOString(),matches:(matches||[]).sort((a,b)=>a.starts_at.localeCompare(b.starts_at)).map(m=>({...m,closes_at:new Date(Date.parse(m.starts_at)-900000).toISOString(),prediction:predictions?.find(p=>p.match_id===m.id)||null}))});
@@ -53,6 +53,16 @@ export function installPredictHotfix() {
         const {data,error}=await db.rpc('rewards_save_prediction',{p_user_id:id,p_match_id:req.params.id,p_winner:winner,p_score:score,p_top_player:topPlayer});
         if(error){const reason=['predictions_closed','invalid_prediction','match_not_found'].find(x=>error.message.includes(x));if(!reason)console.error('predict_save_failed',error.code);return res.status(reason==='invalid_prediction'?400:reason?409:503).json({error:reason||'predict_unavailable'});}
         res.json({ok:true,prediction:{winner:data.winner,score:data.score,top_player:data.top_player,updated_at:data.updated_at}});
+      });
+      app.post('/api/me/predict/:id/claim',userAuth,async(req:any,res:any)=>{
+        res.set('Cache-Control','no-store');
+        const expected=new URL(process.env.APP_URL||'http://localhost:'+String(process.env.PORT||10000)).origin;
+        if(req.get('sec-fetch-site')==='cross-site'||(req.get('origin')&&req.get('origin')!==expected))return res.sendStatus(403);
+        if(!req.is('application/json'))return res.sendStatus(415);
+        const id=await user(res);if(!id)return;
+        const {data,error}=await db.rpc('rewards_claim_prediction',{p_user_id:id,p_match_id:req.params.id});
+        if(error){const reason=['user_unavailable','match_not_found','result_pending','prediction_not_found','no_reward'].find(x=>error.message.includes(x));if(!reason)console.error('predict_claim_failed',error.code);return res.status(reason?409:503).json({error:reason||'claim_unavailable'})}
+        res.json(data);
       });
       if(adminAuth)app.post('/api/admin/predict/:id/settle',adminAuth,async(req:any,res:any)=>{
         const {winner,score,topPlayers}=req.body||{};
