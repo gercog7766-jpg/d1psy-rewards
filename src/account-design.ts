@@ -8,14 +8,14 @@ const banners=`<aside class="account-art-rails" aria-label="Канал D1PSY н�
 const css=String.raw`
 body[data-account-design="neon"]{background:radial-gradient(ellipse at 50% 0,#35124a66,transparent 55%),#09070e}
 body[data-account-design="neon"] main{position:relative;max-width:1080px;min-height:100vh;margin:0 auto;padding:24px 28px 44px;background:linear-gradient(180deg,#171020f5,#100c18fa 60%,#0d0a13fa);border-inline:1px solid #6d3b913b;box-shadow:0 0 100px #000b}
-body[data-account-design="neon"] .top{padding:0 0 18px;border-bottom:1px solid #74419c55;gap:20px;align-items:center;margin-bottom:20px;flex-wrap:wrap}
-body[data-account-design="neon"] .top-right{flex:1;justify-content:flex-end;flex-wrap:wrap;gap:10px}
-body[data-account-design="neon"] .brand{font-size:12px;letter-spacing:.13em;white-space:nowrap}
+body[data-account-design="neon"] .top{padding:0 0 18px;border-bottom:1px solid #74419c55;gap:12px;align-items:center;margin-bottom:20px;flex-wrap:nowrap}
+body[data-account-design="neon"] .top-right{display:flex;flex:1;min-width:0;align-items:center;justify-content:flex-start;flex-wrap:nowrap;gap:0}
+body[data-account-design="neon"] .brand{flex:0 0 auto;font-size:12px;letter-spacing:.13em;white-space:nowrap}
 body[data-account-design="neon"] .brand-mark{background:linear-gradient(140deg,#772dc9,#241133);border-color:#ad6aff;color:#f1dbff;box-shadow:0 0 22px #9a43ff30}
-body[data-account-design="neon"] .economybar{gap:7px;flex-wrap:wrap;align-items:center}
-body[data-account-design="neon"] .shoplink{font-size:12px;padding:9px 11px;background:#241530;border-color:#674080;border-radius:8px}
+body[data-account-design="neon"] .economybar{width:100%;margin:0;gap:7px;flex-wrap:wrap;align-items:center;justify-content:flex-start}
+body[data-account-design="neon"] .shoplink{display:inline-flex;align-items:center;justify-content:center;min-height:36px;box-sizing:border-box;font-family:inherit;line-height:16px;font-size:12px;padding:9px 11px;background:#241530;border-color:#674080;border-radius:8px}
 body[data-account-design="neon"] .shoplink:hover{background:#3b1e52;border-color:#c077ff}
-body[data-account-design="neon"] .coinbox{border-color:#b48c344d;background:#221b14;border-radius:8px;white-space:nowrap}
+body[data-account-design="neon"] .coinbox{display:inline-flex;align-items:center;gap:4px;min-height:36px;box-sizing:border-box;line-height:16px;border-color:#b48c344d;background:#221b14;border-radius:8px;white-space:nowrap}
 body[data-account-design="neon"] .card{background:linear-gradient(135deg,#21142cf2,#15101ff5);border:1px solid #683e805e;border-radius:14px;box-shadow:0 12px 30px #0002}
 body[data-account-design="neon"] .card h2{font-size:22px;letter-spacing:-.5px}
 body[data-account-design="neon"] .live{padding:16px 20px;background:linear-gradient(110deg,#271638,#191121);border-color:#8f4bb555}
@@ -48,7 +48,7 @@ body[data-account-design="neon"] .d1psy-footer{max-width:1080px;background:#100b
 .account-art b{display:block;font-size:13px;color:#f0e2ff;letter-spacing:.06em;margin-top:4px}
 .account-art:hover,.account-art:focus-visible{border-color:#dc9fff;box-shadow:0 0 32px #aa46ff55;outline:2px solid #dfc1ff;outline-offset:4px}
 @media(max-width:1399px){.account-art-rails{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:1080px;margin:16px auto 0;padding:0 28px}.account-art{position:relative;inset:auto;width:100%;height:120px;max-height:none;aspect-ratio:auto;border-radius:10px}.account-art img{object-fit:cover}.account-art-left img{object-position:50% 34%}.account-art-right img{object-position:50% 64%}.account-art span{left:auto;top:0;bottom:0;width:45%;display:flex;flex-direction:column;justify-content:center;padding:12px;background:linear-gradient(90deg,transparent,#0d0716df 40%);font-size:9px}.account-art b{font-size:12px}}
-@media(max-width:760px){body[data-account-design="neon"] main{padding:20px 16px 32px;border:0}body[data-account-design="neon"] .top{align-items:stretch;gap:14px}body[data-account-design="neon"] .top-right{justify-content:space-between;min-width:0}body[data-account-design="neon"] .economybar{justify-content:flex-start;gap:6px}body[data-account-design="neon"] .inventory{grid-template-columns:repeat(2,minmax(0,1fr))}body[data-account-design="neon"] .card{padding:16px}body[data-account-design="neon"] .seasonAccountHero{padding:22px;min-height:205px}body[data-account-design="neon"] .seasonAccountOpen{position:relative;right:auto;bottom:auto;margin-top:16px;display:inline-block}body[data-account-design="neon"] .seasonAccountCopy{width:100%}body[data-account-design="neon"] .d1psy-footer{padding:22px 16px}.account-art-rails{display:none}}
+@media(max-width:760px){body[data-account-design="neon"] main{padding:20px 16px 32px;border:0}body[data-account-design="neon"] .top{flex-direction:row;align-items:flex-start;gap:10px}body[data-account-design="neon"] .top-right{justify-content:flex-start;min-width:0}body[data-account-design="neon"] .economybar{justify-content:flex-start;gap:6px}body[data-account-design="neon"] .inventory{grid-template-columns:repeat(2,minmax(0,1fr))}body[data-account-design="neon"] .card{padding:16px}body[data-account-design="neon"] .seasonAccountHero{padding:22px;min-height:205px}body[data-account-design="neon"] .seasonAccountOpen{position:relative;right:auto;bottom:auto;margin-top:16px;display:inline-block}body[data-account-design="neon"] .seasonAccountCopy{width:100%}body[data-account-design="neon"] .d1psy-footer{padding:22px 16px}.account-art-rails{display:none}}
 @media(max-width:380px){body[data-account-design="neon"] .inventory{grid-template-columns:1fr}.account-art span{width:65%;letter-spacing:0}}
 /* Desktop artwork fills both viewport gutters and stays fixed while scrolling. */
 @media(min-width:1400px){
@@ -63,6 +63,10 @@ body[data-account-design="neon"] .d1psy-footer{max-width:1080px;background:#100b
 /** Presentation only: no account scripts, handlers or API payloads are replaced. */
 export function accountDesignHtml(body:string){
  if(!/<title>Личный кабинет — d1psy Rewards\s*<\/title>/.test(body)||body.includes('id="accountNeonDesign"'))return body;
+ // Remove only redundant header copy; keep the avatar and account data hook.
+ body=body.replace('<span>D1PSY REWARDS</span>','')
+  .replace(/<div><a id="channelLink"[\s\S]*?<\/div><\/div>/,'')
+  .replace('<a class="brand" href="/account">','<a class="brand" href="/account" aria-label="На главную аккаунта">');
  return body.replace('</head>','<style id="accountNeonDesign">'+css+'</style></head>')
   .replace(/<body\b([^>]*)>/,'<body$1 data-account-design="neon">'+banners);
 }
