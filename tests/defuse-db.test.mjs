@@ -1,15 +1,15 @@
 import {PGlite} from '@electric-sql/pglite';import {test} from 'node:test';import assert from 'node:assert/strict';import {readFile} from 'node:fs/promises';import {randomUUID} from 'node:crypto';import {createDefusePuzzles,publicDefuse} from '../src/defuse-game.ts';
 
-test('Defuse: rolling shared four-hour cooldown, authoritative stages/deadline, idempotent rewards and private answers',async()=>{
+test('Defuse: rolling shared eight-hour cooldown, authoritative stages/deadline, idempotent rewards and private answers',async()=>{
  const db=new PGlite(),a=randomUUID(),b=randomUUID();const rows=async(q,p=[]) => (await db.query(q,p)).rows;
  try{
  await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;create table rewards_users(id uuid primary key,banned boolean default false);create table rewards_coin_transactions(id uuid primary key default gen_random_uuid(),user_id uuid,amount integer,transaction_type text,note text);`);
- await db.query('insert into rewards_users(id) values($1),($2)',[a,b]);await db.exec(await readFile(new URL('../supabase/migrations/20261106035441_defuse_game.sql',import.meta.url),'utf8'));await db.exec(await readFile(new URL('../supabase/migrations/20261106040950_defuse_shorter_timers.sql',import.meta.url),'utf8'));
+ await db.query('insert into rewards_users(id) values($1),($2)',[a,b]);await db.exec(await readFile(new URL('../supabase/migrations/20261106035441_defuse_game.sql',import.meta.url),'utf8'));await db.exec(await readFile(new URL('../supabase/migrations/20261106040950_defuse_shorter_timers.sql',import.meta.url),'utf8'));await db.exec(await readFile(new URL('../supabase/migrations/20261106041635_defuse_eight_hour_cooldown.sql',import.meta.url),'utf8'));
  const call=async(name,args,casts)=> (await rows('select public.rewards_defuse_'+name+'('+args.map((_,i)=>'$'+(i+1)+(casts?.[i]||'')).join(',')+') r',args))[0].r;
  const start=(u,id,level)=>call('start',[u,id,level,JSON.stringify(createDefusePuzzles(level))],['','','','::jsonb']);
  const answer=(u,g,stage,text,request=randomUUID())=>call('answer',[u,g,stage,text,request]);
  assert.equal((await call('state',[a])).game,null);
- const id=randomUUID(),g=(await start(a,id,'rookie')).game;assert.equal(g.difficulty,'rookie');assert.equal(Date.parse(g.deadline)-Date.parse(g.started_at),45000);assert.equal(Date.parse(g.next_available_at)-Date.parse(g.started_at),4*3600000);
+ const id=randomUUID(),g=(await start(a,id,'rookie')).game;assert.equal(g.difficulty,'rookie');assert.equal(Date.parse(g.deadline)-Date.parse(g.started_at),45000);assert.equal(Date.parse(g.next_available_at)-Date.parse(g.started_at),8*3600000);
  assert.equal((await start(a,randomUUID(),'expert')).game.id,id);assert.equal((await start(a,id,'rookie')).game.id,id);assert.equal((await rows('select count(*) n from rewards_defuse_games'))[0].n,1);
  await assert.rejects(answer(b,id,0,'0000'),/game_not_found/);await assert.rejects(answer(a,id,0,g.puzzles[0].answer),/memorize_first/);
  const publicPreview=publicDefuse({serverNow:g.started_at,game:g});assert.equal(publicPreview.game.challenge.preview,g.puzzles[0].answer);assert(!JSON.stringify(publicPreview).includes('"answer"'));assert(!JSON.stringify(publicPreview).includes('request_payloads'));
@@ -23,6 +23,10 @@ test('Defuse: rolling shared four-hour cooldown, authoritative stages/deadline, 
  await db.exec('alter table rewards_coin_transactions add constraint test_failure check(amount<0)');await assert.rejects(answer(a,id,2,g.puzzles[2].answer),/test_failure/);assert.equal((await call('state',[a])).game.stage,2);await db.exec('alter table rewards_coin_transactions drop constraint test_failure');
  const last=randomUUID(),won=await answer(a,id,2,g.puzzles[2].answer,last);assert.equal(won.game.status,'won');assert.equal(publicDefuse(won).game.rewardCoins,10);assert.equal(publicDefuse(won).game.challenge,null);
  await answer(a,id,2,g.puzzles[2].answer,last);await answer(a,id,2,g.puzzles[2].answer);assert.equal((await rows('select count(*) n from rewards_coin_transactions'))[0].n,1);
+ // Existing attempts receive the eight-hour wait without changing their outcome or reward.
+ await db.query("update rewards_defuse_games set next_available_at=started_at+interval '4 hours' where id=$1",[id]);
+ await db.exec(await readFile(new URL('../supabase/migrations/20261106041635_defuse_eight_hour_cooldown.sql',import.meta.url),'utf8'));
+ const migrated=(await rows('select * from rewards_defuse_games where id=$1',[id]))[0];assert.equal(Date.parse(migrated.next_available_at)-Date.parse(migrated.started_at),8*3600000);assert.equal(migrated.status,'won');assert.equal(migrated.reward_transaction_id,won.game.reward_transaction_id);assert.equal(new Date(migrated.deadline).getTime(),Date.parse(won.game.deadline));
  // Shared cooldown persists after winning, losing and across a Moscow midnight.
  assert.equal((await start(a,randomUUID(),'swat')).game.id,id);
  await db.query("update rewards_defuse_games set next_available_at=clock_timestamp()-interval '1 millisecond' where id=$1",[id]);
