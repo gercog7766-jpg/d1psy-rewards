@@ -1,3 +1,4 @@
+import {installAccountDesign} from './account-design.js';
 import { installContracts } from './contracts-hotfix.js';
 import { installMarket } from './market-hotfix.js';
 import { installTicTacToe } from './tic-tac-toe-hotfix.js';
@@ -69,6 +70,7 @@ import { installAccountInventoryV2Hotfix } from './account-inventory-v2-hotfix.j
 
 // Install raw HTTP legal handling first so /privacy and /rules are not dependent
 // on the heavily wrapped Express application.get chain.
+installAccountDesign();
 installContracts();
 installMarket();
 installTicTacToe();
