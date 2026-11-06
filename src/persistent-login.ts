@@ -19,7 +19,7 @@ export function persistentLogin(db:SupabaseClient,appUrl:string,read:(req:Reques
  }
  async function middleware(req:Request,res:Response,next:NextFunction){
   // Public assets and webhook traffic do not read or renew account state.
-  if(!/^\/(api\/me(?:\/|$)|api\/admin(?:\/|$)|account$|app$|logout$|games(?:\/|$)|predict$|shop$|season$|upgrader$|contracts$|admin$)/.test(req.path)||/\.(?:js|png|webp|svg)$/.test(req.path))return next();
+  if(!/^\/(api\/me(?:\/|$)|api\/admin(?:\/|$)|api\/users(?:\/|$)|users(?:\/|$)|account$|app$|logout$|games(?:\/|$)|predict$|shop$|season$|upgrader$|contracts$|admin$)/.test(req.path)||/\.(?:js|png|webp|svg)$/.test(req.path))return next();
   const token=req.cookies?.rewards_device;
   try{
    if(token){
@@ -35,7 +35,7 @@ export function persistentLogin(db:SupabaseClient,appUrl:string,read:(req:Reques
     }
    }else{
     const s=read(req);if(s?.deviceSession){delete req.cookies.rewards_session;res.clearCookie('rewards_session',options)}
-    else if(s&&['/account','/app','/api/me'].includes(req.path)){await create(req,res,s);res.locals.deviceHash=deviceHash(req.cookies.rewards_device)}
+    else if(s&&['/account','/app','/api/me','/api/me/site-presence'].includes(req.path)){await create(req,res,s);res.locals.deviceHash=deviceHash(req.cookies.rewards_device)}
    }
    next();
   }catch{if(req.path==='/logout')return next();res.status(503).set('Cache-Control','no-store').send('Не удалось сохранить вход. Попробуй ещё раз.');}
