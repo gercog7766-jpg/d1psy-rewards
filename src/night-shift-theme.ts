@@ -1,4 +1,5 @@
 import express from 'express';
+import {shopFullscreenCss} from './shop-fullscreen-style.js';
 
 /** Shared presentation only. Never targets admin, OBS, API or script responses. */
 export function nightShiftPage(path:string){
@@ -114,7 +115,7 @@ body[data-night-shift] ::selection{background:#7e22ce;color:#fff}
 export function nightShiftHtml(body:string,path:string){
  const page=nightShiftPage(path);
  if(!page||!/^\s*(?:<!doctype html|<html\b)/i.test(body)||body.includes('id="nightShiftTheme"'))return body;
- return body.replace(/<body\b([^>]*)>/i,`<body$1 data-night-shift="${page}">`).replace('</head>','<style id="nightShiftTheme">'+nightShiftCss+'</style></head>');
+ return body.replace(/<body\b([^>]*)>/i,`<body$1 data-night-shift="${page}">`).replace('</head>','<style id="nightShiftTheme">'+nightShiftCss+(page==='shop'?shopFullscreenCss:'')+'</style></head>');
 }
 export function installNightShiftTheme(){
  const response:any=(express as any).response,send=response.send;
