@@ -1,6 +1,6 @@
 # Minesweeper
 
-`/games/minesweeper` is a classic 10×10 field with open, flags, zero-region flood and number chording. The first opened cell and its neighbors are safe. Desktop supports right-click flags; mobile has an explicit flag mode. A two-step surrender consumes the current attempt.
+`/games/minesweeper` is a classic 10×10 field with open, flags, zero-region flood and number chording. The first opened cell and its neighbors are safe. Easy games last 3:00, medium 4:00, and hard 5:30 from starting the attempt. Server deadlines survive reloads and are checked before moves/rewards; running out of time loses the attempt. The third timeout starts cooldown at the deadline, even if the user returns much later. Desktop supports right-click flags; mobile has an explicit flag mode. A two-step surrender consumes the current attempt.
 
 One account has three attempts shared across all difficulties. Winning any attempt pays exactly once and ends the cycle immediately. Winning or losing the third attempt starts a rolling 12-hour cooldown at completion. Earlier losses allow the next attempt immediately. Refreshing, changing difficulty or using another tab never resets attempts; active parties resume. The next cycle starts only after cooldown expiry.
 
