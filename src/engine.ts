@@ -12,7 +12,7 @@ async function startNextRound(){
   if(active) return;
 
   const min=Number(s.drop_min_price_coins??2),max=Number(s.drop_max_price_coins??1000);
-  if(!Number.isInteger(min)||!Number.isInteger(max)||min<2||max>1000||min>max)throw new Error('invalid_saved_drop_price_range');
+  if(!Number.isInteger(min)||!Number.isInteger(max)||min<2||max>3000||min>max)throw new Error('invalid_saved_drop_price_range');
   const {data:prizes,error:pErr}=await db.from('rewards_prizes').select('id,name,sell_price_coins').eq('status','available').gte('sell_price_coins',min).lte('sell_price_coins',max);
   if(pErr) throw pErr;
   if(!prizes?.length){
