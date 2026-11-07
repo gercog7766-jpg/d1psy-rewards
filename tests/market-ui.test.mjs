@@ -85,6 +85,13 @@ test('full shop UI: variant favorites, goal, budget/quality filters, sort, persi
   await until(()=>cards().find(c=>c.textContent.includes('Sticker'))?.querySelector('.mkt-open-card'));cards().find(c=>c.textContent.includes('Sticker')).querySelector('.mkt-open-card').click();q('#qtyPlus').click();q('#mb').click();await until(()=>buyRequests.length===beforeFixed+8);await until(()=>q('#bal').textContent.includes('810'));assert(!q('#modal').classList.contains('on'));
   await until(()=>cards().find(c=>c.textContent.includes('AK-47'))?.querySelector('.mkt-open-card'));cards().find(c=>c.textContent.includes('AK-47')).querySelector('.mkt-open-card').click();assert.equal(q('#tabs').hidden,false);assert.equal(q('#wears').hidden,false);assert.equal(q('#shopQty').textContent,'1');q('#close').click();
   await pause(150);await until(()=>q('#marketGoal').getAttribute('aria-busy')!=='true');
+  // A six-column catalog must contain complete rows and keep every product reachable.
+  for(let i=1;i<=71;i++)products.push({id:randomUUID(),name:'Sticker | Page '+String(i).padStart(2,'0'),image_url:'/sticker.png',price_coins:30,stock:null});
+  w=await mount();w.document.querySelector('#grid').style.gridTemplateColumns='repeat(6,minmax(0,1fr))';w.dispatchEvent(new w.Event('resize'));await pause(180);await until(()=>cards().length===24);
+  const names=new Set();for(let page=1;page<=4;page++){if(page>1)q('#pager [aria-label="Следующая страница"]').click();assert.equal(q('#pager [aria-current="page"]').dataset.p,String(page));assert.equal(cards().length,page===4?products.length-72:24);for(const c of cards())names.add(c.querySelector('.name').textContent);}
+  assert.equal(names.size,products.length);assert(q('#pager [aria-label="Следующая страница"]').disabled);q('#pager [data-p="1"]').click();assert.equal(cards().length,24);assert(q('#pager [aria-label="Предыдущая страница"]').disabled);
+  q('#search').value='Page 01';q('#search').dispatchEvent(new w.Event('input'));assert.equal(cards().length,1);assert(q('#pager .shop-page-info').textContent.includes('1–1 из 1'));assert(q('#pager [aria-label="Следующая страница"]').disabled);
+  q('#search').value='';q('#search').dispatchEvent(new w.Event('input'));q('#pager [aria-label="Следующая страница"]').click();w.document.querySelector('#grid').style.gridTemplateColumns='repeat(4,minmax(0,1fr))';w.dispatchEvent(new w.Event('resize'));await pause(180);assert.equal(cards().length,16);assert.equal(q('#pager [aria-current="page"]').dataset.p,'2');
   assert.deepEqual(errors,[]);
  }finally{dom?.window.close();server.kill();mock.closeAllConnections();await new Promise(r=>mock.close(r));}
 });

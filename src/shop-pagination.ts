@@ -1,0 +1,19 @@
+/** Runs inside the existing shop closure, using its filtered list and page state. */
+export const shopPaginationHelpers=String.raw`
+function shopColumnCount(){var value=getComputedStyle(q('#grid')).gridTemplateColumns||'',repeat=value.match(/^repeat\(\s*(\d+)\s*,/),count=repeat?Number(repeat[1]):value&&value!=='none'?value.split(/\s+(?![^()]*\))/).length:4;return Math.max(1,Math.min(12,count||4))}
+function fitShopPageSize(){var next=shopColumnCount()*4;if(next!==ps){var start=(pn-1)*ps;ps=next;pn=Math.floor(start/ps)+1}}
+function renderShopPager(total,pages){var pager=q('#pager'),numbers=[];pager.setAttribute('role','navigation');pager.setAttribute('aria-label','Страницы магазина');if(pages<=7){for(var i=1;i<=pages;i++)numbers.push(i)}else{numbers=[1];for(var n=Math.max(2,pn-1);n<=Math.min(pages-1,pn+1);n++)numbers.push(n);numbers.push(pages)}var start=total?(pn-1)*ps+1:0,end=Math.min(pn*ps,total),h='<div class="shop-page-info">'+start+'–'+end+' из '+total+' · Страница '+pn+' из '+pages+'</div><div class="shop-page-buttons">';h+='<button type="button" class="pg pg-arrow" data-p="'+(pn-1)+'" aria-label="Предыдущая страница" '+(pn<=1?'disabled':'')+'>‹</button>';var last=0;numbers.forEach(function(n){if(last&&n-last>1)h+='<span class="shop-page-gap" aria-hidden="true">…</span>';h+='<button type="button" class="pg '+(n===pn?'on':'')+'" data-p="'+n+'" aria-label="Страница '+n+'" '+(n===pn?'aria-current="page"':'')+'>'+n+'</button>';last=n});h+='<button type="button" class="pg pg-arrow" data-p="'+(pn+1)+'" aria-label="Следующая страница" '+(pn>=pages?'disabled':'')+'>›</button></div>';pager.innerHTML=h;pager.querySelectorAll('[data-p]').forEach(function(b){b.onclick=function(){if(b.disabled)return;var next=Number(b.dataset.p);if(next===pn||next<1||next>pages)return;pn=next;draw()}})}
+var shopResizeTimer;window.addEventListener('resize',function(){clearTimeout(shopResizeTimer);shopResizeTimer=setTimeout(function(){if(shopColumnCount()*4!==ps)draw()},120)});
+`;
+export const shopPaginationCss=String.raw`
+body[data-night-shift="shop"][data-market-design="cards"] #pager{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:11px;width:100%;margin:22px 0 8px;padding:16px 10px 6px;border-top:1px solid #61307d55}
+body[data-night-shift="shop"][data-market-design="cards"] .shop-page-info{font-size:13px;color:#c3add6;font-variant-numeric:tabular-nums;text-align:center}
+body[data-night-shift="shop"][data-market-design="cards"] .shop-page-buttons{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:7px}
+body[data-night-shift="shop"][data-market-design="cards"] #pager .pg{display:inline-flex;align-items:center;justify-content:center;min-width:39px;min-height:39px;padding:8px 11px;border:1px solid #754298;background:#160b26;border-radius:10px;color:#e8d2fa;font:700 14px/1 Inter,"Segoe UI",Arial,sans-serif;cursor:pointer}
+body[data-night-shift="shop"][data-market-design="cards"] #pager .pg.on{background:linear-gradient(135deg,#a02bf4,#6311bd);border-color:#cb80fa;box-shadow:0 0 15px #9b2bd536;color:#fff}
+body[data-night-shift="shop"][data-market-design="cards"] #pager .pg:hover:not(:disabled){border-color:#c37aed;background:#35124c}
+body[data-night-shift="shop"][data-market-design="cards"] #pager .pg:disabled{opacity:.35;cursor:default}
+body[data-night-shift="shop"][data-market-design="cards"] #pager .pg-arrow{font-size:24px}
+body[data-night-shift="shop"][data-market-design="cards"] .shop-page-gap{padding:0 3px;color:#a888bf}
+@media(max-width:580px){body[data-night-shift="shop"][data-market-design="cards"] #pager .pg{min-width:35px;min-height:40px;padding:8px}body[data-night-shift="shop"][data-market-design="cards"] .shop-page-buttons{gap:5px}body[data-night-shift="shop"][data-market-design="cards"] .shop-page-info{font-size:12px}}
+`;

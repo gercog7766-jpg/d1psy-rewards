@@ -1,5 +1,6 @@
+import {shopPaginationCss} from './shop-pagination.js';
 /** Full-window marketplace presentation; existing product/cart/filter DOM is preserved. */
-export const shopFullscreenCss=String.raw`
+export const shopFullscreenCss=shopPaginationCss+String.raw`
 body[data-night-shift="shop"][data-market-design="cards"]{background:radial-gradient(ellipse at 80% -20%,#5b14a327,transparent 50%),repeating-linear-gradient(135deg,transparent 0 165px,#5f21a20a 166px 210px,transparent 211px 380px),#070510}
 body[data-night-shift="shop"][data-market-design="cards"] main{width:100%;max-width:none;margin:0;padding:14px clamp(16px,1.3vw,28px) 46px;box-sizing:border-box}
 body[data-night-shift="shop"][data-market-design="cards"] .top{padding:0 3px 13px;margin:0 0 15px;gap:16px;border-bottom-color:#55278044}
