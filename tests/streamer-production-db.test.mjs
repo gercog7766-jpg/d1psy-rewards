@@ -16,6 +16,7 @@ insert into rewards_device_sessions values('device',now()+interval '1 day',now()
 await d.exec(await readFile(new URL('../supabase/migrations/20261107111158_streamer_closed_pilot.sql',import.meta.url),'utf8'));
 await d.exec(`insert into rewards_pilot_profiles(broadcaster_id,name,login,url,status,obs_hash) values('${A}','Owner','d1psy_off','https://www.twitch.tv/d1psy_off','approved',null),('${B}','Amych','amych','https://www.twitch.tv/amych','approved','${'b'.repeat(64)}');insert into rewards_pilot_ledger(broadcaster_id,amount,kind,request_id,actor) values('${B}',52,'topup',gen_random_uuid(),'${A}');`);
 await d.exec(await readFile(new URL('../supabase/migrations/20261107210839_streamer_production_rewards.sql',import.meta.url),'utf8'));
+await d.exec(await readFile(new URL('../supabase/migrations/20261107212609_streamer_public_applications.sql',import.meta.url),'utf8'));
 const api=async(actor,action,body={})=>(await d.query('select rewards_streamer_live_api($1,$2,$3::jsonb) x',[actor,action,JSON.stringify(body)])).rows[0].x;
 const state=id=>api(id,'state'),bal=async id=>(await state(id)).balance;
 const topup=(id,n,key=randomUUID())=>api(A,'topup',{broadcaster:id,amount:n,requestId:key});
@@ -24,7 +25,7 @@ const chat=(id,msg,user=V)=>d.query('select rewards_streamer_live_chat($1,$2,$3,
 const redeem=code=>d.query('select rewards_streamer_live_redeem($1,$2) x',[V,code]);
 const count=async table=>(await d.query('select count(*) n from '+table)).rows[0].n;
 try{
-assert.equal(await bal(B),0);assert.equal((await state(B)).profile.status,'approved');assert.equal((await state(B)).testOnly,false);assert.equal((await state(B)).catalog.length,1);
+await api(V,'apply',{name:'@viewer_contact',login:'viewer',url:'https://www.twitch.tv/viewer'});assert.equal((await state(V)).profile.status,'pending');assert.equal((await state(V)).profile.name,'@viewer_contact');await assert.rejects(api(V,'start',start()),/approval_required|pilot_disabled/);await assert.rejects(api(B,'approve',{broadcaster:V}),/owner_required/);assert((await api(A,'admin')).profiles.some(p=>p.broadcaster_id===V));assert.equal(await bal(B),0);assert.equal((await state(B)).profile.status,'approved');assert.equal((await state(B)).testOnly,false);assert.equal((await state(B)).catalog.length,1);
 await topup(B,10);await assert.rejects(api(B,'topup',{broadcaster:B,amount:1,requestId:randomUUID()}),/owner_required/); // owner funding is separate from viewer coins
 assert.equal(await count('rewards_coin_transactions'),0);const key=randomUUID();await topup(B,100,key);await topup(B,100,key);assert.equal(await bal(B),110);await assert.rejects(topup(B,101,key),/request_conflict/);await topup(A,100);
 await api(A,'switch',{enabled:true});const a=start(),b=start();await api(A,'start',a);await api(B,'start',b);await api(B,'start',b);assert.equal(await bal(B),90);await assert.rejects(api(B,'stop',{roundId:a.requestId}),/round_not_found/);
