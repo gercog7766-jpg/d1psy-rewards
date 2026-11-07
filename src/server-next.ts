@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import { createClient } from '@supabase/supabase-js';
-import {installStreamerPilot} from './streamer-pilot.js';
+import {installStreamerPilot} from './streamer-live.js';
 import { eventSubRouter, subscribeToChat, subscribeToPartnerChat, partnerChatReady } from './eventsub.js';
 
 const PORT=Number(process.env.PORT||10000);

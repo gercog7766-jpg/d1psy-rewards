@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import {recordPilotChat} from './streamer-pilot.js';
+import {recordPilotChat} from './streamer-live.js';
 import express from 'express';
 import { createClient } from '@supabase/supabase-js';
 import { checkGiveawayRound } from './engine.js';
