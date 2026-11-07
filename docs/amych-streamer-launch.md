@@ -17,30 +17,38 @@ The callback URI remains `https://d1psy-multistream-isolated-api.onrender.com/oa
 
 ## Feature flag and storage
 
-Set only `ISOLATED_STREAMER_DASHBOARD=true` on the isolated API service, merging existing env vars. Keep production giveaway/routing flags disabled. Initialization refuses another logical database and refuses Supabase credentials. It creates only the six `amych_dashboard_*` tables, with fixed broadcaster checks, RLS and PUBLIC privileges revoked. It never migrates or writes the existing `rewards_*` fixture tables. The private database does not need an external IP allowlist change.
+Set only `ISOLATED_STREAMER_DASHBOARD=true` on the isolated API service, merging existing env vars. Keep production giveaway/routing flags disabled. Initialization refuses another logical database and refuses Supabase credentials. It creates the `amych_dashboard_*` and separate `isolated_streamer_*` tables, with fixed broadcaster checks, RLS and PUBLIC privileges revoked. It never migrates or writes the existing `rewards_*` fixture tables. The private database does not need an external IP allowlist change.
 
 `/healthz` exposes only readiness booleans and the isolated subscription status. `streamerDashboard` and `streamerLoginReady` should both be true. The status of an actual owner session still requires amych to complete Twitch consent.
 
 ## Dashboard behavior
 
-The owner configures a test prize label, time/message mode, interval and message threshold. Start requires a currently enabled isolated Twitch subscription. Settings cannot change during an active round. Starts have request UUIDs; retries cannot duplicate rounds. Settings versions reject stale edits.
+The owner configures time/message mode, interval (1–3600 seconds), message threshold (5–1000), and inclusive minimum/maximum drop price (2–1000 coins). The administrator supplies the priced stock pool. Start requires a currently enabled isolated Twitch subscription. Settings cannot change during an active round. Starts have request UUIDs; retries cannot duplicate rounds. Settings versions reject stale edits.
 
 Only verified signed EventSub notifications for broadcaster `39780903` reach the optional persistent dashboard hook. Primary-channel events retain their existing acknowledgement-only behavior. Messages are durably deduplicated by Twitch message ID. Each viewer gets one participant entry, regardless of message count; the channel owner's messages do not count. Only message ID, receipt time and participant identity are stored, not chat text.
 
 Time expiry, message thresholds and manual draws select at most one test winner under a streamer-settings row lock. Sampling uses Node crypto.randomInt. Stop cancels without a winner. Expired time rounds are also completed when the dashboard or another signed event arrives. Free-service sleep therefore cannot admit late participants into an expired round.
 
-**This is an isolated test, not real prize delivery.** It never creates production wins, orders, coin transfers, or reserves a real shared prize. Labels and winner results remain in the isolated dashboard tables.
+**This is an isolated test, not real prize delivery.** It never creates production wins, orders, coin transfers, or reserves a real shared prize. Budget reservations, test stock and winner results remain in the isolated database.
 
 ## Acceptance check with amych
 
 1. Open the stable sign-in link in amych's browser, using his own Twitch account.
 2. Confirm the dashboard shows amych and Twitch connected.
-3. Save message mode with threshold 2 and a clearly named test prize.
-4. Start a test round. A different viewer sends two messages in amych's chat.
-5. Verify message count 2, unique participant count 1, one completed round and one test winner.
+3. As d1psy_off, open `/admin/streamers`, fund amych and add a priced test prize with stock. Then as amych save message mode with threshold 5 and a matching price range.
+4. Start a test round. A different viewer sends five messages in amych's chat.
+5. Verify message count 5, unique participant count 1, one completed round and one test winner.
 6. Reload the page and confirm settings/history remain. Stop a second test round and confirm no winner is chosen.
 7. Never use this acceptance check to alter production rewards or primary-channel state.
 
 ## Validation
 
 API tests include private sessions, persistence after a reconstructed instance, invalid identity/CSRF/origin, stale settings, duplicate starts/chat, primary isolation, timer completion, cancellation, subscription-conflict recovery, one-time OAuth state and safe DOM text rendering. Existing isolated API/PoC tests remain enabled; three optional live-DB suites remain skipped without explicit verification flags. The test-site entry is separately checked to reject the production origin. No actual amych session is fabricated during testing.
+
+## Separate streamer budget
+
+The test-site admin tab “Стримеры” redirects to the isolated API `/admin/streamers`. Sign in as verified Twitch `d1psy_off`; its real numeric identity is pinned on first verified login. This uses a distinct seven-day HttpOnly session, origin checks and CSRF protection. Admin login does not change EventSub subscriptions. Only this administrator can top up the streamer ledger or add priced test stock. Initial budgets and stock are empty; deployment does not invent funding.
+
+The only onboarded streamer is amych (39780903). Owner sessions and all mutations are fixed to that channel; request bodies cannot nominate another owner. Additional streamers require explicit server onboarding. Ordinary user coin balances are never read or written.
+
+Starting atomically chooses an affordable stocked prize within the configured range, decrements stock and reserves its price from the separate wallet. Cancellation or an empty draw refunds the reservation and restores stock once. A winning draw consumes it. UUID retries deduplicate funding and starts; a database deferred constraint prevents newly created uncharged rounds. Pre-finance rounds remain historical and uncharged. Tests cover retries, concurrent starts, insufficient funding, refunds, admin identity and access separation.
