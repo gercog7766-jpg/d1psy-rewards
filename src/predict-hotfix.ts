@@ -50,7 +50,7 @@ export function installPredictHotfix() {
       app.post('/api/me/predict/:id',userAuth,async(req:any,res:any)=>{
         res.set('Cache-Control','no-store');
         const {winner,score,topPlayer}=req.body||{};
-        if(!['a','b'].includes(winner)||!['2:0','2:1'].includes(score)||typeof topPlayer!=='string'||topPlayer.length>40)
+        if(!['a','b'].includes(winner)||!['2:0','2:1','3:0','3:1','3:2'].includes(score)||typeof topPlayer!=='string'||topPlayer.length>40)
           return res.status(400).json({error:'invalid_prediction'});
         const id=await user(res);if(!id)return;
         const {data,error}=await db.rpc('rewards_save_prediction',{p_user_id:id,p_match_id:req.params.id,p_winner:winner,p_score:score,p_top_player:topPlayer});
@@ -73,12 +73,12 @@ export function installPredictHotfix() {
         app.get('/predict-admin.js',(_req:any,res:any)=>res.type('application/javascript').set('Cache-Control','no-store').send(predictAdminJs));
         app.get('/api/admin/predict',adminAuth,async(_req:any,res:any)=>{res.set('Cache-Control','no-store');const {data,error}=await db.from('rewards_predict_matches').select('*').order('starts_at',{ascending:false}).limit(500);if(error)return res.status(503).json({error:'predict_unavailable'});res.json({matches:data})});
         app.post('/api/admin/predict',adminAuth,adminOrigin,async(req:any,res:any)=>{
-          const b=req.body,keys=['id','tournament','startsAt','teamA','teamB','logoA','logoB','rosterA','rosterB'];
+          const b=req.body,keys=['id','tournament','startsAt','teamA','teamB','logoA','logoB','rosterA','rosterB','bestOf','scoreReward'];
           const text=(v:any,n:number)=>typeof v==='string'&&v.trim()===v&&v.length>0&&v.length<=n;
           const roster=(v:any)=>Array.isArray(v)&&v.length===5&&v.every(x=>text(x,40))&&new Set(v.map(x=>x.toLowerCase())).size===5;
           const logo=(v:any)=>typeof v==='string'&&(v===''||v.length<=2048&&(/^\/predict-assets\/[a-z0-9._-]+$/i.test(v)||(()=>{try{const u=new URL(v);return u.protocol==='https:'&&!u.username&&!u.password}catch{return false}})()));
-          if(!b||Object.keys(b).some(k=>!keys.includes(k))||typeof b.id!=='string'||!/^match-[a-f0-9-]{36}$/.test(b.id)||!['IEM Beijing','BLAST Rivals 2026 Season 2'].includes(b.tournament)||!text(b.teamA,80)||!text(b.teamB,80)||b.teamA.toLowerCase()===b.teamB.toLowerCase()||!roster(b.rosterA)||!roster(b.rosterB)||new Set([...b.rosterA,...b.rosterB].map(x=>x.toLowerCase())).size!==10||!logo(b.logoA)||!logo(b.logoB)||typeof b.startsAt!=='string'||!Number.isFinite(Date.parse(b.startsAt)))return res.status(400).json({error:'invalid_match'});
-          const row={id:b.id,tournament:b.tournament,starts_at:new Date(b.startsAt).toISOString(),team_a:b.teamA,team_b:b.teamB,logo_a:b.logoA,logo_b:b.logoB,roster_a:b.rosterA,roster_b:b.rosterB};
+          if(!b||Object.keys(b).some(k=>!keys.includes(k))||![3,5].includes(b.bestOf??3)||![3,5].includes(b.scoreReward??3)||typeof b.id!=='string'||!/^match-[a-f0-9-]{36}$/.test(b.id)||!['IEM Beijing','BLAST Rivals 2026 Season 2'].includes(b.tournament)||!text(b.teamA,80)||!text(b.teamB,80)||b.teamA.toLowerCase()===b.teamB.toLowerCase()||!roster(b.rosterA)||!roster(b.rosterB)||new Set([...b.rosterA,...b.rosterB].map(x=>x.toLowerCase())).size!==10||!logo(b.logoA)||!logo(b.logoB)||typeof b.startsAt!=='string'||!Number.isFinite(Date.parse(b.startsAt)))return res.status(400).json({error:'invalid_match'});
+          const row={id:b.id,best_of:b.bestOf??3,score_reward:b.scoreReward??3,tournament:b.tournament,starts_at:new Date(b.startsAt).toISOString(),team_a:b.teamA,team_b:b.teamB,logo_a:b.logoA,logo_b:b.logoB,roster_a:b.rosterA,roster_b:b.rosterB};
           // Stable request ID: an identical retry returns the existing match; never upsert over forecasts/results.
           const {data:existing,error:readError}=await db.from('rewards_predict_matches').select('*').eq('id',b.id).maybeSingle();
           if(readError)return res.status(503).json({error:'predict_unavailable'});
@@ -90,7 +90,7 @@ export function installPredictHotfix() {
       }
       if(adminAuth)app.post('/api/admin/predict/:id/settle',adminAuth,adminOrigin,async(req:any,res:any)=>{
         const {winner,score,topPlayers}=req.body||{};
-        if(!['a','b'].includes(winner)||!['2:0','2:1'].includes(score)||!Array.isArray(topPlayers)||topPlayers.length<1||topPlayers.length>10||topPlayers.some(x=>typeof x!=='string'||x.length>40))return res.status(400).json({error:'invalid_result'});
+        if(!['a','b'].includes(winner)||!['2:0','2:1','3:0','3:1','3:2'].includes(score)||!Array.isArray(topPlayers)||topPlayers.length<1||topPlayers.length>10||topPlayers.some(x=>typeof x!=='string'||x.length>40))return res.status(400).json({error:'invalid_result'});
         const {data,error}=await db.rpc('rewards_settle_predictions',{p_match_id:req.params.id,p_winner:winner,p_score:score,p_top_players:topPlayers});
         if(error)return res.status(409).json({error:['invalid_result','result_already_set','match_not_finished','match_not_found'].find(x=>error.message.includes(x))||'settlement_failed'});
         res.set('Cache-Control','no-store').json(data);
