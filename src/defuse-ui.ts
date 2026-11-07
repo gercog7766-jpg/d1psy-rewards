@@ -18,6 +18,7 @@ function accept(data){const previous=state?.game;state=data;serverTime=Date.pars
  if(g.status==='won'&&previous?.status==='playing'){$('device').classList.add('reveal');setTimeout(()=>$('device').classList.remove('reveal'),900);beep(880)}
  if(g.status==='lost'&&previous?.status==='playing'){$('device').classList.add('exploded');setTimeout(()=>$('device').classList.remove('exploded'),500);beep(180)}}
  render();
+ if(g?.status==='playing'&&previous?.status!=='playing'&&window.matchMedia?.('(max-width:840px)').matches)requestAnimationFrame(()=>$('device').scrollIntoView?.({block:'start',behavior:'auto'}));
 }
 function entryLabel(i){if(!entry[i])return '·';const c=state.game.challenge;return c.kind==='symbols'?(c.items.find(x=>x.id===entry[i])?.symbol||'•'):c.kind==='sequence'?String(Number(entry[i])+1):entry[i]}
 function inputPart(challenge){const answer=node('div','answer');answer.id='entry';for(let i=0;i<challenge.length;i++)answer.append(node('span','digit',entryLabel(i)));return answer}
@@ -52,6 +53,7 @@ function buildModule(){const g=state?.game,el=$('module');if(!g)return;
 }
 function render(){const g=state?.game,active=playing(),available=state&&!active&&(!state.nextAvailableAt||now()>=Date.parse(state.nextAvailableAt));
  for(const b of document.querySelectorAll('[data-level]')){b.classList.toggle('on',b.dataset.level===level);b.setAttribute('aria-pressed',String(b.dataset.level===level));b.disabled=busy||active||!!pendingStart}
+ $('device').closest('.layout').classList.toggle('round-active',active);
  $('start').disabled=!available||busy;$('start').textContent=active?'Игра идёт':pendingStart?'Повторить запуск':'Начать игру';$('device').classList.toggle('won',g?.status==='won');$('device').classList.toggle('lost',g?.status==='lost');$('device').classList.toggle('busy',busy);$('deviceStatus').textContent=active?'ARMED':g?.status==='won'?'DEFUSED':g?.status==='lost'?'FAILED':'STANDBY';
  for(const light of document.querySelectorAll('[data-stage]')){light.classList.toggle('done',!!g&&(g.status==='won'||Number(light.dataset.stage)<g.stage));light.classList.toggle('on',active&&Number(light.dataset.stage)===g.stage)}
  $('strikes').textContent='Ошибки: '+(g?.mistakes||0)+' / 3';$('stageLabel').textContent=active?'Модуль '+(g.stage+1)+' из 3':'Три модуля до победы';if(!g)$('timer').textContent=duration(seconds[level]*1000);
