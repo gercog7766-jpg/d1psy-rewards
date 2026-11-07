@@ -1,11 +1,14 @@
+import {createAmychDashboard} from './amych-dashboard.mjs';
 import { timingSafeEqual } from 'node:crypto';
 // Isolated PostgreSQL test API. Never attach to production Supabase.
 // This is deliberately NOT a replacement for the application's Supabase API.
 import http from 'node:http';
 import { readFileSync } from 'node:fs';
 import { Pool } from 'pg';
-import { probeConfig, handleProbeRequest } from './twitch-probe.mjs';
-import { handleIsolatedOAuthCallback } from './twitch-oauth-callback.mjs';
+import { probeConfig, handleProbeRequest, probeMetrics } from './twitch-probe.mjs';
+import {chatSimulation,STREAMS} from './isolated-chat-simulation.mjs';
+import {handlePrimaryInvite,handlePrimaryCallback,handleStreamerAdminLogin,primaryState,currentPrimarySubscription,restorePrimarySubscription} from './twitch-primary-oauth.mjs';
+import { handleIsolatedOAuthCallback,handleOAuthStart,handleOAuthInvite,handleStreamerLogin,readiness,oauthReady,currentTwitchSubscription,restoreAmychSubscription } from './twitch-oauth-callback.mjs';
 
 const port = Number(process.env.PORT || 10000);
 const url = process.env.DATABASE_URL;
@@ -46,6 +49,12 @@ const verify = async () => {
   if (result.rows[0]?.name !== expectedName) throw new Error('Database identity mismatch');
 };
 await verify();
+const dashboard=await createAmychDashboard({pool,connection:()=>currentTwitchSubscription()});
+const dashboardTimer=dashboard?setInterval(()=>{dashboard.tick().catch(()=>console.error('Isolated dashboard tick unavailable'))},1000):null;
+dashboardTimer?.unref();
+console.log('Isolated amych dashboard:',dashboard?'enabled':'disabled');
+const [primaryRestored,amychRestored] = await Promise.all([restorePrimarySubscription(),restoreAmychSubscription()]);
+console.log('Isolated EventSub recovery:', JSON.stringify({d1psy_off:primaryRestored?'restored':'not_restored',amych:amychRestored?'restored':'not_restored'}));
 
 const send = (res, status, body) => {
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
@@ -53,10 +62,37 @@ const send = (res, status, body) => {
 };
 const server = http.createServer(async (req, res) => {
   if (req.method === 'POST' && req.url === '/eventsub/twitch' && probeConfig(process.env)) {
-    try { return await handleProbeRequest(req, res); }
+    try { return await handleProbeRequest(req,res,process.env,{recordChat:dashboard?.recordChat}); }
     catch { return send(res, 503, { error: 'probe_unavailable' }); }
   }
-  if (handleIsolatedOAuthCallback(req, res)) return;
+  if(handleStreamerAdminLogin(req,res))return;
+  if(handleStreamerLogin(req,res))return;
+  if(dashboard&&await dashboard.handle(req,res))return;
+  if (handlePrimaryInvite(req, res)) return;
+  if (handleOAuthInvite(req, res)) return;
+  if (handleOAuthStart(req, res)) return;
+  if (new URL(req.url || '/', 'http://localhost').pathname === '/oauth/twitch/callback') {
+    if(await handlePrimaryCallback(req,res,process.env,{onAdminAuthorized:dashboard?.authorizeAdmin}))return;
+    await handleIsolatedOAuthCallback(req,res,process.env,{onAuthorized:dashboard?.authorize}); return;
+  }
+  const simulationPath = new URL(req.url || '/', 'http://localhost').pathname;
+  if(simulationPath==='/api/test/chat-simulation' && (req.method==='GET'||req.method==='POST')){
+    const supplied=req.headers.authorization?.replace(/^Bearer /,'')||'';
+    const a=Buffer.from(supplied),b=Buffer.from(token);
+    if(a.length!==b.length||!timingSafeEqual(a,b))return send(res,401,{error:'unauthorized'});
+    if(!probeConfig(process.env))return send(res,503,{error:'isolated_probe_required'});
+    if(req.method==='POST'){
+      let body=Buffer.alloc(0);
+      for await(const chunk of req){body=Buffer.concat([body,chunk]);if(body.length>1024)return send(res,413,{error:'too_large'});}
+      let input;try{input=JSON.parse(body.toString('utf8'));}catch{return send(res,400,{error:'invalid_json'});}
+      if(input?.streamer!=='d1psy_off'||typeof input?.message_id!=='string'||!/^synthetic-[a-zA-Z0-9_-]{1,80}$/.test(input.message_id))
+        return send(res,400,{error:'primary_synthetic_only'});
+      if(primaryState.broadcaster_id)return send(res,409,{error:'primary_real_twitch_connected'});
+      const counted=chatSimulation.record({broadcasterId:STREAMS.d1psy_off,messageId:input.message_id});
+      return send(res,200,{counted,...chatSimulation.snapshot()});
+    }
+    return send(res,200,{...chatSimulation.snapshot(),primary_real_connected:Boolean(primaryState.broadcaster_id)});
+  }
   if (req.method !== 'GET') return send(res, 405, { error: 'read_only' });
   const pathname = new URL(req.url || '/', 'http://localhost').pathname;
   if (pathname === '/test-dashboard') {
@@ -66,7 +102,7 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/healthz') {
     try {
       await verify();
-      return send(res, 200, { ok: true, isolated: true });
+      return send(res, 200, {ok:true,isolated:true,streamerDashboard:Boolean(dashboard),streamerLoginReady:Boolean(dashboard)&&oauthReady(),streamerSubscription:readiness.status});
     } catch {
       return send(res, 503, { ok: false });
     }
@@ -78,13 +114,29 @@ const server = http.createServer(async (req, res) => {
     if (a.length !== b.length || !timingSafeEqual(a, b)) return send(res, 401, { error: 'unauthorized' });
     try {
       if (pathname === '/api/test/twitch-probe-status') {
+        const live = await currentTwitchSubscription();
+        const primaryLive=primaryState.broadcaster_id?await currentPrimarySubscription():{status:'not_configured',checked:false};
         return send(res, 200, {
           isolated: true,
           enabled: probeConfig(process.env),
           broadcaster: 'amych',
           broadcaster_id: '39780903',
           mode: 'read_only_acknowledgement',
-          subscription_created_by_app: false,
+          subscription_created_by_app: readiness.subscription_created_by_app,
+          subscription_status: readiness.status,
+          twitch_live_status: live.status,
+          twitch_live_checked: live.checked,
+          twitch_live_checked_at: live.checked_at || null,
+          verified_challenges: probeMetrics.verified_challenges,
+          verified_chat_notifications: probeMetrics.verified_chat_notifications,
+          primary_live_status: primaryLive.status,
+          primary_real_connected: Boolean(primaryState.broadcaster_id),
+          primary_chat_notifications: probeMetrics.primary_chat_notifications,
+          primary_challenges: probeMetrics.primary_challenges,
+          last_challenge_at: probeMetrics.last_challenge_at,
+          last_chat_at: probeMetrics.last_chat_at,
+          metrics_scope: 'current_process_only',
+          oauth_enabled: oauthReady(),
           giveaway_processing: false
         });
       }
@@ -121,9 +173,10 @@ const server = http.createServer(async (req, res) => {
   return send(res, 404, { error: 'not_found' });
 });
 server.listen(port, '0.0.0.0', () => {
-  console.log('Isolated read-only PostgreSQL test API listening');
+  console.log(dashboard?'Isolated amych streamer dashboard listening':'Isolated read-only PostgreSQL test API listening');
 });
 process.on('SIGTERM', () => {
+  if(dashboardTimer)clearInterval(dashboardTimer);
   server.close();
   void pool.end();
 });

@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [feature/multistream-safe-cutover]
+    branches: [feature/multistream-safe-cutover, feature/isolated-amych-oauth-eventsub]
   workflow_dispatch:
 
 permissions:
@@ -70,7 +70,7 @@ jobs:
       - name: Install dependencies for Twitch routing tests
         run: npm install --ignore-scripts --no-audit --no-fund
       - name: Twitch broadcaster routing unit tests
-        run: node --test tests/chat-route-policy.test.mjs tests/eventsub-signature.test.mjs tests/eventsub-payload.test.mjs tests/eventsub-dedup.test.mjs tests/atomic-chat-wiring.test.mjs tests/eventsub-ack-policy.test.mjs tests/eventsub-ack.test.mjs tests/eventsub-http.test.mjs tests/poc-oauth-guard.test.mjs tests/poc-callback-guard.test.mjs tests/poc-readiness.test.mjs tests/twitch-dry-run.test.mjs tests/twitch-probe.test.mjs tests/isolated-oauth-callback.test.mjs tests/twitch-oauth-state.test.mjs tests/twitch-oauth-identity.test.mjs
+        run: node --test tests/chat-route-policy.test.mjs tests/eventsub-signature.test.mjs tests/eventsub-payload.test.mjs tests/eventsub-dedup.test.mjs tests/atomic-chat-wiring.test.mjs tests/eventsub-ack-policy.test.mjs tests/eventsub-ack.test.mjs tests/eventsub-http.test.mjs tests/poc-oauth-guard.test.mjs tests/poc-callback-guard.test.mjs tests/poc-readiness.test.mjs tests/twitch-dry-run.test.mjs tests/twitch-probe.test.mjs tests/isolated-chat-simulation.test.mjs tests/twitch-primary-identity.test.mjs tests/twitch-primary-invite.test.mjs tests/isolated-oauth-callback.test.mjs tests/twitch-oauth-state.test.mjs tests/twitch-oauth-identity.test.mjs tests/isolated-oauth-live.test.mjs
       - name: Install PostgreSQL client for test API
         run: npm install --ignore-scripts --no-audit --no-fund
       - name: Concurrent shop purchases on disposable PostgreSQL

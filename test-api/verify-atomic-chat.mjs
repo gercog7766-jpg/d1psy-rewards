@@ -15,6 +15,8 @@ try{
  alter table public.rewards_streamers add column twitch_broadcaster_id text;
  update public.rewards_streamers set twitch_broadcaster_id=case when is_primary then '511100980' else '39780903' end;
  alter table public.rewards_rounds add column message_count integer not null default 0;
+ alter table public.rewards_rounds add column mode text not null default 'messages';
+ alter table public.rewards_rounds add column message_threshold integer not null default 100;
  create table public.rewards_event_dedup(event_id text primary key,event_type text not null);
  create table public.rewards_chat_events(twitch_event_id text,streamer_id uuid,round_id uuid,twitch_user_id text,occurred_at timestamptz);
  create function public.rewards_record_chat_message(p_round_id uuid,p_twitch_user_id text)
@@ -86,12 +88,50 @@ try{
    server.closeAllConnections();
    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
  }
+ // Two independent synthetic chat streams must never advance each other's active round.
+ const {rows:isolatedRounds}=await client.query(
+  "select streamer_id, message_count, status from public.rewards_rounds where streamer_id in ($1,$2) and status='active' order by streamer_id",
+  [primary,secondary]
+ );
+ const byStreamer=new Map(isolatedRounds.map(r=>[r.streamer_id,r.message_count]));
+ if(byStreamer.size!==2||byStreamer.get(primary)!==3||byStreamer.get(secondary)!==2)
+   throw Error('Independent stream round counters diverged '+JSON.stringify(isolatedRounds));
+ // Simulate another secondary chat notification. Primary's round must remain unchanged.
+ if(!(await record(secondary,'39780903','secondary-only-after-primary','viewer-secondary')))
+   throw Error('Secondary synthetic notification was rejected');
+ const {rows:[afterSecondary]}=await client.query(
+  "select (select message_count from public.rewards_rounds where streamer_id=$1 and status='active') as primary_count,(select message_count from public.rewards_rounds where streamer_id=$2 and status='active') as secondary_count",
+  [primary,secondary]
+ );
+ if(afterSecondary.primary_count!==3||afterSecondary.secondary_count!==3)
+   throw Error('Cross-stream chat leakage '+JSON.stringify(afterSecondary));
+ // Simulate a primary-only notification and verify the inverse isolation.
+ if(!(await record(primary,'511100980','primary-only-after-secondary','viewer-primary')))
+   throw Error('Primary synthetic notification was rejected');
+ const {rows:[afterPrimary]}=await client.query(
+  "select (select message_count from public.rewards_rounds where streamer_id=$1 and status='active') as primary_count,(select message_count from public.rewards_rounds where streamer_id=$2 and status='active') as secondary_count",
+  [primary,secondary]
+ );
+ if(afterPrimary.primary_count!==4||afterPrimary.secondary_count!==3)
+   throw Error('Cross-stream chat leakage after primary event '+JSON.stringify(afterPrimary));
+ // Threshold evaluation is scoped by round/streamer, never by total chat across channels.
+ await client.query("update public.rewards_rounds set mode='messages',message_threshold=4 where streamer_id=$1 and status='active'",[primary]);
+ await client.query("update public.rewards_rounds set mode='messages',message_threshold=5 where streamer_id=$1 and status='active'",[secondary]);
+ const {rows:eligibility}=await client.query(
+  "select streamer_id,(message_count>=message_threshold) as due from public.rewards_rounds where status='active' and streamer_id in ($1,$2)",
+  [primary,secondary]
+ );
+ const due=new Map(eligibility.map(r=>[r.streamer_id,r.due]));
+ if(due.get(primary)!==true||due.get(secondary)!==false)
+   throw Error('Cross-stream threshold contamination '+JSON.stringify(eligibility));
+ console.log('PASS: separate message thresholds: primary round due, amych round not due');
+ console.log('PASS: two independent streamer rounds: primary 4, amych 3; dedup and cross-stream isolation');
  // An event without an active round is still recorded once, but cannot credit a round.
  await client.query("update public.rewards_rounds set status='cancelled' where streamer_id=$1 and status='active'",[secondary]);
  if(!(await record(secondary,'39780903','between-rounds','viewer-c')).rows[0].recorded)throw Error('Between-round event not stored');
  if((await record(secondary,'39780903','between-rounds','viewer-c')).rows[0].recorded)throw Error('Between-round duplicate counted');
  const {rows:[gap]}=await client.query("select (select count(*)::int from public.rewards_chat_events where streamer_id=$1 and round_id is null) as unassigned,(select message_count from public.rewards_rounds where streamer_id=$1) as count",[secondary]);
- if(gap.unassigned!==1||gap.count!==2)throw Error('Between-round event affected counter');
+ if(gap.unassigned!==1||gap.count!==3)throw Error('Between-round event affected counter');
  console.log('PASS: isolated atomic chat SQL and HTTP 204/500 duplicate/retry, cross-streamer, no-round and rollback');
 }catch(e){console.error('FAIL: atomic chat:',e.message);process.exitCode=1;}
 finally{if(begun)await client.query('ROLLBACK');client.release();await pool.end();}
