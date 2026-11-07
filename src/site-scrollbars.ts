@@ -1,4 +1,5 @@
 import express from 'express';
+import {withSiteBranding} from './site-branding.js';
 import http from 'node:http';
 
 export const siteScrollbarCss=String.raw`
@@ -21,7 +22,7 @@ export function withSiteScrollbars(body:string,path=''){
 /** Express HTML goes through send; legal/home pages also write directly to HTTP. */
 export function installSiteScrollbars(){
  const response:any=(express as any).response,send=response.send;
- response.send=function(body:any){if(typeof body==='string')body=withSiteScrollbars(body,this.req?.path||'');return send.call(this,body)};
+ response.send=function(body:any){if(typeof body==='string')body=withSiteScrollbars(withSiteBranding(body,this.req?.path||''),this.req?.path||'');return send.call(this,body)};
 }
 export function installRawPageScrollbars(){
  const emit=http.Server.prototype.emit;
@@ -30,7 +31,7 @@ export function installRawPageScrollbars(){
    const req=args[0],res=args[1],end=res.end,path=String(req.url||'').split('?')[0];
    res.end=function(this:any,chunk:any,...rest:any[]){
     if(!res.headersSent&&String(res.getHeader('content-type')||'').includes('text/html')&&(typeof chunk==='string'||Buffer.isBuffer(chunk))){
-     const original=typeof chunk==='string'?chunk:chunk.toString('utf8'),styled=withSiteScrollbars(original,path);
+     const original=typeof chunk==='string'?chunk:chunk.toString('utf8'),styled=withSiteScrollbars(withSiteBranding(original,path),path);
      if(styled!==original){chunk=styled;if(res.hasHeader('content-length'))res.setHeader('content-length',Buffer.byteLength(styled));res.removeHeader('etag')}
     }
     return end.call(this,chunk,...rest);

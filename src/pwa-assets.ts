@@ -1,8 +1,8 @@
-export const pwaManifest={id:'/',name:'D1PSY Rewards',short_name:'D1PSY',description:'Твой инвентарь, игры и дропы D1PSY Rewards',lang:'ru',start_url:'/app',scope:'/',display:'standalone',background_color:'#100b18',theme_color:'#21112f',icons:[{src:'/pwa/icon/192.png',sizes:'192x192',type:'image/png',purpose:'any'},{src:'/pwa/icon/512.png',sizes:'512x512',type:'image/png',purpose:'any'},{src:'/pwa/icon/maskable.png',sizes:'512x512',type:'image/png',purpose:'maskable'}],shortcuts:[{name:'Мой инвентарь',url:'/app'},{name:'Игры',url:'/games'},{name:'Магазин',url:'/shop'}]};
+export const pwaManifest={id:'/',name:'D1PSY Rewards',short_name:'D1PSY',description:'Твой инвентарь, игры и дропы D1PSY Rewards',lang:'ru',start_url:'/app',scope:'/',display:'standalone',background_color:'#100b18',theme_color:'#21112f',icons:[{src:'/pwa/icon/brand-192.png',sizes:'192x192',type:'image/png',purpose:'any'},{src:'/pwa/icon/brand-512.png',sizes:'512x512',type:'image/png',purpose:'any'},{src:'/pwa/icon/brand-maskable.png',sizes:'512x512',type:'image/png',purpose:'maskable'}],shortcuts:[{name:'Мой инвентарь',url:'/app'},{name:'Игры',url:'/games'},{name:'Магазин',url:'/shop'}]};
 export const offlineHtml=`<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#21112f"><title>D1PSY · Нет подключения</title><style>body{margin:0;background:#100b18;color:#f4eaff;font:16px/1.6 system-ui,sans-serif;min-height:100vh;display:grid;place-items:center}main{max-width:420px;padding:30px}b{color:#bf8aff;font-size:14px;letter-spacing:2px}h1{font-size:30px}p{color:#b9a7cc}a{display:inline-block;background:#843ce3;color:white;padding:12px 20px;border-radius:12px;text-decoration:none}</style><main><b>D1PSY REWARDS</b><h1>Сейчас нет подключения</h1><p>Подключись к интернету, чтобы открыть инвентарь, игры и актуальный баланс. Твои данные сохранены в аккаунте.</p><a href="/app">Попробовать снова</a></main></html>`;
 export const pwaSw=String.raw`
-const CACHE='d1psy-pwa-static-v1';
-const PUBLIC_ASSETS=['/pwa/offline','/pwa/icon/192.png','/pwa/icon/512.png','/pwa/icon/maskable.png','/pwa/icon/apple.png','/pwa/icon/badge.png'];
+const CACHE='d1psy-pwa-static-brand-v2';
+const PUBLIC_ASSETS=['/pwa/offline','/pwa/icon/brand-logo.png','/pwa/icon/brand-favicon.png','/pwa/icon/brand-192.png','/pwa/icon/brand-512.png','/pwa/icon/brand-maskable.png','/pwa/icon/brand-apple.png','/pwa/icon/brand-badge.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(c=>c.addAll(PUBLIC_ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('d1psy-pwa-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
@@ -14,7 +14,7 @@ self.addEventListener('fetch',event=>{
 });
 self.addEventListener('push',event=>{
  let p={};try{p=event.data?.json()||{}}catch{}
- event.waitUntil(self.registration.showNotification(String(p.title||'D1PSY Rewards'),{body:String(p.body||'Открой приложение, чтобы посмотреть обновление.').slice(0,240),icon:'/pwa/icon/192.png',badge:'/pwa/icon/badge.png',tag:String(p.tag||'d1psy-drop').slice(0,100),data:{url:'/app'},renotify:false}));
+ event.waitUntil(self.registration.showNotification(String(p.title||'D1PSY Rewards'),{body:String(p.body||'Открой приложение, чтобы посмотреть обновление.').slice(0,240),icon:'/pwa/icon/brand-192.png',badge:'/pwa/icon/brand-badge.png',tag:String(p.tag||'d1psy-drop').slice(0,100),data:{url:'/app'},renotify:false}));
 });
 self.addEventListener('notificationclick',event=>{
  event.notification.close();event.waitUntil((async()=>{
@@ -23,7 +23,7 @@ self.addEventListener('notificationclick',event=>{
   return self.clients.openWindow('/app');
  })());
 });`;
-export const pwaHead=`<link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#21112f"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="D1PSY"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><link rel="apple-touch-icon" href="/pwa/icon/apple.png"><script src="/pwa.js" defer></script>`;
+export const pwaHead=`<link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#21112f"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="D1PSY"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><link rel="apple-touch-icon" href="/pwa/icon/brand-apple.png"><script src="/pwa.js" defer></script>`;
 export const pwaPanel=String.raw`<style id="d1PwaDialogStyle">
 #d1PwaPanel{width:min(720px,calc(100% - 24px));max-height:88vh;max-height:88dvh;overflow:auto;overscroll-behavior:contain;margin:auto;padding:0;border:1px solid #795096;border-radius:20px;background:linear-gradient(140deg,#281635,#130e1c);color:#f6eeff;font:14px/1.6 Arial,Helvetica,sans-serif;box-shadow:0 28px 100px #0009}
 #d1PwaPanel::backdrop{background:#07040cc9;backdrop-filter:blur(6px)}
