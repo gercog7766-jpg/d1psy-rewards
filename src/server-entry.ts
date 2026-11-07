@@ -1,3 +1,4 @@
+import {installSiteScrollbars,installRawPageScrollbars} from './site-scrollbars.js';
 import {installNightShiftTheme} from './night-shift-theme.js';
 import {installMinesweeper} from './minesweeper-hotfix.js';
 import {installShopDesign} from './shop-design.js';
@@ -76,6 +77,7 @@ import { installAccountInventoryV2Hotfix } from './account-inventory-v2-hotfix.j
 
 // Install raw HTTP legal handling first so /privacy and /rules are not dependent
 // on the heavily wrapped Express application.get chain.
+installSiteScrollbars();
 installNightShiftTheme();
 installMinesweeper();
 installShopDesign();
@@ -152,4 +154,5 @@ installAdminUsersSafeHotfix();
 installAdminGrantsLoaderHotfix();
 installAdminDashboardHotfix();
 installHomeHotfix();
+installRawPageScrollbars();
 await import('./server-next.js');
