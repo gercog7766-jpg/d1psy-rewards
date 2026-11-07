@@ -1,4 +1,5 @@
 import express from 'express';
+import {separateAccountBlocks,accountRebrandCss} from './account-rebrand.js';
 import {resolve} from 'node:path';
 
 const banners=`<aside class="account-art-rails" aria-label="Канал D1PSY на Twitch">
@@ -75,7 +76,8 @@ export function accountDesignHtml(body:string){
   body=body.replace(wallet,'').replace(saleValue,value=>'<div class="inventory-totals">'+wallet+value+'</div>');
  }
  body=body.replace('</head>','<style>.inventory-totals{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.inventory-totals .coinbox,.inventory-totals .inventory-value{margin:0;white-space:nowrap}@media(max-width:620px){.inventory-totals{width:100%}.inventory-totals .inventory-value{width:auto}}</style></head>');
- return body.replace('</head>','<style id="accountNeonDesign">'+css+'</style></head>')
+ body=separateAccountBlocks(body);
+ return body.replace('</head>','<style id="accountNeonDesign">'+css+accountRebrandCss+'</style></head>')
   .replace(/<body\b([^>]*)>/,'<body$1 data-account-design="neon">'+banners);
 }
 export function installAccountDesign(){
