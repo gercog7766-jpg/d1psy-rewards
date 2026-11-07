@@ -84,15 +84,15 @@ export function handleOAuthStart(req,res,env=process.env){
  json(res,200,{authorization_url:twitchAuthorizeUrl(env,state)},{'set-cookie':oauthStateCookie(state.value)});
  return true;
 }
-export async function handleIsolatedOAuthCallback(req,res,env=process.env){
+export async function handleIsolatedOAuthCallback(req,res,env=process.env,{onAuthorized}={}){
  if(req.method!=='GET'||new URL(req.url||'/', 'http://localhost').pathname!=='/oauth/twitch/callback')return false;
  const headers={'set-cookie':clearOAuthStateCookie()};
- const fail=(status,error)=>json(res,status,{error},headers);
+ let dashboardFlow=false;const fail=(status,error)=>{if(!dashboardFlow)return json(res,status,{error},headers);res.writeHead(status,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','referrer-policy':'no-referrer','set-cookie':clearOAuthStateCookie(),'content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'"});res.end('<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Вход amych</title><body style="font:16px system-ui;background:#141020;color:#fff;padding:40px"><h1>'+(error==='wrong_twitch_account'?'Нужен аккаунт Twitch amych':'Не удалось завершить подключение')+'</h1><p>Вернись в кабинет и повтори вход через Twitch.</p><a style="color:#cba2ff" href="/streamer">Вернуться в кабинет →</a></body></html>')};
  if(!config(env)){fail(503,'isolated_oauth_disabled');return true}
  const url=new URL(req.url,'http://localhost');
  const state=url.searchParams.get('state'),code=url.searchParams.get('code');
  const cookie=(req.headers.cookie||'').split(';').map(x=>x.trim()).find(x=>x.startsWith(COOKIE+'='))?.slice(COOKIE.length+1);
- const record=pending.get(state);
+ const record=pending.get(state);dashboardFlow=record?.dashboard===true;
  if(state)pending.delete(state); // one use even on failure
  if(!record||!validateOAuthState({expected:cookie,received:state,createdAt:record.createdAt})||typeof code!=='string'||code.length<5||code.length>2048){fail(403,'invalid_oauth_state');return true}
  try{
@@ -105,11 +105,17 @@ export async function handleIsolatedOAuthCallback(req,res,env=process.env){
   if(!identity.ok){fail(403,identity.reason);return true}
   const app=await twitch('https://id.twitch.tv/oauth2/token',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:env.TWITCH_OAUTH_CLIENT_ID,client_secret:env.TWITCH_OAUTH_CLIENT_SECRET,grant_type:'client_credentials'})});
   if(typeof app.access_token!=='string'){fail(502,'app_token_invalid');return true}
-  const sub=await twitch('https://api.twitch.tv/helix/eventsub/subscriptions',{method:'POST',headers:{authorization:'Bearer '+app.access_token,'client-id':env.TWITCH_OAUTH_CLIENT_ID,'content-type':'application/json'},body:JSON.stringify({type:'channel.chat.message',version:'1',condition:{broadcaster_user_id:BROADCASTER,user_id:BROADCASTER},transport:{method:'webhook',callback:'https://d1psy-multistream-isolated-api.onrender.com/eventsub/twitch',secret:env.TWITCH_PROBE_SECRET}})});
+  let sub;try{sub=await twitch('https://api.twitch.tv/helix/eventsub/subscriptions',{method:'POST',headers:{authorization:'Bearer '+app.access_token,'client-id':env.TWITCH_OAUTH_CLIENT_ID,'content-type':'application/json'},body:JSON.stringify({type:'channel.chat.message',version:'1',condition:{broadcaster_user_id:BROADCASTER,user_id:BROADCASTER},transport:{method:'webhook',callback:'https://d1psy-multistream-isolated-api.onrender.com/eventsub/twitch',secret:env.TWITCH_PROBE_SECRET}})});}catch(error){
+   if(error.message!=='twitch_http_409')throw error;
+   const existing=await twitch('https://api.twitch.tv/helix/eventsub/subscriptions?type=channel.chat.message',{headers:{authorization:'Bearer '+app.access_token,'client-id':env.TWITCH_OAUTH_CLIENT_ID}});
+   const match=existing.data?.find(x=>x.type==='channel.chat.message'&&x.condition?.broadcaster_user_id===BROADCASTER&&x.condition?.user_id===BROADCASTER&&x.transport?.method==='webhook'&&x.transport?.callback==='https://d1psy-multistream-isolated-api.onrender.com/eventsub/twitch');
+   if(!match)throw Error('isolated_subscription_not_found');sub={data:[match]};
+  }
   readiness.subscription_created_by_app=Array.isArray(sub.data)&&sub.data.length>0;
   readiness.subscription_id=sub.data?.[0]?.id||null;
   readiness.status=sub.data?.[0]?.status||'unknown';
   readiness.last_checked_at=new Date().toISOString();
+  if(record.dashboard){if(typeof onAuthorized!=='function')throw Error('dashboard_disabled');const sessionCookie=await onAuthorized(identity);res.writeHead(302,{'location':'/streamer','cache-control':'no-store','referrer-policy':'no-referrer','set-cookie':[clearOAuthStateCookie(),sessionCookie]});res.end();return true;}
   json(res,200,{ok:readiness.subscription_created_by_app,subscription_status:readiness.status,broadcaster:'amych',isolated:true,giveaway_processing:false},headers);
  }catch{
   readiness.status='oauth_or_subscription_failed';
@@ -135,4 +141,13 @@ export async function restoreAmychSubscription(env=process.env){
   readiness.last_checked_at=new Date().toISOString();
   return true;
  }catch{return false;}
+}
+
+// Stable streamer login; identity is still verified against the fixed amych ID.
+export function handleStreamerLogin(req,res,env=process.env){
+ if(req.method!=='GET'||new URL(req.url||'/', 'http://localhost').pathname!=='/streamer/login')return false;
+ if(env.ISOLATED_STREAMER_DASHBOARD!=='true'||!config(env)){json(res,503,{error:'isolated_dashboard_disabled'});return true;}
+ cleanup();if(pending.size>=100){json(res,429,{error:'too_many_pending_logins'});return true;}
+ const state=createOAuthState();pending.set(state.value,{...state,dashboard:true});
+ res.writeHead(302,{'location':twitchAuthorizeUrl(env,state),'set-cookie':oauthStateCookie(state.value),'cache-control':'no-store','referrer-policy':'no-referrer'});res.end();return true;
 }

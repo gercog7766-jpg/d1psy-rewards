@@ -7,7 +7,7 @@ test('isolated test API cannot silently target another database', () => {
   assert.match(api, /d1psy_multistream_test_db/);
   assert.match(api, /current_database\(\)/);
 });
-test('test API has no mutation routes and requires authentication for rounds', () => {
+test('legacy inspection API remains read-only and token-protected outside the opt-in streamer dashboard', () => {
   assert.match(api, /req\.method !== 'GET'/);
   assert.match(api, /TEST_API_TOKEN/);
   assert.match(api, /timingSafeEqual/);

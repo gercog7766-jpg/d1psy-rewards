@@ -1,3 +1,4 @@
+import {createAmychDashboard} from './amych-dashboard.mjs';
 import { timingSafeEqual } from 'node:crypto';
 // Isolated PostgreSQL test API. Never attach to production Supabase.
 // This is deliberately NOT a replacement for the application's Supabase API.
@@ -7,7 +8,7 @@ import { Pool } from 'pg';
 import { probeConfig, handleProbeRequest, probeMetrics } from './twitch-probe.mjs';
 import {chatSimulation,STREAMS} from './isolated-chat-simulation.mjs';
 import {handlePrimaryInvite,handlePrimaryCallback,primaryState,currentPrimarySubscription,restorePrimarySubscription} from './twitch-primary-oauth.mjs';
-import { handleIsolatedOAuthCallback,handleOAuthStart,handleOAuthInvite,readiness,oauthReady,currentTwitchSubscription,restoreAmychSubscription } from './twitch-oauth-callback.mjs';
+import { handleIsolatedOAuthCallback,handleOAuthStart,handleOAuthInvite,handleStreamerLogin,readiness,oauthReady,currentTwitchSubscription,restoreAmychSubscription } from './twitch-oauth-callback.mjs';
 
 const port = Number(process.env.PORT || 10000);
 const url = process.env.DATABASE_URL;
@@ -48,6 +49,10 @@ const verify = async () => {
   if (result.rows[0]?.name !== expectedName) throw new Error('Database identity mismatch');
 };
 await verify();
+const dashboard=await createAmychDashboard({pool,connection:()=>currentTwitchSubscription()});
+const dashboardTimer=dashboard?setInterval(()=>{dashboard.tick().catch(()=>console.error('Isolated dashboard tick unavailable'))},5000):null;
+dashboardTimer?.unref();
+console.log('Isolated amych dashboard:',dashboard?'enabled':'disabled');
 const [primaryRestored,amychRestored] = await Promise.all([restorePrimarySubscription(),restoreAmychSubscription()]);
 console.log('Isolated EventSub recovery:', JSON.stringify({d1psy_off:primaryRestored?'restored':'not_restored',amych:amychRestored?'restored':'not_restored'}));
 
@@ -57,15 +62,17 @@ const send = (res, status, body) => {
 };
 const server = http.createServer(async (req, res) => {
   if (req.method === 'POST' && req.url === '/eventsub/twitch' && probeConfig(process.env)) {
-    try { return await handleProbeRequest(req, res); }
+    try { return await handleProbeRequest(req,res,process.env,{recordChat:dashboard?.recordChat}); }
     catch { return send(res, 503, { error: 'probe_unavailable' }); }
   }
+  if(handleStreamerLogin(req,res))return;
+  if(dashboard&&await dashboard.handle(req,res))return;
   if (handlePrimaryInvite(req, res)) return;
   if (handleOAuthInvite(req, res)) return;
   if (handleOAuthStart(req, res)) return;
   if (new URL(req.url || '/', 'http://localhost').pathname === '/oauth/twitch/callback') {
     if(await handlePrimaryCallback(req,res))return;
-    await handleIsolatedOAuthCallback(req, res); return;
+    await handleIsolatedOAuthCallback(req,res,process.env,{onAuthorized:dashboard?.authorize}); return;
   }
   const simulationPath = new URL(req.url || '/', 'http://localhost').pathname;
   if(simulationPath==='/api/test/chat-simulation' && (req.method==='GET'||req.method==='POST')){
@@ -94,7 +101,7 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/healthz') {
     try {
       await verify();
-      return send(res, 200, { ok: true, isolated: true });
+      return send(res, 200, {ok:true,isolated:true,streamerDashboard:Boolean(dashboard),streamerLoginReady:Boolean(dashboard)&&oauthReady(),streamerSubscription:readiness.status});
     } catch {
       return send(res, 503, { ok: false });
     }
@@ -165,9 +172,10 @@ const server = http.createServer(async (req, res) => {
   return send(res, 404, { error: 'not_found' });
 });
 server.listen(port, '0.0.0.0', () => {
-  console.log('Isolated read-only PostgreSQL test API listening');
+  console.log(dashboard?'Isolated amych streamer dashboard listening':'Isolated read-only PostgreSQL test API listening');
 });
 process.on('SIGTERM', () => {
+  if(dashboardTimer)clearInterval(dashboardTimer);
   server.close();
   void pool.end();
 });
