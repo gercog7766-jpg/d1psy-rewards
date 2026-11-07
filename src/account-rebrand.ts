@@ -1,3 +1,4 @@
+import {levelAppearanceCss} from './level-appearance-ui.js';
 /** Presentation-only upgrade. Keep existing IDs and event handlers intact. */
 export function separateAccountBlocks(body:string){
  // Legacy account polling still writes these nodes. Keep inert compatibility hooks,
@@ -11,7 +12,7 @@ export function separateAccountBlocks(body:string){
  }
  return body.replace('class="seasonAccountTitle">NIGHT SHIFT</div>', 'class="seasonAccountTitle">NIGHT <span>SHIFT</span></div>');
 }
-export const accountRebrandCss=String.raw`
+export const accountRebrandCss=levelAppearanceCss+String.raw`
 body[data-account-design="neon"]{background:radial-gradient(ellipse at 55% 0,#39116e35,transparent 55%),#070611;color:#f5f2ff;font-family:Inter,"Segoe UI",Arial,sans-serif;-webkit-font-smoothing:antialiased}
 body[data-account-design="neon"] main{background:linear-gradient(180deg,#0b0818fa,#080711fa);border-color:#6d3b9130}
 body[data-account-design="neon"] .card{background:linear-gradient(120deg,#100c23,#090818);border:1px solid #46306b;border-radius:17px;box-shadow:0 14px 36px #0003}
