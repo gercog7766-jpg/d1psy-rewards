@@ -1,0 +1,2 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {amychDashboardTarget} from '../src/amych-test-entry.ts';
+test('amych entry exists only on the explicitly isolated test site',()=>{assert.equal(amychDashboardTarget('https://d1psy-rewards-multistream-test.onrender.com'),'https://d1psy-multistream-isolated-api.onrender.com/streamer');for(const url of ['https://d1psy-rewards.onrender.com','https://d1psy-rewards-multistream-test.onrender.com.evil.test','http://localhost:10000','invalid',''])assert.equal(amychDashboardTarget(url),null)});

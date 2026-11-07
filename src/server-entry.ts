@@ -1,3 +1,4 @@
+import {installAmychTestEntry} from './amych-test-entry.js';
 import { installAccountHotfix } from './account-hotfix.js';
 import { installAccountFooterHotfix } from './account-footer-hotfix.js';
 import { installAccountUiRefreshHotfix } from './account-ui-refresh-hotfix.js';
@@ -128,4 +129,5 @@ installAdminUsersSafeHotfix();
 installAdminGrantsLoaderHotfix();
 installAdminDashboardHotfix();
 installHomeHotfix();
+installAmychTestEntry();
 await import('./server-next.js');
