@@ -12,7 +12,7 @@ export function validPushSubscription(body:any){
  }catch{return false}
 }
 function enhanceHtml(body:any,path:string){
- if(typeof body!=='string'||!/<html\b/i.test(body)||!body.includes('</head>')||/^\/(api(?:\/|$)|admin|obs|pwa\/offline)/.test(path)||/\.js$/.test(path)||body.includes('href="/manifest.webmanifest"'))return body;
+ if(typeof body!=='string'||!/<html\b/i.test(body)||!body.includes('</head>')||/^\/(api(?:\/|$)|admin|obs|streamer\/obs(?:\/|$)|pwa\/offline)/.test(path)||/\.js$/.test(path)||body.includes('href="/manifest.webmanifest"'))return body;
  body=body.replace('</head>',pwaHead+'</head>');
  if(path==='/account'&&!body.includes('id="d1PwaPanel"')){
   const button='<button type="button" id="d1PwaOpen" class="shoplink" aria-haspopup="dialog" aria-controls="d1PwaPanel" style="cursor:pointer">Приложение</button>';

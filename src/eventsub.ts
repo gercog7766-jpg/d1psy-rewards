@@ -51,6 +51,7 @@ export async function subscribeToPartnerChat(id:string){return createChatSubscri
 
 const partnerConnectionCache=new Map<string,{until:number,ready:boolean}>();
 export async function partnerChatReady(id:string){
+ if(!TWITCH_CLIENT_ID||!TWITCH_CLIENT_SECRET)return false;
  const cached=partnerConnectionCache.get(id);if(cached&&cached.until>Date.now())return cached.ready;
  const token=await getAppToken();let after='';let ready=false;
  for(let page=0;page<20;page++){
