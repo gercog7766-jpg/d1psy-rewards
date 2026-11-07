@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { Pool } from 'pg';
 import { probeConfig, handleProbeRequest, probeMetrics } from './twitch-probe.mjs';
 import {chatSimulation,STREAMS} from './isolated-chat-simulation.mjs';
-import {handlePrimaryInvite,handlePrimaryCallback,primaryState,currentPrimarySubscription,restorePrimarySubscription} from './twitch-primary-oauth.mjs';
+import {handlePrimaryInvite,handlePrimaryCallback,handleStreamerAdminLogin,primaryState,currentPrimarySubscription,restorePrimarySubscription} from './twitch-primary-oauth.mjs';
 import { handleIsolatedOAuthCallback,handleOAuthStart,handleOAuthInvite,handleStreamerLogin,readiness,oauthReady,currentTwitchSubscription,restoreAmychSubscription } from './twitch-oauth-callback.mjs';
 
 const port = Number(process.env.PORT || 10000);
@@ -50,7 +50,7 @@ const verify = async () => {
 };
 await verify();
 const dashboard=await createAmychDashboard({pool,connection:()=>currentTwitchSubscription()});
-const dashboardTimer=dashboard?setInterval(()=>{dashboard.tick().catch(()=>console.error('Isolated dashboard tick unavailable'))},5000):null;
+const dashboardTimer=dashboard?setInterval(()=>{dashboard.tick().catch(()=>console.error('Isolated dashboard tick unavailable'))},1000):null;
 dashboardTimer?.unref();
 console.log('Isolated amych dashboard:',dashboard?'enabled':'disabled');
 const [primaryRestored,amychRestored] = await Promise.all([restorePrimarySubscription(),restoreAmychSubscription()]);
@@ -65,13 +65,14 @@ const server = http.createServer(async (req, res) => {
     try { return await handleProbeRequest(req,res,process.env,{recordChat:dashboard?.recordChat}); }
     catch { return send(res, 503, { error: 'probe_unavailable' }); }
   }
+  if(handleStreamerAdminLogin(req,res))return;
   if(handleStreamerLogin(req,res))return;
   if(dashboard&&await dashboard.handle(req,res))return;
   if (handlePrimaryInvite(req, res)) return;
   if (handleOAuthInvite(req, res)) return;
   if (handleOAuthStart(req, res)) return;
   if (new URL(req.url || '/', 'http://localhost').pathname === '/oauth/twitch/callback') {
-    if(await handlePrimaryCallback(req,res))return;
+    if(await handlePrimaryCallback(req,res,process.env,{onAdminAuthorized:dashboard?.authorizeAdmin}))return;
     await handleIsolatedOAuthCallback(req,res,process.env,{onAuthorized:dashboard?.authorize}); return;
   }
   const simulationPath = new URL(req.url || '/', 'http://localhost').pathname;

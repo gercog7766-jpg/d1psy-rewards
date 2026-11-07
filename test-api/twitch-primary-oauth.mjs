@@ -47,7 +47,7 @@ export function handlePrimaryInvite(req,res,env=process.env){
  res.writeHead(200,{'content-type':'text/html; charset=utf-8','set-cookie':cookie(state.value),'cache-control':'no-store','referrer-policy':'no-referrer','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'"});
  res.end('<!doctype html><html lang="ru"><meta charset="utf-8"><title>Twitch · d1psy_off</title><body style="font:16px system-ui;background:#101728;color:white;max-width:550px;margin:8vh auto;padding:24px"><h1>Переход на Twitch</h1><p>Нажмите, чтобы авторизовать d1psy_off.</p><a rel="noreferrer" style="display:inline-block;background:#9146ff;color:white;padding:14px;border-radius:8px" href="'+destination.replaceAll('&','&amp;')+'">Открыть Twitch</a></body></html>');return true;
 }
-export async function handlePrimaryCallback(req,res,env=process.env){
+export async function handlePrimaryCallback(req,res,env=process.env,{onAdminAuthorized}={}){
  if(req.method!=='GET'||new URL(req.url||'/', 'http://localhost').pathname!=='/oauth/twitch/callback')return false;
  const url=new URL(req.url,'http://localhost'),state=url.searchParams.get('state');
  if(!state||!pending.has(state))return false;
@@ -66,6 +66,7 @@ export async function handlePrimaryCallback(req,res,env=process.env){
    expectedClientId:env.TWITCH_OAUTH_CLIENT_ID
   });
   if(!identity.ok){fail(403,identity.reason);return true;}
+  if(record.admin){if(typeof onAdminAuthorized!=='function')throw Error('admin_dashboard_disabled');const sessionCookie=await onAdminAuthorized(identity);res.writeHead(302,{'location':'/admin/streamers','set-cookie':[clearCookie(),sessionCookie],'cache-control':'no-store','referrer-policy':'no-referrer'});res.end();return true;}
   const app=await twitch('https://id.twitch.tv/oauth2/token',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:env.TWITCH_OAUTH_CLIENT_ID,client_secret:env.TWITCH_OAUTH_CLIENT_SECRET,grant_type:'client_credentials'})});
   if(typeof app.access_token!=='string')throw Error('app_token_missing');
   primaryState.broadcaster_id=identity.broadcaster_id; // Allow the signed Twitch verification challenge during subscription creation.
@@ -73,7 +74,7 @@ export async function handlePrimaryCallback(req,res,env=process.env){
   if(!sub.data?.[0]?.id)throw Error('subscription_missing');
   primaryState.broadcaster_id=identity.broadcaster_id;primaryState.subscription_id=sub.data[0].id;primaryState.subscription_status=sub.data[0].status||'unknown';primaryState.last_checked_at=new Date().toISOString();
   reply(res,200,{ok:true,broadcaster:'d1psy_off',subscription_status:primaryState.subscription_status,isolated:true,giveaway_processing:false},{'set-cookie':clearCookie()});
- }catch{primaryState.broadcaster_id=null;primaryState.subscription_id=null;primaryState.subscription_status='not_configured';fail(502,'primary_oauth_or_subscription_failed');}
+ }catch{if(!record.admin){primaryState.broadcaster_id=null;primaryState.subscription_id=null;primaryState.subscription_status='not_configured';}fail(502,record.admin?'admin_authorization_failed':'primary_oauth_or_subscription_failed');}
  return true;
 }
 export async function currentPrimarySubscription(env=process.env){
@@ -100,4 +101,13 @@ export async function restorePrimarySubscription(env=process.env){
   primaryState.broadcaster_id=id;primaryState.subscription_id=sub.id;primaryState.subscription_status=sub.status;primaryState.last_checked_at=new Date().toISOString();
   return true;
  }catch{return false;}
+}
+
+export function handleStreamerAdminLogin(req,res,env=process.env){
+ if(req.method!=='GET'||new URL(req.url||'/',BASE).pathname!=='/admin/streamers/login')return false;
+ if(env.ISOLATED_STREAMER_DASHBOARD!=='true'||!ready(env)){reply(res,503,{error:'isolated_admin_disabled'});return true;}
+ clean();if(pending.size>=100){reply(res,429,{error:'too_many_pending_logins'});return true;}
+ const state=createOAuthState();pending.set(state.value,{...state,admin:true});
+ const params=new URLSearchParams({response_type:'code',client_id:env.TWITCH_OAUTH_CLIENT_ID,redirect_uri:CALLBACK,scope:'user:read:chat user:bot channel:bot',state:state.value,force_verify:'true'});
+ res.writeHead(302,{'location':'https://id.twitch.tv/oauth2/authorize?'+params,'set-cookie':cookie(state.value),'cache-control':'no-store','referrer-policy':'no-referrer'});res.end();return true;
 }
