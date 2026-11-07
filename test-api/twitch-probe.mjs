@@ -25,7 +25,7 @@ export function probeConfig(env){
    && !env.TWITCH_ACCESS_TOKEN && !env.TWITCH_REFRESH_TOKEN;
  }catch{return false;}
 }
-export async function handleProbeRequest(req,res,env=process.env){
+export async function handleProbeRequest(req,res,env=process.env,{recordChat}={}){
   if(!probeConfig(env))throw new Error('Isolated Twitch probe is not enabled');
   const send=status=>{res.writeHead(status,{'cache-control':'no-store'});res.end();};
 
@@ -53,6 +53,8 @@ export async function handleProbeRequest(req,res,env=process.env){
   if(payload.event.broadcaster_user_id===primaryState.broadcaster_id)probeMetrics.primary_chat_notifications++;
   probeMetrics.verified_chat_notifications++;probeMetrics.last_chat_at=new Date().toISOString();
   if(typeof payload.event.message_id==='string')chatSimulation.record({broadcasterId:payload.event.broadcaster_user_id===primaryState.broadcaster_id?'511100980':expectedBroadcaster,messageId:payload.event.message_id});
+  if(recordChat&&payload.event.broadcaster_user_id===expectedBroadcaster)await recordChat({broadcasterId:expectedBroadcaster,messageId:payload.event.message_id,userId:payload.event.chatter_user_id,login:payload.event.chatter_user_login,occurredAt:timestamp});
+  // The legacy probe remains acknowledgement-only unless the isolated dashboard hook is supplied.
   // Never persist chat or create/complete rounds. Acknowledge verified delivery only.
   return send(204);
  }
