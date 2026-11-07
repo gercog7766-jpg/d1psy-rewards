@@ -11,7 +11,7 @@ export function installObsHotfix(){
   const activityInstalled=new WeakSet<object>();
   const activityHandler=async(_req:any,res:any)=>{
     try{
-      const {data:win,error}=await db.from('rewards_wins').select('id,won_at,source_type,user_id,prize_id').order('won_at',{ascending:false}).limit(1).maybeSingle();
+      const {data:win,error}=await db.from('rewards_wins').select('id,won_at,source_type,user_id,prize_id').or('source_type.is.null,source_type.neq.streamer').order('won_at',{ascending:false}).limit(1).maybeSingle();
       if(error) throw error;
       if(!win){res.set('Cache-Control','no-store');return res.json({activity:null})}
       const [{data:user,error:userError},{data:prize,error:prizeError}]=await Promise.all([
