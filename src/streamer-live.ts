@@ -1,3 +1,4 @@
+import {installStreamerMaterials} from './streamer-materials.js';
 import {createHash,randomBytes} from 'node:crypto';
 import type {Express,RequestHandler} from 'express';
 import {createClient} from '@supabase/supabase-js';
@@ -19,6 +20,7 @@ export function installStreamerPilot(app:Express,userAuth:RequestHandler,adminAu
  const counters=new Map<string,{n:number,until:number}>();
  const throttle:RequestHandler=(_req,res,next)=>{const id=res.locals.session.twitchUserId,now=Date.now(),entry=counters.get(id);if(entry&&entry.until>now&&entry.n>=100)return void res.status(429).json({error:'rate_limited'});counters.set(id,{n:entry&&entry.until>now?entry.n+1:1,until:entry&&entry.until>now?entry.until:now+60000});if(counters.size>2000)for(const[k,v]of counters)if(v.until<now)counters.delete(k);next()};
  async function rpc(res:any,action:string,body:any={}){const {data,error}=await db.rpc('rewards_streamer_live_api',{p_actor:res.locals.session.twitchUserId,p_action:action,p_body:body});if(error){fail(res,error);return null}return data}
+ installStreamerMaterials(app);
  const privateGet:RequestHandler=(_q,r,n)=>{r.set('Cache-Control','private,no-store');n()};
  app.get('/streamer',privateGet,(_q,r)=>r.send(pilotHtml(false)));
  app.get('/admin/streamers',privateGet,adminAuth,(_q,r)=>r.send(pilotHtml(true)));
