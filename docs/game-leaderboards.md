@@ -1,3 +1,7 @@
+# Current weekly tournaments
+
+From 9 November 2026, public tables use weekly Moscow periods and automatic prizes. See [weekly-game-prizes.md](weekly-game-prizes.md). The description below records the original timed leaderboard behavior; its all-time range and current-settings filtering were superseded by the weekly implementation.
+
 # Timed game leaderboards and Night Run start window
 
 Night Run: a new game can start once per four hours, measured from its server `started_at`. Both legacy and v2 RPCs share the same user lock/window and remain replay-safe. Existing active runs resume rather than consume a second attempt. Stops, crashes, abandoned tabs and different request IDs cannot reset the window. The database insert trigger also enforces it. State exposes `nextAvailableAt`; the UI shows a countdown and re-enables start when it expires. Existing in-flight runs and earned coins are retained.
