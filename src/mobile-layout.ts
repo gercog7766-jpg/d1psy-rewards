@@ -105,7 +105,7 @@ body[data-mobile-page="upgrader"] .up-gear,body[data-mobile-page="upgrader"] .up
 body[data-mobile-page="upgrader"] .result,body[data-mobile-page="upgrader"] .up-settings{padding:12px;overflow:auto;box-sizing:border-box}
 body[data-mobile-page="upgrader"] .resultbox,body[data-mobile-page="upgrader"] .up-settings-box{box-sizing:border-box;max-width:100%;max-height:85vh;max-height:85dvh;overflow:auto;padding:20px 16px}
 /* Remaining pages: compact navigation, readable inputs and locally scrolling content. */
-body[data-mobile-page="games"] .games-grid .card{max-width:100%;margin-top:12px;padding:20px 16px}
+body[data-mobile-page="games"] .games-grid .card{max-width:100%;margin-top:0;padding:0}
 body[data-mobile-page="games"] .mini{gap:5px}
 body[data-mobile-page="games"] .mini span{min-width:0;flex:1;max-width:42px;font-size:21px}
 body[data-mobile-page="wordly"] form{flex-wrap:wrap}
