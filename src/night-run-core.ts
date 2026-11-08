@@ -1,4 +1,4 @@
-// Legacy runs retain their rules. Version 3 holds a run reserve and loses up to five coins per hit.
+// Legacy runs retain their rules. Version 3 holds a run reserve and uses escalating collision losses and one second of protection.
 export const nightRunCore=String.raw`(function(){
 const ROW=1000,HIT_HALF=480,PICKUP_HALF=380,BODY_WIDTH=.32,OBSTACLE_WIDTH=.64;
 function hash(seed,row){return ((seed+row*48271)%2147483647*16807)%2147483647}
@@ -17,7 +17,7 @@ function step(s,target){if(s.status!=='playing')return s;var g=Object.assign({},
  if(g.version!==2&&g.version!==3){g.lane+=Math.sign(target-g.lane);if(g.tick%12===0&&blocks(g.seed,g.tick/12).includes(g.lane))g.status='crashed';else if(g.tick%600===0&&g.lane===hash(g.seed+999,g.tick/600)%3)g.coins++;return g}
  const oldD=g.distance,oldX=g.position,v=speed(g.tick),newX=advanceX(oldX,target);g.distance+=v;g.position=newX;g.lane=Math.floor(newX/1000+.5);
  if(g.version!==3||g.tick>=(g.invulnerable_until_tick||0))obstacles:for(let row=Math.floor(oldD/ROW)+1;row<=Math.floor(g.distance/ROW);row++){const crossing=row*ROW-oldD;for(const lane of blocksFor(g,row)){if(Math.abs((oldX-lane*1000)*v+(newX-oldX)*crossing)<HIT_HALF*v){
- if(g.version===3){const loss=Math.min(5,g.coins);g.coins-=loss;g.lost_coins=(g.lost_coins||0)+loss;g.hits=(g.hits||0)+1;g.last_hit_tick=g.tick;g.invulnerable_until_tick=g.tick+20;if(g.coins>0)break obstacles}
+ if(g.version===3){const loss=Math.min(5+2*(g.hits||0),g.coins);g.coins-=loss;g.lost_coins=(g.lost_coins||0)+loss;g.hits=(g.hits||0)+1;g.last_hit_tick=g.tick;g.invulnerable_until_tick=g.tick+10;if(g.coins>0)break obstacles}
  g.status='crashed';g.distance=row*ROW;g.position=Math.floor(oldX+(newX-oldX)*crossing/v+.5);g.lane=Math.floor(g.position/1000+.5);return g}}}
  if(g.tick===g.next_coin_tick){if(Math.abs(g.position-hash(g.seed+999,g.coin_index)%3*1000)<=PICKUP_HALF){g.coins++;if(g.version===3)g.collected_coins=(g.collected_coins||0)+1;}g.last_coin_tick=g.next_coin_tick;g.coin_index++;g.next_coin_tick+=coinGap(g.seed,g.coin_index)}return g
 }
