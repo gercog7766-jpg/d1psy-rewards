@@ -4,7 +4,7 @@ import {shopFullscreenCss} from './shop-fullscreen-style.js';
 /** Shared presentation only. Never targets admin, OBS, API or script responses. */
 export function nightShiftPage(path:string){
  if(['/shop','/season','/games','/predict','/upgrader','/contracts','/live'].includes(path))return path.slice(1);
- if(/^\/games\/(wordly|tic-tac-toe|minesweeper|defuse)$/.test(path))return 'games';
+ if(/^\/games\/(wordly|tic-tac-toe|minesweeper|defuse|night-run)$/.test(path))return 'games';
  if(/^\/users(?:\/[^/]+)?$/.test(path)||path==='/community')return 'users';
  return null;
 }
