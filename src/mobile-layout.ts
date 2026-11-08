@@ -1,6 +1,7 @@
 /** Mobile-only presentation. OBS browser sources keep their fixed broadcast layout. */
 export function mobilePage(path:string){
  if(['/obs','/streamer/obs'].includes(path))return null;
+ if(path==='/games/night-run')return 'night-run';
  if(path==='/games/defuse')return 'defuse';
  if(path==='/games/minesweeper')return 'minesweeper';
  if(path==='/games/wordly')return 'wordly';

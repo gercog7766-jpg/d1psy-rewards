@@ -1,3 +1,4 @@
+import {installNightRun} from './night-run-hotfix.js';
 import {installSiteScrollbars,installRawPageScrollbars} from './site-scrollbars.js';
 import {installNightShiftTheme} from './night-shift-theme.js';
 import {installMinesweeper} from './minesweeper-hotfix.js';
@@ -88,6 +89,7 @@ installAccountDesign();
 installContracts();
 installMarket();
 installDefuse();
+installNightRun();
 installTicTacToe();
 installPredictHotfix();
 installGamesHotfix();
