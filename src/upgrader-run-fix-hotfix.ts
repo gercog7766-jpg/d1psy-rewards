@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import express from 'express';
 import { createClient } from '@supabase/supabase-js';
+import { fullCoinBalance } from './coin-ledger-paged.js';
 
 const db=createClient(process.env.SUPABASE_URL||'https://ssqjogdcynmjjgtxknng.supabase.co',process.env.SUPABASE_SECRET_KEY||'not-configured',{auth:{persistSession:false}});
 
@@ -28,9 +29,9 @@ export function installUpgraderRunFixHotfix(){
    app.locals.__upgraderRunFix=true;
    app.get('/api/me/upgrader/balance',async(req:any,res:any)=>{
     const u=await currentUser(req,res);if(!u)return;
-    const {data,error}=await db.from('rewards_coin_transactions').select('amount').eq('user_id',u.id);
-    if(error)return res.status(500).json({error:'balance_load_failed'});
-    res.set('Cache-Control','no-store').json({balance:(data||[]).reduce((n:any,x:any)=>n+Number(x.amount||0),0)});
+    res.set('Cache-Control','no-store');
+    try{res.json({balance:await fullCoinBalance(db,u.id)})}
+    catch{res.status(503).json({error:'balance_load_failed'})}
    });
    app.post('/api/me/upgrader/run',express.json(),async(req:any,res:any)=>{
     const u=await currentUser(req,res);if(!u)return;
