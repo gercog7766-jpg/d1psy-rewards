@@ -1,3 +1,4 @@
+import {installGameLeaderboards} from './game-leaderboards.js';
 import {installNightRun} from './night-run-hotfix.js';
 import {installSiteScrollbars,installRawPageScrollbars} from './site-scrollbars.js';
 import {installNightShiftTheme} from './night-shift-theme.js';
@@ -90,6 +91,7 @@ installContracts();
 installMarket();
 installDefuse();
 installNightRun();
+installGameLeaderboards();
 installTicTacToe();
 installPredictHotfix();
 installGamesHotfix();

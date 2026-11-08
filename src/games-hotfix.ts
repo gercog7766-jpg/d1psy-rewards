@@ -39,9 +39,9 @@ export function installGamesHotfix() {
         res.set('Cache-Control','no-store');
         const id=await user(res); if(!id)return;
         const day=moscowDay();
-        const {data,error}=await db.from('rewards_wordly_games').select('answer,guesses,reward_transaction_id').eq('user_id',id).eq('game_day',day).maybeSingle();
+        const secret=process.env.SESSION_SECRET;if(!secret)return res.status(503).json({error:'game_unavailable'});const pool=dailyPool(day,secret);const {data,error}=await db.rpc('rewards_wordly_start',{p_user_id:id,p_day:day,p_answer:pool[randomInt(pool.length)]});
         if(error)return res.status(503).json({error:'game_unavailable'});
-        res.json(publicGame(data,day));
+        res.json({...publicGame(data,day),serverNow:new Date().toISOString()});
       });
       app.post('/api/me/games/wordly/guess',auth,async(req:any,res:any)=>{
         res.set('Cache-Control','no-store');
@@ -55,7 +55,7 @@ export function installGamesHotfix() {
         const pool=dailyPool(day,secret);
         const {data,error}=await db.rpc('rewards_wordly_guess',{p_user_id:id,p_day:day,p_guess:guess,p_request_id:requestId,p_answer:pool[randomInt(pool.length)]});
         if(error) { console.error('wordly_guess_failed',error.code);return res.status(error.message.includes('new_day')?409:503).json({error:error.message.includes('new_day')?'new_day':'game_unavailable'}); }
-        res.json(publicGame(data,day));
+        res.json({...publicGame(data,day),serverNow:new Date().toISOString()});
       });
     }
     return listen.apply(this,args);
