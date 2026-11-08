@@ -30,13 +30,13 @@ test('Night Run: SQL replays physics, gates time, awards actual pickups once, pr
 
 test('Night Run UI: touch/keyboard, minute pickup, lost response retry and confirmed inventory reward',{timeout:20000},async()=>{
  const dom=new JSDOM(nightRunHtml,{url:'https://test.local/games/night-run',runScripts:'outside-only'}),w=dom.window,frames=[],calls=[];let g=null,coins=0,lose=true,time=1000;
- const q=id=>w.document.getElementById(id);w.crypto.randomUUID=randomUUID;w.performance.now=()=>1000;w.matchMedia=()=>({matches:true});w.HTMLElement.prototype.scrollIntoView=function(){};w.requestAnimationFrame=cb=>{frames.push(cb);return frames.length};
+ const q=id=>w.document.getElementById(id);w.crypto.randomUUID=randomUUID;w.performance.now=()=>1000;w.matchMedia=()=>({matches:true});let scrolledStage=false;w.HTMLElement.prototype.scrollIntoView=function(){scrolledStage=this.classList.contains('stage')};w.requestAnimationFrame=cb=>{frames.push(cb);return frames.length};
  const noop=()=>{},gradient={addColorStop:noop};const ctx=new Proxy({createLinearGradient:()=>gradient},{get:(o,k)=>k in o?o[k]:noop,set:(o,k,v)=>{o[k]=v;return true}});w.HTMLCanvasElement.prototype.getContext=()=>ctx;
  w.fetch=async(path,options)=>{const b=options?.body?JSON.parse(options.body):null;if(b)calls.push({path,b});if(path.endsWith('/start'))g=g||{id:randomUUID(),seed:73471,tick:0,lane:1,coins:0,status:'playing'};if(path.endsWith('/step')){if(b.from===g.tick){const old=g.coins;for(const lane of b.inputs)g=core.step(g,lane);coins+=g.coins-old;if(b.stop&&g.status==='playing')g.status='stopped'}if(g.coins===1&&lose){lose=false;throw Error('response lost')}}return {ok:true,status:200,json:async()=>({game:g?{...g}:null})}};
- try{w.eval(nightRunJs);await until(()=>!q('nrStart').disabled);q('nrStart').click();await until(()=>!q('nrLeft').disabled);
+ try{w.eval(nightRunJs);await until(()=>!q('nrStart').disabled);q('nrStart').click();await until(()=>!q('nrLeft').disabled);assert(scrolledStage,'mobile scroll keeps HUD and controls together');
   // Drive the same visible controls a player uses; never submit a reward value.
   let predicted={...g},target=1;for(let tick=0;tick<600;tick++){const want=desired(predicted);while(target<want){q('nrRight').click();target++}while(target>want){q('nrLeft').click();target--}predicted=core.step(predicted,target);const frame=frames.shift();assert(frame);frame(time+=100);await pause(0)}
-  await until(()=>!q('nrRetry').hidden);assert.equal(coins,1);q('nrRetry').click();await until(()=>q('nrCoins').textContent==='1 монет');assert.equal(coins,1);assert(calls.filter(c=>c.path.endsWith('/step')).every(c=>Object.keys(c.b).every(k=>['gameId','from','inputs','stop'].includes(k))));
+  await until(()=>!q('nrRetry').hidden);assert.equal(coins,1);q('nrRetry').click();await until(()=>q('nrCoins').textContent==='1 монета');assert.equal(coins,1);assert(calls.filter(c=>c.path.endsWith('/step')).every(c=>Object.keys(c.b).every(k=>['gameId','from','inputs','stop'].includes(k))));
   q('nrStop').click();await until(()=>!q('nrStart').disabled);assert.equal(g.status,'stopped');assert(q('nrMessage').textContent.includes('инвентаре'));
  }finally{w.close()}
 });
