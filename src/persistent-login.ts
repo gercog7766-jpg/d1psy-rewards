@@ -19,7 +19,7 @@ export function persistentLogin(db:SupabaseClient,appUrl:string,read:(req:Reques
  }
  async function middleware(req:Request,res:Response,next:NextFunction){
   // Public assets and webhook traffic do not read or renew account state.
-  if(!/^\/(api\/me(?:\/|$)|api\/admin(?:\/|$)|api\/users(?:\/|$)|users(?:\/|$)|account$|community$|app$|logout$|games(?:\/|$)|live$|predict$|shop$|season$|upgrader$|contracts$|admin(?:\/|$))/.test(req.path)||/\.(?:js|png|webp|svg)$/.test(req.path))return next();
+  if(!/^\/(api\/me(?:\/|$)|api\/admin(?:\/|$)|api\/users(?:\/|$)|users(?:\/|$)|account$|referrals$|community$|app$|logout$|games(?:\/|$)|live$|predict$|shop$|season$|upgrader$|contracts$|admin(?:\/|$))/.test(req.path)||/\.(?:js|png|webp|svg)$/.test(req.path))return next();
   const token=req.cookies?.rewards_device;
   try{
    if(token){
