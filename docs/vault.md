@@ -6,7 +6,7 @@ Player page: `/vault`; administration: `/admin/vault`. The account entry is abov
 
 First season: 9 November 2026 00:00 through 15 November 2026 20:00 Europe/Moscow. The migration allocates and reserves 1,500 event coins, without debiting any player's wallet. Participation is free. Keys cannot be bought, transferred or converted into ordinary coins.
 
-**Owner setup:** choose the season, save a secret four-digit code, and enable code entry when revealing it on stream. No code is preselected. Code entry additionally requires 1,300 contributed keys and an existing personal contribution. A correct code marks the shared puzzle solved; contributions continue until Sunday 20:00. Payout is at that deadline, not at code submission.
+**Owner setup:** choose the season, save a secret four-digit code, and enable code entry when revealing it on stream. No code is preselected. Code entry additionally requires the configured seasonal key goal and an existing personal contribution. A correct code marks the shared puzzle solved; contributions continue until Sunday 20:00. Payout is at that deadline, not at code submission.
 
 Working default: 50 earned keys per user per season. Admin can change the cap and reserved pool only before any keys have been earned. The four-digit code can be changed only while entry is disabled and it has not been solved. The code is HMAC-SHA256 hashed using SESSION_SECRET and season namespace before reaching PostgreSQL; APIs, audits and JS never expose its digest or plaintext. Rotating SESSION_SECRET requires resetting an unsolved season code.
 
@@ -19,11 +19,11 @@ Working default: 50 earned keys per user per season. Admin can change the cap an
 
 Keys arrive in a separate seasonal wallet. Contributions debit that wallet and increment personal/shared totals atomically. Integer amounts only. Request UUIDs make retries safe. There is no user refund endpoint. Every source, rejected cap event, contribution and expiry is retained in private database history. Admin member pages show earned, remaining cap, balance, contribution and totals by each source.
 
-Five sequential locks: Энергия 150, Шифр 200, Сигнал 250, Доступ 300, Ядро 400; total 1,300. Each has a separate state/progress indicator. The four-digit shared code is an additional final condition. Contributions above 1,300 remain allowed until the deadline and participate in the same proportional distribution.
+Five sequential locks: Энергия 150, Шифр 200, Сигнал 250, Доступ 300, Ядро 400; default total 1,300. Each has a separate state/progress indicator. The four-digit shared code is an additional final condition. Contributions above 1,300 remain allowed until the deadline and participate in the same proportional distribution.
 
 ## Settlement and reservation
 
-At Sunday 20:00 Moscow, an event succeeds only if funded, at least 1,300 keys were contributed, and the code was accepted before the deadline. Otherwise it fails and pays nothing. Unspent keys expire in either outcome; old contributions remain historical only. All active locks/counters visually reset on closure. The gap until Monday 00:00 awards no keys. Each Monday has an independent season/wallet/code.
+At Sunday 20:00 Moscow, an event succeeds only if funded, the configured key goal was reached, and the code was accepted before the deadline. Otherwise it fails and pays nothing. Unspent keys expire in either outcome; old contributions remain historical only. All active locks/counters visually reset on closure. The gap until Monday 00:00 awards no keys. Each Monday has an independent season/wallet/code.
 
 Share = personal contribution / total contributed. Whole coins are allocated by the largest remainder method: floor every exact share, then assign the remaining coins by descending fractional remainder. Equal fractions use first contribution timestamp then user UUID. No randomness or standings bonus; each allocation differs from its exact share by less than one coin and allocations sum to the reserved fund. A banned account's calculated share is forfeited to the event treasury, without increasing anyone else's share.
 
@@ -44,3 +44,9 @@ Database invariants: earned = balance + contributed + expired; pool = paid + ref
 ## Validation
 
 Local PGlite exercises source triggers/backfill, caps, owner/partner promo filtering, actual-broadcast deduplication, nonce replay, code gating/throttling, exact Sunday boundary, payout rollback/retry, integer conservation, failed-season refund, Monday rollover, admin reservations/cap freeze and browser-role denial. HTTP/JSDOM tests cover signed identity, route access, CSRF/field rejection, code hashing, safe rendering, contribution retry and independent lock states. No fake production users, games, keys or payouts are created for testing.
+
+## Configurable key goal
+
+Admin has a separate “Количество необходимых ключей” form (5–1,000,000), independent of the prize fund and per-user earning cap. Each season stores `required_keys`, initially 1,300. The five targets retain weights 150:200:250:300:400 and use largest remainders to sum exactly to the requested integer total, with ties by lock order. For example: 100 → 12/15/19/23/31; 2,600 → 300/400/500/600/800. The form previews the same calculation before saving.
+
+The goal can change during an unsolved season without removing balances or contributions. A changed goal closes code entry until the owner explicitly re-enables it. It cannot change after correct code acceptance or settlement. Source earning caps and reserved funds retain their existing restrictions. Player counters, lock progress, code eligibility and final settlement all read the stored seasonal goal. Changes are audited with the previous value; retries use a stable request UUID and cannot reapply an old goal after another update.
