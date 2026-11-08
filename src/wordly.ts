@@ -44,5 +44,5 @@ export function grade(guess: string, answer: string) {
 export function publicGame(row: any, day: string) {
   const guesses: string[] = row?.guesses || [];
   const won = !!row && guesses.includes(row.answer), finished = won || guesses.length>=6;
-  return {day, rewardCoins:won&&row?.reward_transaction_id?25:0, nextReset:nextReset(day), attempts:6, status:won?'won':finished?'lost':'playing', guesses:guesses.map(word=>({word,marks:grade(word,row.answer)})), ...(finished?{answer:row.answer}:{})};
+  return {...(row?.started_at?{startedAt:row.started_at,finishedAt:row.finished_at||null,timingEligible:row.timing_eligible===true}:{}),day, rewardCoins:won&&row?.reward_transaction_id?25:0, nextReset:nextReset(day), attempts:6, status:won?'won':finished?'lost':'playing', guesses:guesses.map(word=>({word,marks:grade(word,row.answer)})), ...(finished?{answer:row.answer}:{})};
 }

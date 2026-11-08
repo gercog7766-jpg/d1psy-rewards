@@ -6,7 +6,7 @@
 
 Фиксированная симуляция — 10 шагов в секунду. Скорость дороги растёт с 80 до 140 мировых единиц за шаг, прибавляя единицу каждые 2 секунды, затем остаётся ограниченной для играбельности. Меняется расстояние за шаг, а не ход серверного времени.
 
-Монета появляется через независимый случайно распределённый интервал 300–450 шагов (30–45 секунд), затем планируется следующая. Интервал вычисляется детерминированно по серверному seed и индексу возможности подбора. Ускорение не сокращает этот таймер. Подбор начисляет **1 обычную монету** через `rewards_coin_transactions`; баланс отображается в инвентаре аккаунта. Это не отдельный скин. Пропущенная монета не оплачивается. Платы, ставок и ежедневного лимита наград нет; один активный забег на пользователя. Уже подтверждённые награды сохраняются после столкновения или остановки.
+Монета появляется через независимый случайно распределённый интервал 300–450 шагов (30–45 секунд), затем планируется следующая. Интервал вычисляется детерминированно по серверному seed и индексу возможности подбора. Ускорение не сокращает этот таймер. Подбор начисляет **1 обычную монету** через `rewards_coin_transactions`; баланс отображается в инвентаре аккаунта. Это не отдельный скин. Пропущенная монета не оплачивается. Платы и ставок нет; один активный забег на пользователя. Новый забег доступен раз в 4 часа от начала предыдущего. Уже подтверждённые награды сохраняются после столкновения или остановки.
 
 ## Движение и коллизии
 
@@ -43,3 +43,7 @@ Game catalog covers are supplied square artwork, shipped in 480/960 WebP sizes w
 ## Running presentation
 
 Passed obstacle rows remain in the render window until their full geometry is below the canvas. Near objects render after the runner, far objects before it. Procedural alternating boots, body bob/lean and speed-scaled peripheral streaks follow world distance; reduced-motion preferences disable bob, lean and streaks. Physics, server replay, coin schedule and score units are unchanged.
+
+## Four-hour start limit
+
+New runs now share a server-enforced four-hour window from the previous start, across both game versions and all request IDs. Restoring an active run is allowed; ending or abandoning it does not reset the window. See `game-leaderboards.md` for timing and validation.
