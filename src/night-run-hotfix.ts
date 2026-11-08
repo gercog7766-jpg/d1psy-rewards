@@ -16,6 +16,7 @@ export function installNightRun(){
   app.get('/games/night-run-cat-v1.webp',(_q:any,r:any)=>r.type('webp').set('Cache-Control','public,max-age=31536000,immutable').send(Buffer.from(nightRunCharacter,'base64')));
   app.get('/games/night-run',auth,(_q:any,r:any)=>r.set('Cache-Control','no-store').send(nightRunHtml));
   app.get('/games/night-run.js',(_q:any,r:any)=>r.type('application/javascript').set('Cache-Control','no-cache').send(nightRunJs));
+  app.get('/api/me/night-run/leaderboard',auth,(q:any,r:any)=>call(q,r,'leaderboard'));
   app.get('/api/me/night-run',auth,(q:any,r:any)=>call(q,r,'state'));
   app.post('/api/me/night-run/start',auth,origin,(q:any,r:any)=>{if(!q.body||Object.keys(q.body).some(k=>!['requestId','version'].includes(k))||!uuid(q.body.requestId)||(q.body.version!==undefined&&![1,2].includes(q.body.version)))return r.status(400).json({error:'invalid_request'});return call(q,r,q.body.version===2?'start_v2':'start',{p_id:q.body.requestId,p_seed:randomInt(1,2147483647)})});
   app.post('/api/me/night-run/step',auth,origin,(q:any,r:any)=>{const b=q.body||{};if(Object.keys(b).some(k=>!['gameId','from','inputs','stop'].includes(k))||!uuid(b.gameId)||!Number.isSafeInteger(b.from)||b.from<0||!Array.isArray(b.inputs)||b.inputs.length>30||(!b.inputs.length&&b.stop!==true)||b.inputs.some((v:any)=>!Number.isInteger(v)||v<0||v>2)||(b.stop!==undefined&&typeof b.stop!=='boolean'))return r.status(400).json({error:'invalid_request'});return call(q,r,'step',{p_game:b.gameId,p_from:b.from,p_inputs:b.inputs,p_stop:b.stop===true})});

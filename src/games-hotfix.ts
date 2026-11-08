@@ -1,3 +1,4 @@
+import {installGameCoverRoutes} from './game-covers.js';
 import express from 'express';
 import { randomInt } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
@@ -24,6 +25,7 @@ export function installGamesHotfix() {
     const app:any=this;
     if(!app.locals.__games && auth) {
       app.locals.__games=true;
+      installGameCoverRoutes(app);
       const db=createClient(process.env.SUPABASE_URL||'https://ssqjogdcynmjjgtxknng.supabase.co',process.env.SUPABASE_SECRET_KEY||'not-configured',{auth:{persistSession:false}});
       app.get('/games',auth,(_req:any,res:any)=>res.set('Cache-Control','no-store').send(gamesHtml));
       app.get('/games/wordly',auth,(_req:any,res:any)=>res.set('Cache-Control','no-store').send(wordlyHtml));

@@ -33,3 +33,9 @@
 - UI: выбранные кнопки управления, первая монета версии 2, повтор запроса, загрузка персонажа и привязка нижней точки к плоскости контакта. HTTP: авторизация, CSRF, версии старта, запрет клиентской награды, ресурс WebP и ссылка в «Играх».
 
 Визуальный прогон на физических телефонах не выполнялся. Реальные production-награды при проверке не создавались. Версии миграций сохранены по истории БД после применения через MCP; локальный Supabase CLI ранее не запускался в этой среде. Юридические черновики другой задачи в релиз не включены.
+
+## Leaderboard
+
+Authenticated `/api/me/night-run/leaderboard` exposes only ten best completed runs, one per non-banned user. Distance descending, then elapsed ticks ascending, then oldest start/id break ties. Distance is integer metres: v2 world distance / 40, legacy tick × 2. Active runs appear only after eight seconds without a heartbeat (already expired under gameplay rules). Names use safe text nodes. No game IDs, seeds, user IDs or balances are exposed; RPC remains service-role only and does not write rewards. The table refreshes every 15 seconds on visible pages and after confirmed endings. Desktop puts it left of the field; mobile puts it after the game and controls.
+
+Game catalog covers are supplied square artwork, shipped in 480/960 WebP sizes with full composition and immutable versioned URLs.
