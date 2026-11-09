@@ -14,6 +14,21 @@ async function allCoinTransactions(userId?:string){
  }
  throw new Error('coin_history_exceeds_safe_pagination_limit');
 }
+export async function allAdminWins(client:any=db){
+ const rows:any[]=[];
+ for(let offset=0;offset<100000;offset+=500){
+  const {data,error}=await client.from('rewards_wins').select('id,user_id,choice_status,delivery_status,rewards_prizes(sell_price_coins)').order('id',{ascending:true}).range(offset,offset+499);
+  if(error)throw error;
+  rows.push(...(data||[]));
+  if((data||[]).length<500)return rows;
+ }
+ throw new Error('inventory_history_exceeds_safe_pagination_limit');
+}
+export function adminInventoryValue(w:any){
+ if(w.choice_status!=='awaiting_choice'||!['pending','awaiting_choice'].includes(w.delivery_status))return 0;
+ const p=Array.isArray(w.rewards_prizes)?w.rewards_prizes[0]:w.rewards_prizes;
+ return Number(p?.sell_price_coins||0);
+}
 function levelFromXp(x:number){return Math.max(1,Math.floor((Math.sqrt(9+8*Math.max(0,x)/75)-3)/2)+1)}
 function xpForLevel(level:number){return Math.round(37.5*(level-1)*(level+2))}
 
@@ -33,7 +48,7 @@ export function installAdminUsersSafeHotfix(){
    app.get('/api/admin/users',adminAuth,async(_req:any,res:any)=>{
     const [{data:users,error:uErr},{data:wins,error:wErr},coinResult]=await Promise.all([
      db.from('rewards_users').select('id,twitch_user_id,twitch_login,twitch_display_name,steam_trade_url_valid,created_at,participation_restricted,banned,xp_total').order('created_at',{ascending:false}),
-     db.from('rewards_wins').select('user_id,choice_status,rewards_prizes(sell_price_coins)'),
+     allAdminWins().then(data=>({data,error:null})).catch(error=>({data:null,error})),
      allCoinTransactions().then(data=>({data,error:null})).catch(error=>({data:null,error}))
     ]);
     const {data:coinTx,error:cErr}=coinResult;
@@ -42,10 +57,7 @@ export function installAdminUsersSafeHotfix(){
     for(const t of coinTx||[])balances.set(t.user_id,(balances.get(t.user_id)||0)+Number(t.amount||0));
     for(const w of wins||[]){
      winsCount.set(w.user_id,(winsCount.get(w.user_id)||0)+1);
-     if(w.choice_status==='awaiting_choice'){
-      const p:any=Array.isArray((w as any).rewards_prizes)?(w as any).rewards_prizes[0]:(w as any).rewards_prizes;
-      inventoryValues.set(w.user_id,(inventoryValues.get(w.user_id)||0)+Number(p?.sell_price_coins||0));
-     }
+     inventoryValues.set(w.user_id,(inventoryValues.get(w.user_id)||0)+adminInventoryValue(w));
     }
     const list=(users||[]).map((u:any)=>({...u,level:levelFromXp(Number(u.xp_total||0)),wins_count:winsCount.get(u.id)||0,coin_balance:balances.get(u.id)||0,inventory_value_coins:inventoryValues.get(u.id)||0}));
     res.json({users:list,userStats:{total:list.length,withTrade:list.filter((u:any)=>u.steam_trade_url_valid).length,withoutTrade:list.filter((u:any)=>!u.steam_trade_url_valid).length}});
