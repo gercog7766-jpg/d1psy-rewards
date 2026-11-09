@@ -20,10 +20,10 @@ async function startNextRound(){
     return;
   }
   const prize=prizes[crypto.randomInt(prizes.length)];
-  const {data:round,error}=await db.from('rewards_rounds').insert({mode:s.mode,interval_seconds:s.interval_seconds,message_threshold:s.message_threshold,status:'active',prize_id:prize.id}).select('id').single();
+  const {data:round,error}=await db.from('rewards_rounds').insert({mode:s.mode,interval_seconds:s.interval_seconds,message_threshold:s.message_threshold,status:'active',prize_id:prize.id,weight_by_messages:s.weight_by_messages===true}).select('id').single();
   if(error) throw error;
   await db.from('rewards_settings').update({selected_prize_id:prize.id,updated_at:new Date().toISOString()}).eq('id',true);
-  await db.from('rewards_audit_log').insert({action:'round_prize_randomized',entity_type:'rewards_rounds',entity_id:round.id,details:{prize_id:prize.id,prize_name:prize.name,source:'automatic_next_round',min_price:min,max_price:max}});
+  await db.from('rewards_audit_log').insert({action:'round_prize_randomized',entity_type:'rewards_rounds',entity_id:round.id,details:{prize_id:prize.id,prize_name:prize.name,source:'automatic_next_round',weight_by_messages:s.weight_by_messages===true,min_price:min,max_price:max}});
 }
 
 export async function checkGiveawayRound(){
