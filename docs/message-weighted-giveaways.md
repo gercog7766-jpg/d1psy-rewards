@@ -1,0 +1,15 @@
+# Optional message-weighted primary giveaways
+
+The owner admin's giveaway controls contain `Учитывать количество сообщений`. Both time-triggered and message-triggered rounds support it. The saved primary-series preference defaults to false. The checkbox is locked to the active round snapshot and can be changed after stopping. Its value is submitted as a strict boolean; omitted legacy requests explicitly select the ordinary uniform mode.
+
+When enabled, a participant has one ticket per counted message in the current round. Probability = their message count / the total message count of eligible participants. With 500/250/250 eligible messages, probabilities are 50%/25%/25%. The message threshold still controls when a round ends; it is not the probability denominator if ineligible/unregistered chat messages contributed to the trigger counter.
+
+Eligibility requires the round participant flag, a currently valid Trade URL, and no current ban or participation restriction. Weighted draws exclude zero-message rows. Uniform draws assign each eligible user one ticket regardless of volume. Other rounds/channels do not contribute tickets. Partner production giveaways use their existing separate functions and budgets and were not modified.
+
+Settings and rounds store `weight_by_messages`. A before-insert trigger fills missing primary-round values from the saved preference, including inserts from older/draining automatic engines; omitted partner-round values remain false. New engine inserts also carry the preference explicitly. A before-update guard makes every round's selection mode immutable. Changing settings cannot rewrite an active or historical round.
+
+The finalizer retains its existing round and prize locks and private pgcrypto rejection-sampling RNG. It snapshots eligible identities/weights in one query and selects a uniform zero-based integer ticket against cumulative positive weights. The selected user's eligibility is rechecked under a row lock; a concurrent invalidation rolls back for retry. Inventory assignment, win insertion, completion and audit commit atomically. Completion prevents duplicate awards. Existing source chat counting/deduplication and message/time thresholds are unchanged.
+
+Audit records retain RNG type, mode, eligible participant/message totals, total ticket weight, and the winner's message count/weight. Browser roles cannot execute the finalizer or trigger function. The owner start endpoint checks signed admin identity, same origin, JSON content type and boolean type.
+
+Local tests enumerate all 1,000 possible tickets for 500/250/250, verify uniform selection, current eligibility filters, empty/zero-message draws, finite prize assignment, rollback/retry, duplicate prevention, private RPC, immutable snapshots, primary auto-inheritance and channel isolation. UI/real-server tests check checkbox persistence, locking, both trigger modes, request payloads, admin-only access, CSRF/type rejection and existing expanded price/message limits. No test round or prize is created on production.
