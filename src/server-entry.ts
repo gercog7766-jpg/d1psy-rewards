@@ -1,3 +1,4 @@
+import {installSuggestions} from './suggestions.js';
 import {installPlayerStatistics} from './player-statistics.js';
 import {installStreamersDirectory} from './streamers-directory.js';
 import {installVault} from './vault.js';
@@ -85,6 +86,7 @@ import { installAccountInventoryV2Hotfix } from './account-inventory-v2-hotfix.j
 installSiteScrollbars();
 installPlayerStatistics();
 installStreamersDirectory();
+installSuggestions();
 installVault();
 installNightShiftTheme();
 installMinesweeper();
