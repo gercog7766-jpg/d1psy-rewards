@@ -1,3 +1,4 @@
+import {installStreamersDirectory} from './streamers-directory.js';
 import {installVault} from './vault.js';
 import {installGameLeaderboards} from './game-leaderboards.js';
 import {installNightRun} from './night-run-hotfix.js';
@@ -81,6 +82,7 @@ import { installAccountInventoryV2Hotfix } from './account-inventory-v2-hotfix.j
 // Install raw HTTP legal handling first so /privacy and /rules are not dependent
 // on the heavily wrapped Express application.get chain.
 installSiteScrollbars();
+installStreamersDirectory();
 installVault();
 installNightShiftTheme();
 installMinesweeper();
