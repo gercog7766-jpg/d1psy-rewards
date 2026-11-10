@@ -1,0 +1,30 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+import {runInNewContext} from 'node:vm';
+import {JSDOM} from 'jsdom';
+import {minesweeperHtml,minesweeperJs} from '../src/minesweeper-ui.ts';
+import {defuseHtml,defuseJs} from '../src/defuse-ui.ts';
+import {nightRunHtml,nightRunJs} from '../src/night-run-ui.ts';
+import {nightRunCore} from '../src/night-run-core.ts';
+const pause=()=>new Promise(r=>setTimeout(r,0));
+async function until(f){for(let i=0;i<100;i++){if(f())return;await pause()}assert(f(),'condition timed out')}
+function setup(html){const dom=new JSDOM(html,{url:'https://test.local/games/test',runScripts:'outside-only'}),w=dom.window;w.crypto.randomUUID=randomUUID;Object.defineProperty(w.document,'hidden',{value:false});return dom}
+test('625-cell board retains buttons and updates only changed cells through busy, move, refresh and resize',async()=>{
+ const d=setup(minesweeperHtml()),w=d.window;const state={serverNow:new Date().toISOString(),attemptsLeft:2,levels:[{difficulty:'easy',mines:100,reward:5,width:25,height:25,timeLimitSeconds:900}],game:{id:randomUUID(),difficulty:'easy',attempt:1,status:'playing',version:0,mineCount:100,width:25,height:25,deadlineAt:new Date(Date.now()+900000).toISOString(),cells:Array.from({length:625},(_,index)=>({index,open:false,flag:false,value:null}))}};let resolveMove,posts=0;
+ w.fetch=async(path,opts)=>{if(path.includes('leaderboard'))return {ok:true,json:async()=>({entries:[]})};if(opts?.method==='POST'){posts++;await new Promise(r=>resolveMove=r);state.game.cells[624].flag=true;state.game.version++}return {ok:true,json:async()=>structuredClone(state)}};
+ try{w.eval(minesweeperJs);await until(()=>w.document.querySelectorAll('.cell').length===625);const board=w.document.getElementById('msBoard'),buttons=[...board.children],records=[];const observer=new w.MutationObserver(r=>records.push(...r));observer.observe(board,{childList:true,subtree:true});w.document.getElementById('msFlag').click();buttons[624].click();buttons[623].click();assert.equal(posts,1);assert(buttons[624].disabled);resolveMove();await until(()=>!buttons[624].disabled&&buttons[624].classList.contains('flag'));w.dispatchEvent(new w.Event('focus'));await pause();w.dispatchEvent(new w.Event('resize'));await new Promise(r=>setTimeout(r,120));assert(buttons.every((b,i)=>board.children[i]===b));assert(!records.some(r=>[...r.removedNodes].some(n=>n.nodeType===1&&n.matches?.('.cell'))));assert.equal(buttons[624].textContent,'⚑');assert.equal(buttons[0].textContent,'');observer.disconnect();}finally{w.close()}
+});
+test('Defuse ticks do not recreate cooldown each 100ms and stale polling cannot undo a solved module',async()=>{
+ const d=setup(defuseHtml),w=d.window,timers=[];let time=1000,staleResolve;
+ w.performance.now=()=>time;w.setInterval=(cb,ms)=>{timers.push({cb,ms});return timers.length};const started=Date.now(),game={id:randomUUID(),difficulty:'rookie',status:'playing',stage:0,mistakes:0,readyAt:new Date(started-1).toISOString(),deadline:new Date(started+45000).toISOString(),challenge:{kind:'code',length:4}};const data=()=>({game:structuredClone(game),serverNow:new Date(started).toISOString(),nextAvailableAt:new Date(started+8*3600000).toISOString()});let polls=0;
+ w.fetch=async(path,opts)=>{if(path.includes('leaderboard'))return {ok:true,json:async()=>({entries:[]})};if(opts?.method==='POST'){game.stage=1;game.challenge={kind:'symbols',length:2,items:[{id:'a',symbol:'A',value:1},{id:'b',symbol:'B',value:2}]};return {ok:true,json:async()=>data()}}polls++;if(polls>1){const old=data();await new Promise(r=>staleResolve=r);return {ok:true,json:async()=>old}}return {ok:true,json:async()=>data()}};
+ try{w.eval(defuseJs);await until(()=>w.document.querySelector('.keypad'));const cooldown=w.document.getElementById('cooldown'),child=cooldown.firstChild;const tick=timers.find(t=>t.ms===100).cb;for(let i=0;i<9;i++){time=1000+i*50;tick()}assert.equal(cooldown.firstChild,child,'unchanged second keeps DOM nodes');w.dispatchEvent(new w.Event('focus'));await until(()=>staleResolve);for(const key of '1234')w.document.dispatchEvent(new w.KeyboardEvent('keydown',{key,bubbles:true}));w.document.getElementById('submit').click();await until(()=>w.document.querySelector('.symbol-keys'));staleResolve();await pause();assert(w.document.querySelector('.symbol-keys'),'late state response cannot restore code stage');assert.equal(w.document.getElementById('stageLabel').textContent,'Модуль 2 из 3');}finally{w.close()}
+});
+test('Night Run distance follows actual accelerated speed including partial frames; background is cached',async()=>{
+ const core=runInNewContext(nightRunCore),results=[];
+ for(const collected of [0,10]){const d=setup(nightRunHtml),w=d.window,frames=[];let time=1000,gradients=0,layoutReads=0;w.performance.now=()=>time;w.requestAnimationFrame=cb=>frames.push(cb);const noop=()=>{},ctx=new Proxy({createLinearGradient:()=>{gradients++;return {addColorStop:noop}}},{get:(o,k)=>o[k]||noop,set:(o,k,v)=>{o[k]=v;return true}});w.HTMLCanvasElement.prototype.getContext=()=>ctx;w.HTMLCanvasElement.prototype.getBoundingClientRect=()=>{layoutReads++;return {width:390,height:520}};w.Image=class{complete=false;set src(v){}};
+ const game={id:randomUUID(),...core.initialV4(73471),collected_coins:collected,invulnerable_until_tick:10000};w.fetch=async path=>({ok:true,status:200,json:async()=>path.endsWith('leaderboard')?{entries:[]}:{game:structuredClone(game)}});
+ try{w.eval(nightRunJs);await until(()=>!w.document.getElementById('nrLeft').disabled);for(let i=0;i<10;i++){time+=100;frames.shift()(time)}const first=parseInt(w.document.getElementById('nrDistance').textContent);time+=50;frames.shift()(time);const partial=parseInt(w.document.getElementById('nrDistance').textContent);results.push({first,partial});assert.equal(gradients,1,'static city rendered once');assert.equal(layoutReads,1,'no per-frame layout reads');assert.equal(w.document.getElementById('nrSpeed').textContent,collected?'40 м/с':'20 м/с');}finally{w.close()}}
+ assert.deepEqual(results,[{first:20,partial:21},{first:40,partial:42}]);
+});
