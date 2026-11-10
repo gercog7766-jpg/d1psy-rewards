@@ -1,3 +1,4 @@
+import {installGuessWord} from './guess-word.js';
 import {deploymentRelease} from './deployment-release.js';
 import {readSettings,updateSettings} from './settings-cache.js';
 import {installPrimaryTwitchConnection} from './primary-twitch-connection.js';
@@ -35,6 +36,7 @@ function requireUser(req:express.Request,res:express.Response,next:express.NextF
 async function requireAdmin(req:express.Request,res:express.Response,next:express.NextFunction){const s=readSession(req);if(!s)return res.status(401).json({error:'authentication_required'});const {data,error}=await db.from('rewards_admins').select('twitch_user_id').eq('twitch_user_id',s.twitchUserId).maybeSingle();if(error)return res.status(500).json({error:'admin_lookup_failed'});if(!data)return res.status(403).json({error:'admin_required'});res.locals.session=s;next()}
 installStreamerPilot(app,requireUser,requireAdmin,subscribeToPartnerChat,partnerChatReady);
 installProfileCustomization(app,requireUser,requireAdmin);
+installGuessWord(app,requireUser,requireAdmin,db);
 function validTradeUrl(v:string){try{const u=new URL(v);return u.protocol==='https:'&&u.hostname==='steamcommunity.com'&&u.pathname==='/tradeoffer/new/'&&!!u.searchParams.get('partner')&&!!u.searchParams.get('token')}catch{return false}}
 function randomIndex(count:number){if(count<=0)throw new Error('invalid_count');return crypto.randomInt(count)}
 

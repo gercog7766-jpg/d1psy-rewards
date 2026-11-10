@@ -1,3 +1,4 @@
+import {installGuessWordDecorations} from './guess-word.js';
 import {validateAppUrl} from './app-url-validation.js';
 import {installPausedFeatures} from './paused-features.js';
 import {installSuggestions} from './suggestions.js';
@@ -87,6 +88,7 @@ import { installAccountInventoryV2Hotfix } from './account-inventory-v2-hotfix.j
 // on the heavily wrapped Express application.get chain.
 installSiteScrollbars();
 validateAppUrl(process.env.APP_URL);
+installGuessWordDecorations();
 installPausedFeatures();
 installPlayerStatistics();
 installStreamersDirectory();
