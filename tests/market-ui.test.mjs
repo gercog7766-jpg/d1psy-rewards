@@ -36,7 +36,7 @@ test('full shop UI: variant favorites, goal, budget/quality filters, sort, persi
   const spoof=await fetch(base+'/api/me/market',{method:'POST',headers:{Cookie:cookie,'Content-Type':'application/json'},body:JSON.stringify({action:'clear_goal',user_id:randomUUID()})});assert.equal(spoof.status,200);assert.equal(rpcParams.p_user,user);
   const invalid=await fetch(base+'/api/me/market',{method:'POST',headers:{Cookie:cookie,'Content-Type':'application/json'},body:JSON.stringify({action:'favorite',itemId:item,variantId:'bad'})});assert.equal(invalid.status,400);
   const html=await(await fetch(base+'/shop',{headers:{Cookie:cookie}})).text(),client=await(await fetch(base+'/shop-v2.js')).text(),account=await(await fetch(base+'/account')).text();
-  assert(html.includes('D1PSY MARKET'));assert(html.includes('id="shopMarketDesign"'));assert(html.includes('data-market-design="cards"'));assert(html.includes('marketHeading'));assert(html.includes('id="marketModalActions"'));assert(html.includes('id="cartTop"'));assert(account.includes('id="marketProfileLink"'));assert(client.includes('marketVariantsReady=vr.ok;'));
+  assert(html.includes('Dropso Market'));assert(html.includes('id="shopMarketDesign"'));assert(html.includes('data-market-design="cards"'));assert(html.includes('marketHeading'));assert(html.includes('id="marketModalActions"'));assert(html.includes('id="cartTop"'));assert(account.includes('id="marketProfileLink"'));assert(client.includes('marketVariantsReady=vr.ok;'));
   const errors=[];
   async function mount(view=''){
    if(dom)dom.window.close();const vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));dom=new JSDOM(html,{runScripts:'outside-only',url:base+'/shop'+view,virtualConsole:vc});const w=dom.window;

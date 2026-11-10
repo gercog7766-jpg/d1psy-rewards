@@ -1,6 +1,6 @@
-# d1psy Rewards
+# Dropso
 
-Independent Twitch giveaway service for d1psy. This repository is intentionally isolated from `d1psy-pickem`.
+Dropso is a Twitch rewards platform founded by d1psy. This repository is intentionally isolated from `d1psy-pickem`.
 
 ## Architecture
 
