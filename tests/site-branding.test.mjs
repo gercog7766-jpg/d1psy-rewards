@@ -24,6 +24,6 @@ test('all icon variants are PNGs in expected sizes and versioned manifest refere
   const png=Buffer.from(pwaIcons[name],'base64');assert.equal(png.subarray(1,4).toString(),'PNG');assert.equal(png.readUInt32BE(16),size);assert.equal(png.readUInt32BE(20),size);
  }
  for(const icon of pwaManifest.icons){assert(icon.src.includes('/brand-'));assert(pwaIcons[icon.src.split('/').at(-1).replace('.png','')]);assert(pwaSw.includes(icon.src));}
- assert(pwaHead.includes('/brand-apple.png'));assert(pwaSw.includes('static-brand-v2'));
+ assert(pwaHead.includes('/brand-apple.png'));assert(pwaSw.includes('static-brand-v3-dropso'));
  assert.equal(pwaIcons['512'],pwaIcons['brand-512']);
 });
