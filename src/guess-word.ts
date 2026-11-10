@@ -20,6 +20,6 @@ export function installGuessWord(app:Express,user:RequestHandler,admin:RequestHa
 }
 export function installGuessWordDecorations(){const response:any=(express as any).response,send=response.send;response.send=function(body:any){const path=this.req?.path;if(typeof body==='string'){
   if(path==='/admin'&&!body.includes('id="guessWordAdminLink"'))body=body.replace('<div class="tabs">','<div class="tabs"><a id="guessWordAdminLink" href="/admin/guess-word" style="padding:10px 14px;border-radius:10px;background:#30243f;color:white;text-decoration:none">Угадай слово</a>');
-  if(path==='/account'&&!body.includes('id="guessWordHero"'))body=body.replace(/<section\b[^>]*id="seasonAccountHero"[^>]*>/,guessWordBanner+'$&');
+  if(path==='/account'&&!body.includes('id="guessWordHero"')){body=body.replace(/<section\b[^>]*id="seasonAccountHero"[^>]*>/,guessWordBanner+'$&');if(body.includes('id="guessWordHero"'))body=body.replace('</body>','<script src="/games/guess-word-banner.js" defer></script></body>');}
  }return send.call(this,body)};
 }
