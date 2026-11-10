@@ -1,3 +1,4 @@
+import {validateAppUrl} from './app-url-validation.js';
 import {installPausedFeatures} from './paused-features.js';
 import {installSuggestions} from './suggestions.js';
 import {installPlayerStatistics} from './player-statistics.js';
@@ -85,6 +86,7 @@ import { installAccountInventoryV2Hotfix } from './account-inventory-v2-hotfix.j
 // Install raw HTTP legal handling first so /privacy and /rules are not dependent
 // on the heavily wrapped Express application.get chain.
 installSiteScrollbars();
+validateAppUrl(process.env.APP_URL);
 installPausedFeatures();
 installPlayerStatistics();
 installStreamersDirectory();
