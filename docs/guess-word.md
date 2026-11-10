@@ -1,6 +1,6 @@
 # Угадай слово
 
-Standalone site game at `/games/guess-word`, managed by the primary founder at `/admin/guess-word`. A game card is included in Games and the account page shows an active-round teaser. No Twitch connection, stream event, Wordle feedback or automatic next round is involved.
+Standalone site game at `/games/guess-word`, managed by the primary founder at `/admin/guess-word`. A game card is included only in Games. The account page has no game teaser or game polling script. No Twitch connection, stream event, Wordle feedback or automatic next round is involved.
 
 The administrator chooses a 2–24-letter Russian or English word, hint (180 characters maximum), attempt fee (1–10,000 personal coins), and either a coin reward (1–1,000,000) or a skin from the existing prize catalogue. One round can be active globally. New words are manually configured; active words/prices/prizes cannot be edited.
 
