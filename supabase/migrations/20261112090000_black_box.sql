@@ -108,7 +108,7 @@ $$;
 
 create function public.rewards_black_box_state() returns jsonb
 language plpgsql security invoker set search_path='' as $$
-declare current_box jsonb; previous_box jsonb; participants jsonb;
+declare current_box jsonb; previous_box jsonb; closed_box jsonb; participants jsonb;
 begin
  perform public.rewards_black_box_close();
  select jsonb_build_object('id',a.id,'endsAt',a.ends_at,'startPrice',a.start_price,'step',a.bid_step,
@@ -118,12 +118,16 @@ begin
  'winner',coalesce(u.twitch_display_name,u.twitch_login)) into previous_box
  from public.rewards_black_boxes a join public.rewards_users u on u.id=a.winner_id
  where a.closed_at is not null order by a.closed_at desc limit 1;
+ select jsonb_build_object('id',a.id,'amount',a.high_bid,'prize',a.prize_name,
+ 'winner',coalesce(u.twitch_display_name,u.twitch_login)) into closed_box
+ from public.rewards_black_boxes a left join public.rewards_users u on u.id=a.winner_id
+ where a.closed_at is not null order by a.closed_at desc limit 1;
  select coalesce(jsonb_agg(jsonb_build_object('name',coalesce(u.twitch_display_name,u.twitch_login),'amount',b.amount)
  order by b.amount desc),'[]'::jsonb) into participants
  from (select user_id,max(amount) as amount from public.rewards_black_box_bids
  where box_id=(current_box->>'id')::uuid group by user_id) b
  join public.rewards_users u on u.id=b.user_id;
- return jsonb_build_object('current',current_box,'previous',previous_box,'participants',participants,'serverNow',clock_timestamp());
+ return jsonb_build_object('current',current_box,'previous',previous_box,'closed',closed_box,'participants',participants,'serverNow',clock_timestamp());
 end;
 $$;
 revoke all on function public.rewards_black_box_close(),public.rewards_black_box_create(integer,integer,text,uuid,integer),
