@@ -5,7 +5,7 @@ on:
   pull_request:
     paths: ['desktop/connect/**', 'scripts/connect/**', '.github/workflows/dropso-connect.yml']
 permissions:
-  contents: read
+  contents: write
 jobs:
   windows:
     runs-on: windows-latest
@@ -33,6 +33,25 @@ jobs:
             $response = Invoke-WebRequest http://127.0.0.1:28743/gsi -Method Post -ContentType application/json -Body '{"auth":{"token":"wrong"}}' -SkipHttpErrorCheck
             if ($response.StatusCode -ne 403) { throw 'GSI must require its local secret' }
           } finally { Stop-Process -Id $program.Id -ErrorAction SilentlyContinue }
+      - name: Package the admin download
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        run: |
+          Copy-Item desktop/connect/DropsoConnect.exe public/downloads/DropsoConnect.exe
+          python scripts/connect/package.py
+      - name: Publish the packaged download
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/downloads/DropsoConnect.exe.gz public/downloads/DropsoConnect.json
+          if git diff --cached --quiet; then
+            echo "Packaged download is already current"
+          else
+            git commit -m "Release Dropso Connect 2.0.0"
+            git push origin HEAD:main
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: DropsoConnect-Windows-x64

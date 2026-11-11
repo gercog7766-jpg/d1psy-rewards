@@ -28,6 +28,7 @@ export function installObsHotfix(){
     if(!activityInstalled.has(this)){
       activityInstalled.add(this);
       originalGet.call(this,'/api/public/activity',activityHandler);
+      originalGet.call(this,'/obs/connect',(_req:any,res:any)=>res.set('Cache-Control','no-store').send(connectObsHtml()));
     }
     if(path==='/obs/connect') return originalGet.call(this,path,(_req:any,res:any)=>res.set('Cache-Control','no-store').send(connectObsHtml()));
     if(path==='/obs') return originalGet.call(this,path,(_req:any,res:any)=>res.set('Cache-Control','no-store').send(obsHtml()));

@@ -19,7 +19,7 @@ import (
 )
 
 const site = "https://dropso.site"
-const version = "1.0.1"
+const version = "2.0.0"
 
 type Snapshot struct {
 	Provider struct {
@@ -61,6 +61,35 @@ type queuedSnapshot struct {
 	Snapshot Snapshot
 	Session  string
 }
+type EventRule struct {
+	Enabled bool   `json:"enabled"`
+	Type    string `json:"type"`
+	CoinMin int    `json:"coinMin"`
+	CoinMax int    `json:"coinMax"`
+	Min     int    `json:"min"`
+	Max     int    `json:"max"`
+}
+type ConnectConfig struct {
+	Enabled         bool                 `json:"enabled"`
+	Events          map[string]EventRule `json:"events"`
+	Modes           []string             `json:"modes"`
+	Cooldown        int                  `json:"cooldown"`
+	Lookback        int                  `json:"lookback"`
+	MinViewers      int                  `json:"minViewers"`
+	MaxAwards       int                  `json:"maxAwards"`
+	Budget          int                  `json:"budget"`
+	TradeRequired   bool                 `json:"tradeRequired"`
+	ExcludePrevious bool                 `json:"excludePrevious"`
+}
+type remoteConfigResponse struct {
+	Config  ConnectConfig `json:"config"`
+	History []struct {
+		Kind       string `json:"kind"`
+		Status     string `json:"status"`
+		WinnerName string `json:"winner_name"`
+		PrizeName  string `json:"prize_name"`
+	} `json:"history"`
+}
 type client struct {
 	mu                           sync.Mutex
 	token, session, status, last string
@@ -72,14 +101,16 @@ type client struct {
 }
 
 var c = client{status: "Отключено. Подключитесь перед стримом.", queue: make(chan queuedSnapshot, 256)}
+var startupError string
 
-func remote(path, token string, body any) (map[string]any, error) {
-	b, _ := json.Marshal(body)
-	req, e := http.NewRequest("POST", site+path, bytes.NewReader(b))
+func remoteMethod(method,path,token string,body any) (map[string]any, error) {
+	var raw io.Reader
+	if body!=nil { b,_:=json.Marshal(body);raw=bytes.NewReader(b) }
+	req, e := http.NewRequest(method, site+path, raw)
 	if e != nil {
 		return nil, e
 	}
-	req.Header.Set("Content-Type", "application/json")
+	if body!=nil { req.Header.Set("Content-Type", "application/json") }
 	req.Header.Set("Authorization", "Bearer "+token)
 	r, e := (&http.Client{Timeout: 8 * time.Second}).Do(req)
 	if e != nil {
@@ -93,6 +124,12 @@ func remote(path, token string, body any) (map[string]any, error) {
 	}
 	return data, nil
 }
+func remote(path, token string, body any) (map[string]any, error) { return remoteMethod("POST",path,token,body) }
+func loadConnectConfig(token string)(ConnectConfig,error){d,e:=remoteMethod("GET","/api/connect/config",token,nil);if e!=nil{return ConnectConfig{},e};b,e:=json.Marshal(d);if e!=nil{return ConnectConfig{},e};var out remoteConfigResponse;if e=json.Unmarshal(b,&out);e!=nil{return ConnectConfig{},e};return out.Config,nil}
+func saveConnectConfig(token string,cfg ConnectConfig)error{_,e:=remote("/api/connect/config",token,map[string]any{"config":cfg});return e}
+func connectWithKey(token string)error{token=strings.TrimSpace(token);if len(token)!=43{return fmt.Errorf("Вставьте ключ подключения из админки Dropso")};c.disconnect();d,e:=remote("/api/connect/start",token,map[string]any{"version":version});if e!=nil{return e};c.mu.Lock();c.token=token;c.session,_=d["session"].(string);c.seq=0;c.active=true;c.status="Подключено. Ожидаем CS2 (запустите игру после настройки).";c.mu.Unlock();return nil}
+func disconnectClient(){c.disconnect()}
+func installGame(path string)error{return install(path,c.local)}
 func (c *client) disconnect() {
 	c.mu.Lock()
 	token, session := c.token, c.session
@@ -228,7 +265,8 @@ func main() {
 	c.local = secret()
 	listener, e := net.Listen("tcp", "127.0.0.1:28743")
 	if e != nil {
-		openBrowser("http://127.0.0.1:28743/")
+		startupError = "Локальный порт CS2 уже занят. Закройте другую копию Dropso Connect и перезапустите программу."
+		runTray(func() { showWindow() }, func() { os.Exit(0) })
 		return
 	}
 	go func() {
@@ -257,79 +295,10 @@ func main() {
 			http.Error(w, "busy", 503)
 		}
 	})
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", "no-store")
-		w.Header().Set("X-Frame-Options", "DENY")
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'")
-		if r.URL.Path != "/" {
-			http.NotFound(w, r)
-			return
-		}
-		if r.URL.Query().Get("key") != c.local {
-			http.Error(w, "Откройте панель через значок Dropso Connect в трее.", 403)
-			return
-		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		io.WriteString(w, strings.ReplaceAll(panel, "LOCAL_KEY", c.local))
-	})
-	mux.HandleFunc("/action", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "POST" || r.Header.Get("X-Dropso-Key") != c.local || r.Header.Get("Origin") != "http://127.0.0.1:28743" {
-			http.Error(w, "forbidden", 403)
-			return
-		}
-		var b struct {
-			Action, Token, Path string
-			Enabled             bool
-		}
-		if json.NewDecoder(io.LimitReader(r.Body, 8192)).Decode(&b) != nil {
-			http.Error(w, "invalid", 400)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Cache-Control", "no-store")
-		var err error
-		switch b.Action {
-		case "connect":
-			c.disconnect()
-			var d map[string]any
-			d, err = remote("/api/connect/start", strings.TrimSpace(b.Token), map[string]any{"version": version})
-			if err == nil {
-				c.mu.Lock()
-				c.token = strings.TrimSpace(b.Token)
-				c.session, _ = d["session"].(string)
-				c.seq = 0
-				c.active = true
-				c.status = "Подключено. Ожидаем CS2 (запустите игру после настройки)."
-				c.mu.Unlock()
-			}
-		case "disconnect":
-			c.disconnect()
-		case "install":
-			err = install(b.Path, c.local)
-		case "autostart":
-			err = autostart(b.Enabled)
-		case "status":
-		default:
-			http.Error(w, "invalid", 400)
-			return
-		}
-		c.mu.Lock()
-		defer c.mu.Unlock()
-		if err != nil {
-			json.NewEncoder(w).Encode(map[string]any{"error": err.Error()})
-			return
-		}
-		json.NewEncoder(w).Encode(map[string]any{"status": c.status, "active": c.active, "last": c.last, "path": detect(), "version": version})
-	})
+	mux.HandleFunc("/", func(w http.ResponseWriter,r *http.Request){w.Header().Set("Cache-Control","no-store");w.Header().Set("X-Frame-Options","DENY");if r.URL.Path!="/"{http.NotFound(w,r);return};http.Error(w,"Настройки доступны в окне Dropso Connect для Windows.",http.StatusForbidden)})
 	server := &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 40 * time.Second, MaxHeaderBytes: 8192}
 	go server.Serve(listener)
-	url := "http://127.0.0.1:28743/?key=" + c.local
 	if err := install(detect(), c.local); err != nil {
 	}
-	if len(os.Args) < 2 || os.Args[1] != "--startup" {
-		openBrowser(url)
-	}
-	runTray(func() { openBrowser(url) }, func() { c.disconnect(); os.Exit(0) })
+	runTray(func() { showWindow() }, func() { c.disconnect(); os.Exit(0) })
 }
-
-const panel = `<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Dropso Connect</title><style>body{background:#0c0816;color:#f5efff;font:16px system-ui;margin:0}main{max-width:780px;margin:50px auto;padding:24px}section{background:#181026;border:1px solid #56347c;border-radius:20px;padding:24px;margin:20px 0}h1{font-size:38px}input,button{font:inherit;padding:12px;border-radius:10px;border:1px solid #6d4395;background:#211432;color:white;box-sizing:border-box}input[type=text],input[type=password]{width:100%;margin:12px 0}button{background:#8338d0;cursor:pointer;margin:5px}p{line-height:1.6;color:#c9bdd8}#status{color:#e1bfff}label{display:block}a{color:#ddafff}</style><main><h1>Dropso Connect <small>1.0</small></h1><p>Киллы и победы раундов CS2 → дропы зрителям твоего Twitch-чата.</p><section><h2>1. Подготовь Counter-Strike 2</h2><p>Папка игры определяется автоматически. При необходимости укажи её вручную: Steam → CS2 → Управление → Просмотреть локальные файлы.</p><input id="path" type="text" placeholder="C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive"><button id="install">Настроить CS2</button><p>После первой настройки перезапусти CS2. Программа принимает данные только от игры на этом компьютере.</p></section><section><h2>2. Подключись перед стримом</h2><p>Открой <a href="https://dropso.site/admin/connect" target="_blank" rel="noopener">Dropso → Админка → Dropso Connect</a>, создай ключ и вставь сюда. Ключ хранится только в памяти до отключения.</p><input id="token" type="password" autocomplete="off" placeholder="Ключ подключения из админки"><button id="connect">Подключить</button><button id="disconnect">Отключить</button><p id="status" role="status"></p><p id="last"></p></section><section><label><input id="auto" type="checkbox"> Запускать Dropso Connect вместе с Windows</label><p>Автозапуск открывает только программу в трее. Перед каждым стримом подключение включается вручную. Закрытие этой вкладки не останавливает программу; выход — через значок в трее.</p></section><p id="msg" role="alert"></p></main><script>const $=id=>document.getElementById(id);async function call(action,extra={}){const r=await fetch('/action',{method:'POST',headers:{'Content-Type':'application/json','X-Dropso-Key':'LOCAL_KEY'},body:JSON.stringify({Action:action,...extra})});const d=await r.json();if(d.error)throw Error(d.error);$('status').textContent=d.status;$('last').textContent=d.last?'Последние данные CS2: '+d.last:'';if(!$('path').value)$('path').value=d.path||'';return d}function task(f){return async()=>{try{$('msg').textContent='';await f()}catch(e){$('msg').textContent=e.message}}}$('install').onclick=task(async()=>{await call('install',{Path:$('path').value});$('msg').textContent='CS2 настроена. Перезапусти игру.'});$('connect').onclick=task(async()=>{await call('connect',{Token:$('token').value});$('token').value=''});$('disconnect').onclick=task(()=>call('disconnect'));$('auto').onchange=task(()=>call('autostart',{Enabled:$('auto').checked}));task(()=>call('status'))();setInterval(task(()=>call('status')),5000)</script></html>`
