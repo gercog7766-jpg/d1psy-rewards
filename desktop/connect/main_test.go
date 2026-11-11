@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,7 +24,7 @@ func TestOnlyOwnLiveCS2(t *testing.T) {
 	if !s.valid() {
 		t.Fatal("valid player rejected")
 	}
-	for _, change := range []func(*Snapshot){func(s *Snapshot) { s.Provider.AppID = 570 }, func(s *Snapshot) { s.Player.SteamID = "spectator" }, func(s *Snapshot) { s.Player.Activity = "menu" }, func(s *Snapshot) { s.Map.Phase = "warmup" }, func(s *Snapshot) { s.Player.Team = "" }, func(s *Snapshot) { s.Player.Stats.Kills = -1 }} {
+	for _, change := range []func(*Snapshot){func(s *Snapshot) { s.Provider.AppID = 570 }, func(s *Snapshot) { s.Player.SteamID = "spectator" }, func(s *Snapshot) { s.Player.Activity = "menu" }, func(s *Snapshot) { s.Map.Phase = "warmup" }, func(s *Snapshot) { s.Player.Team = "" }, func(s *Snapshot) { s.Player.State.Kills = -1 }} {
 		s = sample()
 		change(&s)
 		if s.valid() {
@@ -72,5 +73,41 @@ func TestDisconnectedAndOldSessionJobsAreIgnored(t *testing.T) {
 	c.process(queuedSnapshot{sample(), "old"})
 	if c.seq != 3 {
 		t.Fatal("old queued data crossed sessions")
+	}
+}
+
+func TestRoundKillsNeverMatchTotals(t *testing.T) {
+	s := sample()
+	if err := json.Unmarshal([]byte(`{"player":{"state":{"round_kills":2},"match_stats":{"kills":37}}}`), &s); err != nil {
+		t.Fatal(err)
+	}
+	if s.wire(1)["kills"] != 2 {
+		t.Fatal("sent match totals instead of round kills")
+	}
+	if !strings.Contains(cfg("x"), `"player_state" "1"`) {
+		t.Fatal("round state not requested")
+	}
+}
+
+func TestSpectatorCannotSupplyKillsButOwnerCanWinAfterDeath(t *testing.T) {
+	owner := sample()
+	owner.Map.Mode = "competitive"
+	owner.Map.Round = 5
+	owner.Player.State.Kills = 2
+	observed := owner
+	observed.Player.SteamID = "76561198000000002"
+	observed.Player.State.Kills = 9
+	if ownRound(observed, &owner).valid() {
+		t.Fatal("spectator kills accepted")
+	}
+	observed.Round.Phase = "over"
+	observed.Round.WinTeam = "CT"
+	result := ownRound(observed, &owner)
+	if !result.valid() || result.Player.State.Kills != 2 || result.Player.Team != owner.Player.Team {
+		t.Fatal("lost own identity or used spectator kills")
+	}
+	observed.Map.Round++
+	if ownRound(observed, &owner).valid() {
+		t.Fatal("cached owner crossed rounds")
 	}
 }

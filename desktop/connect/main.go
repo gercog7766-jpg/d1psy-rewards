@@ -19,7 +19,7 @@ import (
 )
 
 const site = "https://dropso.site"
-const version = "1.0.0"
+const version = "1.0.1"
 
 type Snapshot struct {
 	Provider struct {
@@ -41,9 +41,9 @@ type Snapshot struct {
 		SteamID  string `json:"steamid"`
 		Team     string `json:"team"`
 		Activity string `json:"activity"`
-		Stats    struct {
-			Kills int `json:"kills"`
-		} `json:"match_stats"`
+		State    struct {
+			Kills int `json:"round_kills"`
+		} `json:"state"`
 	} `json:"player"`
 	Auth struct {
 		Token string `json:"token"`
@@ -51,10 +51,10 @@ type Snapshot struct {
 }
 
 func (s Snapshot) valid() bool {
-	return s.Provider.AppID == 730 && s.Provider.SteamID != "" && s.Provider.SteamID == s.Player.SteamID && s.Player.Activity == "playing" && s.Map.Phase == "live" && (s.Player.Team == "CT" || s.Player.Team == "T") && s.Map.Name != "" && s.Player.Stats.Kills >= 0
+	return s.Provider.AppID == 730 && s.Provider.SteamID != "" && s.Provider.SteamID == s.Player.SteamID && s.Player.Activity == "playing" && s.Map.Phase == "live" && (s.Player.Team == "CT" || s.Player.Team == "T") && s.Map.Name != "" && s.Player.State.Kills >= 0
 }
 func (s Snapshot) wire(seq int) map[string]any {
-	return map[string]any{"seq": seq, "at": s.Provider.Timestamp, "steamId": s.Provider.SteamID, "map": s.Map.Name, "mode": s.Map.Mode, "round": s.Map.Round, "phase": s.Round.Phase, "team": s.Player.Team, "winner": s.Round.WinTeam, "kills": s.Player.Stats.Kills, "live": s.valid()}
+	return map[string]any{"seq": seq, "at": s.Provider.Timestamp, "steamId": s.Provider.SteamID, "map": s.Map.Name, "mode": s.Map.Mode, "round": s.Map.Round, "phase": s.Round.Phase, "team": s.Player.Team, "winner": s.Round.WinTeam, "kills": s.Player.State.Kills, "live": s.valid()}
 }
 
 type queuedSnapshot struct {
@@ -66,6 +66,7 @@ type client struct {
 	token, session, status, last string
 	seq                          int
 	active                       bool
+	own                          *Snapshot
 	queue                        chan queuedSnapshot
 	local                        string
 }
@@ -96,6 +97,7 @@ func (c *client) disconnect() {
 	c.mu.Lock()
 	token, session := c.token, c.session
 	c.active = false
+	c.own = nil
 	c.token = ""
 	c.session = ""
 	c.status = "Отключено"
@@ -104,9 +106,26 @@ func (c *client) disconnect() {
 		go remote("/api/connect/stop", token, map[string]any{"session": session})
 	}
 }
+
+// A round win can arrive while the dead owner observes a teammate.
+// Reuse only the owner's previously observed team/kills in that exact round.
+func ownRound(s Snapshot, previous *Snapshot) Snapshot {
+	if s.Provider.SteamID != s.Player.SteamID && previous != nil && previous.valid() &&
+		s.Provider.AppID == 730 && s.Provider.SteamID == previous.Provider.SteamID &&
+		s.Map.Name == previous.Map.Name && s.Map.Mode == previous.Map.Mode &&
+		s.Map.Round == previous.Map.Round && s.Map.Phase == "live" && s.Round.Phase == "over" {
+		s.Player = previous.Player
+	}
+	return s
+}
 func (c *client) process(job queuedSnapshot) {
 	s := job.Snapshot
 	c.mu.Lock()
+	s = ownRound(s, c.own)
+	if c.active && job.Session == c.session && s.valid() {
+		copy := s
+		c.own = &copy
+	}
 	if !c.active || job.Session != c.session || s.Provider.SteamID == "" || s.Provider.SteamID != s.Player.SteamID {
 		c.mu.Unlock()
 		return
@@ -143,13 +162,23 @@ func (c *client) process(job queuedSnapshot) {
 		c.status = err.Error()
 		c.mu.Unlock()
 		if time.Now().Unix()-s.Provider.Timestamp > 25 {
-			return
+			break
 		}
 	}
+	c.mu.Lock()
+	if c.session == session {
+		c.active = false
+		c.session = ""
+		c.token = ""
+		c.status = "Связь потеряна. Подключитесь вручную перед продолжением."
+	}
+	c.mu.Unlock()
+	go remote("/api/connect/stop", token, map[string]any{"session": session})
+
 }
 func secret() string { b := make([]byte, 24); rand.Read(b); return hex.EncodeToString(b) }
 func cfg(token string) string {
-	return fmt.Sprintf(`"Dropso Connect" { "uri" "http://127.0.0.1:28743/gsi" "timeout" "5.0" "buffer" "0.2" "throttle" "0.5" "heartbeat" "10.0" "auth" { "token" "%s" } "data" { "provider" "1" "map" "1" "round" "1" "player_id" "1" "player_match_stats" "1" } }`, token)
+	return fmt.Sprintf(`"Dropso Connect" { "uri" "http://127.0.0.1:28743/gsi" "timeout" "5.0" "buffer" "0.2" "throttle" "0.5" "heartbeat" "10.0" "auth" { "token" "%s" } "data" { "provider" "1" "map" "1" "round" "1" "player_id" "1" "player_state" "1" } }`, token)
 }
 func install(path, token string) error {
 	path = strings.Trim(strings.TrimSpace(path), `"`)
