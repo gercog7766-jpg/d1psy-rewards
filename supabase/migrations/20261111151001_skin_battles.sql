@@ -18,7 +18,7 @@ create table public.rewards_skin_battle_entries (
  id uuid primary key default gen_random_uuid(),
  battle_id uuid not null references public.rewards_skin_battles(id),
  user_id uuid not null references public.rewards_users(id),
- source_win_id uuid not null unique references public.rewards_wins(id),
+ source_win_id uuid not null references public.rewards_wins(id),
  prize_id uuid not null references public.rewards_prizes(id),
  value integer not null check(value>0),
  item_wear text,
@@ -33,6 +33,7 @@ create table public.rewards_skin_battle_entries (
 );
 create index rewards_skin_battle_entries_battle_idx on public.rewards_skin_battle_entries(battle_id,created_at,id);
 create index rewards_skin_battle_entries_active_user_idx on public.rewards_skin_battle_entries(user_id) where status='reserved';
+create unique index rewards_skin_battle_entries_reserved_win_idx on public.rewards_skin_battle_entries(source_win_id) where status='reserved';
 alter table public.rewards_skin_battles add constraint rewards_skin_battles_winner_entry_fk
  foreign key(id,winner_entry_id) references public.rewards_skin_battle_entries(battle_id,id);
 
