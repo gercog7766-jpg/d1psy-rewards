@@ -129,10 +129,10 @@ begin
  return jsonb_build_object('ok',true,'battle',public.rewards_skin_battle_json(p_battle));
 end; $$;
 
-create function public.rewards_skin_battle_join(p_user uuid,p_battle uuid,p_win_id uuid) returns jsonb
+create or replace function public.rewards_skin_battle_join(p_user uuid,p_battle uuid,p_win_id uuid) returns jsonb
 language plpgsql security invoker set search_path='' as $$
 declare b public.rewards_skin_battles%rowtype; nick text; avatar text; prize uuid; prize_value integer; wear text; variant_kind text;
- total integer; roll integer; selected_entry uuid; selected_user uuid; e record; award_id uuid; row_count integer;
+ total integer; roll integer; selected_entry uuid; selected_user uuid; award_entry record; award_id uuid; row_count integer;
 begin
  perform 1 from public.rewards_users where id=p_user and not banned and not participation_restricted for update;
  if not found then raise exception 'user_not_found'; end if;
@@ -169,10 +169,10 @@ begin
   )q where q.cumulative>=roll order by q.cumulative limit 1;
   update public.rewards_skin_battles set status='completed',total_value=total,winner_user_id=selected_user,
    winner_entry_id=selected_entry,draw_value=roll,resolved_at=clock_timestamp() where id=p_battle;
-  for e in select id,prize_id,item_wear,item_variant_kind from public.rewards_skin_battle_entries where battle_id=p_battle and status='reserved' order by created_at,id loop
+  for award_entry in select id,prize_id,item_wear,item_variant_kind from public.rewards_skin_battle_entries where battle_id=p_battle and status='reserved' order by created_at,id loop
    insert into public.rewards_wins(user_id,prize_id,source_type,delivery_status,choice_status,item_wear,item_variant_kind)
-    values(selected_user,e.prize_id,'skin_battle','awaiting_choice','awaiting_choice',e.item_wear,e.item_variant_kind) returning id into award_id;
-   update public.rewards_skin_battle_entries set status='transferred',awarded_win_id=award_id where id=e.id;
+    values(selected_user,award_entry.prize_id,'skin_battle','awaiting_choice','awaiting_choice',award_entry.item_wear,award_entry.item_variant_kind) returning id into award_id;
+   update public.rewards_skin_battle_entries set status='transferred',awarded_win_id=award_id where id=award_entry.id;
   end loop;
  else
   update public.rewards_skin_battles set total_value=total where id=p_battle;
