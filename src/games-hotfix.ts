@@ -17,7 +17,7 @@ export function installGamesHotfix() {
   const response:any=(express as any).response, send=response.send;
   response.send=function(body:any) {
     if(typeof body==='string' && body.includes('id="promoOpen"') && !body.includes('id="gamesLink"')) {
-      body=body.replace(/(<button\b[^>]*id="promoOpen"[^>]*>[\s\S]*?<\/button>)/,'$1<a id="gamesLink" class="shoplink" href="/games">Игры</a>');
+      body=body.replace(/(<button\b[^>]*id="promoOpen"[^>]*>[\s\S]*?<\/button>)/,'$1<a id="gamesLink" class="shoplink" href="/games">Игры</a><a id="skinBattlesLink" class="shoplink" href="/games/battles">Сражения</a>');
     }
     return send.call(this,body);
   };
@@ -27,7 +27,7 @@ export function installGamesHotfix() {
       app.locals.__games=true;
       installGameCoverRoutes(app);
       const db=createClient(process.env.SUPABASE_URL||'https://ssqjogdcynmjjgtxknng.supabase.co',process.env.SUPABASE_SECRET_KEY||'not-configured',{auth:{persistSession:false}});
-      app.get('/games',auth,(_req:any,res:any)=>res.set('Cache-Control','no-store').send(gamesHtml.replace('</div></main></body></html>','<article class="card game-card"><div class="game-cover" style="display:grid;place-items:center;color:#ffd978;font-size:112px;background:radial-gradient(circle,#643c88,#10051f)">⚔</div><div class="game-card-copy"><span class="small">СКИНЫ НА КОНУ · 2–4 ИГРОКА</span><h2>Сражения</h2><p>Внеси скин, дождись соперников и забери весь банк. Шанс победы зависит от стоимости ставки.</p><a class="play" href="/games/battles">Сражаться →</a></div></article></div></main></body></html>')));
+      app.get('/games',auth,(_req:any,res:any)=>res.set('Cache-Control','no-store').send(gamesHtml));
       app.get('/games/wordly',auth,(_req:any,res:any)=>res.set('Cache-Control','no-store').send(wordlyHtml));
       app.get('/games/wordly.js',(_req:any,res:any)=>res.type('application/javascript').send(wordlyJs));
       async function user(res:any) {
