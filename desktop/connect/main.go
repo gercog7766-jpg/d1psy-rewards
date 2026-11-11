@@ -19,7 +19,7 @@ import (
 )
 
 const site = "https://dropso.site"
-const version = "2.0.0"
+const version = "2.0.1"
 
 type Snapshot struct {
 	Provider struct {

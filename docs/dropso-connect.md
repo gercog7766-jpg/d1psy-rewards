@@ -1,4 +1,4 @@
-# Dropso Connect 2.0.0
+# Dropso Connect 2.0.1
 
 Owner-only CS2 desktop integration at `/admin/connect`. The sidebar links to the page and an authenticated download. The checked-in gzip contains a standalone Windows x64 executable (no Node, Go or .NET installation required). The download endpoint streams the decompressed executable with its Windows file name. `public/downloads/DropsoConnect.json` records the uncompressed SHA-256 and size.
 
@@ -14,6 +14,6 @@ Verified Twitch EventSub messages are recorded before normal giveaway channel ro
 
 ## Build and validation
 
-With Go 1.25.4 available, `scripts/connect/build.sh` runs desktop unit tests, cross-compiles the Windows GUI executable, and regenerates the reproducible gzip plus manifest at version 2.0.0. Commit the gzip and manifest, not the uncompressed intermediate `.exe`. The Windows GitHub Actions job also tests native code and smoke-starts the actual Windows application, checks that the process stays alive, and denies unauthenticated panel/GSI requests. Server/PGlite/UI tests run in the normal deploy gate. Actual CS2 and the owner's interactive desktop must still be checked on the owner's PC; a synthetic smoke check cannot prove live-game integration.
+With Go 1.25.4 available, `scripts/connect/build.sh` runs desktop unit tests, cross-compiles the Windows GUI executable, and regenerates the reproducible gzip plus manifest at version 2.0.1. Commit the gzip and manifest, not the uncompressed intermediate `.exe`. The Windows GitHub Actions job also tests native code and smoke-starts the actual Windows application, checks that the process stays alive, and denies unauthenticated panel/GSI requests. Server/PGlite/UI tests run in the normal deploy gate. Actual CS2 and the owner's interactive desktop must still be checked on the owner's PC; a synthetic smoke check cannot prove live-game integration.
 
 Apply `dropso_connect` and the later `connect_program_config` migration before deploying the server. The short-lived desktop key may read and change event rules only for the enabled primary owner. It only adds private service-role tables/functions and starts disabled. No existing giveaway settings or wallet balances change. Database APIs are security invoker with a fixed empty search path, RLS on all new tables, and no anon/authenticated grants. Keep historical sessions and awards for audit; later retention work can remove old chat rows without deleting awards.
