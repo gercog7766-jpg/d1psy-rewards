@@ -376,7 +376,7 @@ func runTray(open, exit func()) {
 	if int(screenW) < width+60 { width = int(screenW)-60 }
 	if int(screenH) < height+100 { height = int(screenH)-100 }
 	if width < 800 { width = 800 }; if height < 620 { height = 620 }
-	hwnd, _, _ := user32.NewProc("CreateWindowExW").Call(0, uintptr(unsafe.Pointer(windowClass)), uintptr(unsafe.Pointer(wide("Dropso Connect 2.0.1"))), 0x00ff0000, 30, 30, uintptr(width), uintptr(height), 0, 0, 0, 0)
+	hwnd, _, _ := user32.NewProc("CreateWindowExW").Call(0, uintptr(unsafe.Pointer(windowClass)), uintptr(unsafe.Pointer(wide("Dropso Connect 2.0.2"))), 0x00ff0000, 30, 30, uintptr(width), uintptr(height), 0, 0, 0, 0)
 	mainWindow = hwnd
 
 	name := wide("DropsoConnectTray")
@@ -409,7 +409,7 @@ func runTray(open, exit func()) {
 	icon, _, _ := user32.NewProc("LoadIconW").Call(0, 32516)
 	n := notify{Wnd: trayHwnd, ID: 1, Flags: 7, Callback: 0x8001, Icon: icon}
 	n.Size = uint32(unsafe.Sizeof(n))
-	copy(n.Tip[:], syscall.StringToUTF16("Dropso Connect 2.0.1 · CS2"))
+	copy(n.Tip[:], syscall.StringToUTF16("Dropso Connect 2.0.2 · CS2"))
 	shell32.NewProc("Shell_NotifyIconW").Call(0, uintptr(unsafe.Pointer(&n)))
 	defer shell32.NewProc("Shell_NotifyIconW").Call(2, uintptr(unsafe.Pointer(&n)))
 	if len(os.Args) > 1 && os.Args[1] == "--startup" { user32.NewProc("ShowWindow").Call(mainWindow, 0) }

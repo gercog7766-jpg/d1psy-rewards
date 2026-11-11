@@ -19,7 +19,8 @@ import (
 )
 
 const site = "https://dropso.site"
-const version = "2.0.1"
+const version = "2.0.2"
+const protocolVersion = "1.0.1"
 
 type Snapshot struct {
 	Provider struct {
@@ -137,7 +138,7 @@ func remoteMethod(method,path,token string,body any) (map[string]any, error) {
 func remote(path, token string, body any) (map[string]any, error) { return remoteMethod("POST",path,token,body) }
 func loadConnectConfig(token string)(ConnectConfig,error){d,e:=remoteMethod("GET","/api/connect/config",token,nil);if e!=nil{return ConnectConfig{},e};b,e:=json.Marshal(d);if e!=nil{return ConnectConfig{},e};var out remoteConfigResponse;if e=json.Unmarshal(b,&out);e!=nil{return ConnectConfig{},e};return out.Config,nil}
 func saveConnectConfig(token string,cfg ConnectConfig)error{_,e:=remote("/api/connect/config",token,map[string]any{"config":cfg});return e}
-func connectWithKey(token string)error{token=strings.TrimSpace(token);if len(token)!=43{return fmt.Errorf("Вставьте ключ подключения из админки Dropso")};c.disconnect();d,e:=remote("/api/connect/start",token,map[string]any{"version":version});if e!=nil{return e};c.mu.Lock();c.token=token;c.session,_=d["session"].(string);c.seq=0;c.active=true;c.status="Подключено. Ожидаем CS2 (запустите игру после настройки).";c.mu.Unlock();return nil}
+func connectWithKey(token string)error{token=strings.TrimSpace(token);if len(token)!=43{return fmt.Errorf("Вставьте ключ подключения из админки Dropso")};c.disconnect();d,e:=remote("/api/connect/start",token,map[string]any{"version":protocolVersion});if e!=nil{return e};c.mu.Lock();c.token=token;c.session,_=d["session"].(string);c.seq=0;c.active=true;c.status="Подключено. Ожидаем CS2 (запустите игру после настройки).";c.mu.Unlock();return nil}
 func disconnectClient(){c.disconnect()}
 func installGame(path string)error{return install(path,c.local)}
 func (c *client) disconnect() {
