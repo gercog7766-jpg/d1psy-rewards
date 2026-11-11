@@ -1,7 +1,7 @@
 {
-  "version": "2.0.1",
+  "version": "2.0.2",
   "platform": "Windows x64",
   "file": "DropsoConnect.exe",
-  "sha256": "3b2e2efa1d19bd49a429d4680932a8be1ff6f5ca2727b2a7027f5a8832851314",
+  "sha256": "5f3b1a6f48bc92ad935e61ede4f6e2ccf77b9cdc20edaa5fe2743725c598904f",
   "size": 6947328
 }
