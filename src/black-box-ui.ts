@@ -153,12 +153,14 @@ export const blackBoxScript = String.raw`
         el('price').textContent = 'Сейчас нет открытых торгов';
         el('timer').textContent = '';
       }
-      if (old && old.id !== current?.id && old.id === state.previous?.id) {
+      if (old && old.id !== current?.id && old.id === state.closed?.id) {
         revealing = true;
         el('bid').hidden = true;
         el('case').classList.add('open');
         setTimeout(() => {
-          el('reveal').textContent = state.previous.winner + ' получает ' + state.previous.prize;
+          el('reveal').textContent = state.closed.winner
+            ? state.closed.winner + ' получает ' + state.closed.prize
+            : 'В ящике было: ' + state.closed.prize + '. Ставок не было.';
           previous(state.previous);
           el('bid').hidden = !current;
           revealing = false;
