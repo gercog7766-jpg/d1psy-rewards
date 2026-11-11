@@ -120,7 +120,17 @@ func remoteMethod(method,path,token string,body any) (map[string]any, error) {
 	var data map[string]any
 	json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&data)
 	if r.StatusCode != 200 {
-		return nil, fmt.Errorf("Dropso: %v (%d)", data["error"], r.StatusCode)
+		switch data["error"] {
+		case "invalid_key":
+			return nil, fmt.Errorf("Ключ не подошёл или истёк. Создай новый в админке и вставь его сюда.")
+		case "owner_required":
+			return nil, fmt.Errorf("Этот ключ больше не разрешён для аккаунта владельца Dropso.")
+		case "invalid_config":
+			return nil, fmt.Errorf("Проверь настройки: значение «от» не должно быть больше значения «до».")
+		case "connect_unavailable":
+			return nil, fmt.Errorf("Dropso временно не отвечает. Попробуй ещё раз через минуту.")
+		}
+		return nil, fmt.Errorf("Ошибка Dropso (%d). Попробуй ещё раз.", r.StatusCode)
 	}
 	return data, nil
 }
