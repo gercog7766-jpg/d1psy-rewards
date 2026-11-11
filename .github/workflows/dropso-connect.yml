@@ -1,0 +1,39 @@
+name: Dropso Connect Windows
+on:
+  push:
+    paths: ['desktop/connect/**', 'scripts/connect/**', '.github/workflows/dropso-connect.yml']
+  pull_request:
+    paths: ['desktop/connect/**', 'scripts/connect/**', '.github/workflows/dropso-connect.yml']
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.4'
+          cache: false
+      - name: Native Windows tests
+        working-directory: desktop/connect
+        run: go test ./...
+      - name: Build desktop application
+        working-directory: desktop/connect
+        run: go build -trimpath -ldflags='-s -w -H windowsgui' -o DropsoConnect.exe .
+      - name: Smoke test desktop and local listener
+        shell: pwsh
+        run: |
+          $program = Start-Process ./desktop/connect/DropsoConnect.exe -ArgumentList '--startup' -PassThru
+          try {
+            Start-Sleep -Seconds 3
+            if ($program.HasExited) { throw 'Desktop application exited unexpectedly' }
+            $response = Invoke-WebRequest http://127.0.0.1:28743/ -SkipHttpErrorCheck
+            if ($response.StatusCode -ne 403) { throw 'Local panel must require its per-run key' }
+            $response = Invoke-WebRequest http://127.0.0.1:28743/gsi -Method Post -ContentType application/json -Body '{"auth":{"token":"wrong"}}' -SkipHttpErrorCheck
+            if ($response.StatusCode -ne 403) { throw 'GSI must require its local secret' }
+          } finally { Stop-Process -Id $program.Id -ErrorAction SilentlyContinue }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DropsoConnect-Windows-x64
+          path: desktop/connect/DropsoConnect.exe

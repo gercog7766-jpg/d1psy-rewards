@@ -1,3 +1,4 @@
+import {installDropsoConnect} from './dropso-connect.js';
 import {installGuessWord} from './guess-word.js';
 import {deploymentRelease} from './deployment-release.js';
 import {readSettings,updateSettings} from './settings-cache.js';
@@ -37,6 +38,7 @@ async function requireAdmin(req:express.Request,res:express.Response,next:expres
 installStreamerPilot(app,requireUser,requireAdmin,subscribeToPartnerChat,partnerChatReady);
 installProfileCustomization(app,requireUser,requireAdmin);
 installGuessWord(app,requireUser,requireAdmin,db);
+installDropsoConnect(app,requireAdmin,db);
 function validTradeUrl(v:string){try{const u=new URL(v);return u.protocol==='https:'&&u.hostname==='steamcommunity.com'&&u.pathname==='/tradeoffer/new/'&&!!u.searchParams.get('partner')&&!!u.searchParams.get('token')}catch{return false}}
 function randomIndex(count:number){if(count<=0)throw new Error('invalid_count');return crypto.randomInt(count)}
 
