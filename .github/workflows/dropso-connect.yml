@@ -20,7 +20,7 @@ jobs:
         run: go test ./...
       - name: Build desktop application
         working-directory: desktop/connect
-        run: go build -trimpath -ldflags='-s -w -H windowsgui' -o DropsoConnect.exe .
+        run: go build -trimpath -buildvcs=false -ldflags='-s -w -H windowsgui' -o DropsoConnect.exe .
       - name: Smoke test desktop and local listener
         shell: pwsh
         run: |
@@ -34,13 +34,13 @@ jobs:
             if ($response.StatusCode -ne 403) { throw 'GSI must require its local secret' }
           } finally { Stop-Process -Id $program.Id -ErrorAction SilentlyContinue }
       - name: Package the admin download
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push'
         shell: pwsh
         run: |
           Copy-Item desktop/connect/DropsoConnect.exe public/downloads/DropsoConnect.exe
           python scripts/connect/package.py
       - name: Publish the packaged download
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push'
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
@@ -50,7 +50,7 @@ jobs:
             echo "Packaged download is already current"
           else
             git commit -m "Release Dropso Connect 2.0.1"
-            git push origin HEAD:main
+            git push origin "HEAD:${GITHUB_REF_NAME}"
           fi
       - uses: actions/upload-artifact@v4
         with:
