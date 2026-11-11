@@ -12,19 +12,23 @@ const rule=(enabled=false,type='coins',coins=5,min=2,max=20)=>({enabled,type,coi
 const config={enabled:true,events:{kill1:rule(),kill2:rule(true),kill3:rule(),kill4:rule(),ace:rule(),win:rule(true,'skin')},modes:['competitive'],cooldown:0,lookback:300,minViewers:1,maxAwards:20,budget:100,tradeRequired:true,excludePrevious:false};
 const snapshot=(session,seq,kills=0,extra={})=>({session,seq,kills,at:Math.floor(Date.now()/1000),steamId:'76561198000000001',map:'de_mirage',mode:'competitive',round:0,phase:'live',team:'CT',winner:'',live:true,...extra});
 
-async function fixture(){
+async function fixture(configure=true){
  const db=new PGlite();
  await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;create table rewards_streamers(twitch_broadcaster_id text,is_primary boolean,enabled boolean);insert into rewards_streamers values('100',true,true),('200',false,true);create table rewards_users(id uuid primary key default gen_random_uuid(),twitch_user_id text,twitch_display_name text,banned boolean default false,participation_restricted boolean default false,steam_trade_url_valid boolean default true);create table rewards_prizes(id uuid primary key default gen_random_uuid(),name text,status text,sell_price_coins int);create table rewards_wins(id uuid primary key default gen_random_uuid(),user_id uuid,prize_id uuid,source_type text,delivery_status text,choice_status text);create table rewards_coin_transactions(id uuid primary key default gen_random_uuid(),user_id uuid,amount int,transaction_type text,note text);create function rewards_crypto_index(n int) returns int language sql as 'select 0';grant select,insert,update on all tables in schema public to service_role;insert into rewards_users(twitch_user_id,twitch_display_name) values('200','Viewer');insert into rewards_prizes(name,status,sell_price_coins) values('Test skin 10','available',10),('Test skin 4','available',4);`);
- for(const name of ['20261111080955_dropso_connect.sql','20261111083625_connect_round_kills.sql','20261111092039_connect_independent_events.sql']) await db.exec(await readFile(new URL('../supabase/migrations/'+name,import.meta.url),'utf8'));
+ for(const name of ['20261111080955_dropso_connect.sql','20261111083625_connect_round_kills.sql','20261111092039_connect_independent_events.sql','20261111095514_connect_event_default.sql']) await db.exec(await readFile(new URL('../supabase/migrations/'+name,import.meta.url),'utf8'));
  await db.exec('set role service_role');
  const call=async(fn,args)=>(await db.query('select '+fn+'('+args.map((_,i)=>'$'+(i+1)).join(',')+') d',args.map(v=>v&&typeof v==='object'?JSON.stringify(v):v))).rows[0].d;
  const admin=(action,body={})=>call('rewards_connect_admin',['100',action,body]);
- const key='a'.repeat(64);await admin('configure',{config});await admin('key',{hash:key});
+ const key='a'.repeat(64);if(configure){await admin('configure',{config});await admin('key',{hash:key})}
  const start=async()=>(await call('rewards_connect_ingest',[key,'start',{version:'1.0.1'}])).session;
- const session=await start();const ingest=b=>call('rewards_connect_ingest',[key,'snapshot',b]);
+ const session=configure?await start():null;const ingest=b=>call('rewards_connect_ingest',[key,'snapshot',b]);
  const chat=async(user='200',at=new Date().toISOString())=>call('rewards_connect_chat_record',['100',user,at]);
  return {db,call,admin,key,start,session,ingest,chat};
 }
+
+test('first admin visit receives six inactive default event rules',async()=>{
+ const f=await fixture(false);try{const d=await f.admin('state');assert.equal(d.config.enabled,false);assert.deepEqual(Object.keys(d.config.events).sort(),['ace','kill1','kill2','kill3','kill4','win']);assert(Object.values(d.config.events).every(x=>x.enabled===false));}finally{await f.db.close()}
+});
 
 test('first snapshot is a baseline; independent kill and round-win events award through existing coin and skin flows',async()=>{
  const f=await fixture();try{const{session,ingest,chat,db,admin}=f;await ingest(snapshot(session,1));await chat();await ingest(snapshot(session,2,2));await ingest(snapshot(session,3,2,{phase:'over',winner:'CT'}));await ingest(snapshot(session,4,2,{phase:'over',winner:'CT'}));
@@ -61,4 +65,9 @@ test('configuration validation requires exactly six separate event rules; admin 
 
 test('admin panel exposes six event forms and renders untrusted history as text',async()=>{
  const dom=new JSDOM(connectHtml,{url:'https://dropso.site/admin/connect',runScripts:'outside-only'}),w=dom.window;try{w.fetch=async()=>({ok:true,json:async()=>({config:{...config,enabled:false},history:[{created_at:new Date().toISOString(),kind:'kill2',status:'awarded',winner_name:'<img src=x>',prize_name:'<script>bad</script>'}]})});w.eval(connectJs);await new Promise(r=>setTimeout(r,30));assert.equal(w.document.querySelectorAll('#history img,#history script').length,0);assert(w.document.querySelector('#history').textContent.includes('<img'));for(const id of ['kill1','kill2','kill3','kill4','ace','win'])assert(w.document.getElementById(id+'Enabled'));assert(w.document.querySelector('#kill2Min'));assert(connectHtml.includes('/admin/connect/download'));}finally{w.close()}
+});
+
+test('admin UI safely upgrades a legacy kills/wins config while reading state',async()=>{
+ const legacy={enabled:false,kills:{enabled:true,every:5,type:'coins',coins:5,min:2,max:20},wins:{enabled:false,every:1,type:'skin',coins:5,min:2,max:20},modes:['competitive'],cooldown:15,lookback:300,minViewers:1,maxAwards:100,budget:1000,tradeRequired:true,excludePrevious:false};
+ const dom=new JSDOM(connectHtml,{url:'https://dropso.site/admin/connect',runScripts:'outside-only'}),w=dom.window;try{w.fetch=async()=>({ok:true,json:async()=>({config:legacy,history:[]})});w.eval(connectJs);await new Promise(r=>setTimeout(r,30));assert.equal(w.document.getElementById('message').textContent,'');assert.equal(w.document.getElementById('aceEnabled').checked,true);assert.equal(w.document.getElementById('winEnabled').checked,false);assert.equal(w.document.getElementById('enabled').checked,false);}finally{w.close()}
 });
