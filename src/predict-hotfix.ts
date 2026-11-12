@@ -38,15 +38,29 @@ export function installPredictHotfix() {
       app.get('/api/me/predict',userAuth,async(_req:any,res:any)=>{
         res.set('Cache-Control','no-store');
         const id=await user(res);if(!id)return;
-        const {data:matches,error}=await db.from('rewards_predict_matches').select('*').order('starts_at',{ascending:false}).limit(60);
+        const {data:matches,error}=await db.from('rewards_predict_matches').select('*').is('hidden_at',null).neq('tournament','IEM Beijing').order('starts_at',{ascending:false}).limit(60);
         if(error)return res.status(503).json({error:'predict_unavailable'});
-        const visibleMatches=(matches||[]).filter(m=>visiblePredictionTournament(m.tournament)&&!['2026-11-06-parivision-navi','2026-11-06-betboom-furia'].includes(m.id));
+        const visibleMatches=(matches||[]).filter(m=>!m.hidden_at&&visiblePredictionTournament(m.tournament)&&!['2026-11-06-parivision-navi','2026-11-06-betboom-furia'].includes(m.id));
         const ids=visibleMatches.map(m=>m.id);
         const {data:predictions,error:pe}=ids.length?await db.from('rewards_predictions')
           .select('match_id,winner,score,top_player,updated_at,winner_coins,score_coins,player_coins,settled_at,claimed_at')
           .eq('user_id',id).in('match_id',ids):{data:[],error:null};
         if(pe)return res.status(503).json({error:'predict_unavailable'});
-        res.json({serverNow:new Date().toISOString(),matches:visibleMatches.sort((a,b)=>{const rank=(m:any)=>m.status==='scheduled'?(Date.parse(m.starts_at)>Date.now()?0:1):2;const group=rank(a)-rank(b);return group||(rank(a)===0?a.starts_at.localeCompare(b.starts_at):b.starts_at.localeCompare(a.starts_at))}).map(m=>({...m,closes_at:new Date(Date.parse(m.starts_at)-900000).toISOString(),prediction:predictions?.find(p=>p.match_id===m.id)||null}))});
+        const {data:pending,error:pendingError}=await db.from('rewards_predictions')
+          .select('match_id,winner_coins,score_coins,player_coins,match:rewards_predict_matches!inner(team_a,team_b,status)')
+          .eq('user_id',id).is('claimed_at',null).not('settled_at','is',null)
+          .or('winner_coins.gt.0,score_coins.gt.0,player_coins.gt.0')
+          .eq('match.status','settled');
+        if(pendingError)return res.status(503).json({error:'predict_unavailable'});
+        const visibleIds=new Set(ids);
+        const pendingRewards=(pending||[]).flatMap(row=>{
+          const match=Array.isArray(row.match)?row.match[0]:row.match;
+          const coins=row.winner_coins+row.score_coins+row.player_coins;
+          return match?.status==='settled'&&coins>0&&!visibleIds.has(row.match_id)
+            ?[{id:row.match_id,team_a:match.team_a,team_b:match.team_b,coins}]
+            :[];
+        });
+        res.json({pendingRewards,serverNow:new Date().toISOString(),matches:visibleMatches.sort((a,b)=>{const rank=(m:any)=>m.status==='scheduled'?(Date.parse(m.starts_at)>Date.now()?0:1):2;const group=rank(a)-rank(b);return group||(rank(a)===0?a.starts_at.localeCompare(b.starts_at):b.starts_at.localeCompare(a.starts_at))}).map(m=>({...m,closes_at:new Date(Date.parse(m.starts_at)-900000).toISOString(),prediction:predictions?.find(p=>p.match_id===m.id)||null}))});
       });
       app.post('/api/me/predict/:id',userAuth,async(req:any,res:any)=>{
         res.set('Cache-Control','no-store');
@@ -78,7 +92,7 @@ export function installPredictHotfix() {
           const text=(v:any,n:number)=>typeof v==='string'&&v.trim()===v&&v.length>0&&v.length<=n;
           const roster=(v:any)=>Array.isArray(v)&&v.length===5&&v.every(x=>text(x,40))&&new Set(v.map(x=>x.toLowerCase())).size===5;
           const logo=(v:any)=>typeof v==='string'&&(v===''||v.length<=2048&&(/^\/predict-assets\/[a-z0-9._-]+$/i.test(v)||(()=>{try{const u=new URL(v);return u.protocol==='https:'&&!u.username&&!u.password}catch{return false}})()));
-          if(!b||Object.keys(b).some(k=>!keys.includes(k))||![3,5].includes(b.bestOf??3)||![3,5].includes(b.scoreReward??3)||typeof b.id!=='string'||!/^match-[a-f0-9-]{36}$/.test(b.id)||!['IEM Beijing','BLAST Rivals 2026 Season 2'].includes(b.tournament)||!text(b.teamA,80)||!text(b.teamB,80)||b.teamA.toLowerCase()===b.teamB.toLowerCase()||!roster(b.rosterA)||!roster(b.rosterB)||new Set([...b.rosterA,...b.rosterB].map(x=>x.toLowerCase())).size!==10||!logo(b.logoA)||!logo(b.logoB)||typeof b.startsAt!=='string'||!Number.isFinite(Date.parse(b.startsAt)))return res.status(400).json({error:'invalid_match'});
+          if(!b||Object.keys(b).some(k=>!keys.includes(k))||![3,5].includes(b.bestOf??3)||![3,5].includes(b.scoreReward??3)||typeof b.id!=='string'||!/^match-[a-f0-9-]{36}$/.test(b.id)||b.tournament!=='BLAST Rivals 2026 Season 2'||!text(b.teamA,80)||!text(b.teamB,80)||b.teamA.toLowerCase()===b.teamB.toLowerCase()||!roster(b.rosterA)||!roster(b.rosterB)||new Set([...b.rosterA,...b.rosterB].map(x=>x.toLowerCase())).size!==10||!logo(b.logoA)||!logo(b.logoB)||typeof b.startsAt!=='string'||!Number.isFinite(Date.parse(b.startsAt)))return res.status(400).json({error:'invalid_match'});
           const row={id:b.id,best_of:b.bestOf??3,score_reward:b.scoreReward??3,tournament:b.tournament,starts_at:new Date(b.startsAt).toISOString(),team_a:b.teamA,team_b:b.teamB,logo_a:b.logoA,logo_b:b.logoB,roster_a:b.rosterA,roster_b:b.rosterB};
           // Stable request ID: an identical retry returns the existing match; never upsert over forecasts/results.
           const {data:existing,error:readError}=await db.from('rewards_predict_matches').select('*').eq('id',b.id).maybeSingle();
@@ -86,6 +100,16 @@ export function installPredictHotfix() {
           if(existing){const same=Object.entries(row).every(([k,v])=>k==='starts_at'?Date.parse(existing[k])===Date.parse(String(v)):JSON.stringify(existing[k])===JSON.stringify(v));return same?res.json({ok:true,id:b.id}):res.status(409).json({error:'match_exists'})}
           if(Date.parse(b.startsAt)<=Date.now()+900000)return res.status(409).json({error:'predictions_closed'});
           const {error}=await db.from('rewards_predict_matches').insert(row);if(error)return res.status(error.code==='23505'?409:503).json({error:error.code==='23505'?'match_exists':'predict_unavailable'});res.json({ok:true,id:b.id});
+        });
+        app.post('/api/admin/predict/:id/visibility',adminAuth,adminOrigin,async(req:any,res:any)=>{
+          const {hidden}=req.body||{};
+          if(typeof hidden!=='boolean')return res.status(400).json({error:'invalid_visibility'});
+          const {data,error}=await db.from('rewards_predict_matches')
+            .update({hidden_at:hidden?new Date().toISOString():null})
+            .eq('id',req.params.id).eq('status','settled').neq('tournament','IEM Beijing').select('id');
+          if(error)return res.status(503).json({error:'predict_unavailable'});
+          if(!data?.length)return res.status(409).json({error:'visibility_locked'});
+          res.json({ok:true});
         });
         app.post('/api/admin/predict/:id/cancel',adminAuth,adminOrigin,async(req:any,res:any)=>{const {data,error}=await db.from('rewards_predict_matches').update({status:'cancelled'}).eq('id',req.params.id).eq('status','scheduled').select('id');if(error)return res.status(503).json({error:'predict_unavailable'});if(!data?.length){const {data:m,error:e}=await db.from('rewards_predict_matches').select('status').eq('id',req.params.id).maybeSingle();if(e)return res.status(503).json({error:'predict_unavailable'});if(m?.status!=='cancelled')return res.status(409).json({error:'match_locked'})}res.json({ok:true})});
       }
