@@ -17,7 +17,7 @@ export function installGamesHotfix() {
   const response:any=(express as any).response, send=response.send;
   response.send=function(body:any) {
     if(typeof body==='string' && body.includes('id="promoOpen"') && !body.includes('id="gamesLink"')) {
-      body=body.replace(/(<button\b[^>]*id="promoOpen"[^>]*>[\s\S]*?<\/button>)/,'$1<a id="gamesLink" class="shoplink" href="/games">Игры</a><a id="skinBattlesLink" class="shoplink" href="/games/battles">Сражения</a>');
+      body=body.replace(/(<button\b[^>]*id="promoOpen"[^>]*>[\s\S]*?<\/button>)/,'$1<a id="gamesLink" class="shoplink" href="/games">Игры</a><a id="skinBattlesLink" class="shoplink" href="/games/battles">Сражения</a><a id="piggyBankLink" class="shoplink" href="/piggy-bank">Копилка</a>');
     }
     return send.call(this,body);
   };
