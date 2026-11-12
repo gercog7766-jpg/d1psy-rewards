@@ -10,3 +10,34 @@ test('vault UI shows independent locks, safe names, whole-key contribution retry
  s.closed=true;s.status='failed';s.balance=0;s.endsAt=new Date(Date.now()-1000).toISOString();q('vaultReload').click();await until(()=>!q('vaultResult').hidden);assert.equal(q('vaultContribution').textContent,'0');assert.equal(q('vaultTotal').textContent,'0 / 100');assert.equal(w.document.querySelectorAll('.lock.open').length,0);assert(q('vaultContribute').disabled);assert.equal(q('vaultPool').textContent,'0 монет');
  }finally{w.close()}});
 test('vault admin renders sources and limits safely; code is cleared only after a confirmed save',async()=>{const dom=new JSDOM(vaultAdminHtml,{runScripts:'outside-only'}),w=dom.window,posts=[];try{w.fetch=async(path,opts)=>{if(opts?.body)posts.push(JSON.parse(opts.body));return {ok:true,json:async()=>({week:'2026-11-09',availableFunds:0,seasons:[{week:'2026-11-09',status:'scheduled',pool:1500,key_cap:50,total:0,hasCode:false,code_entry:false}],members:[{displayName:'<script>bad</script>',earned:12,balance:9,contributed:3,remaining:38,expired:0,reward:0,sources:{game_day:1,mission:4,stream_win:2,promo:5}}],fundHistory:[],pendingSources:0,lastStreamSync:null})}};w.eval(vaultAdminJs);await until(()=>w.document.getElementById('vaultAdminMembers').children.length===1);assert.equal(w.document.getElementById('vaultAdminMembers').querySelectorAll('script').length,0);assert(w.document.getElementById('vaultAdminMembers').textContent.includes('1 / 4 / 2 / 5'));w.document.getElementById('vaultAdminCode').value='0007';w.document.getElementById('vaultSetCode').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await until(()=>posts.length===1&&w.document.getElementById('vaultAdminCode').value==='');assert.equal(posts[0].code,'0007');assert.equal(posts[0].week,'2026-11-09');const input=w.document.getElementById('vaultAdminRequiredKeys');input.value='100';input.dispatchEvent(new w.Event('input',{bubbles:true}));assert(w.document.getElementById('vaultAdminLockPreview').textContent.includes('Энергия: 12'));assert(w.document.getElementById('vaultAdminLockPreview').textContent.includes('Ядро: 31'));w.document.getElementById('vaultThreshold').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await until(()=>posts.length===2&&!w.document.getElementById('vaultAdminThresholdSave').disabled);assert.equal(posts[1].requiredKeys,100);}finally{w.close()}});
+
+test('future Vault form sends the pool, personal cap and key goal together',async()=>{
+ const dom=new JSDOM(vaultAdminHtml,{runScripts:'outside-only'}),w=dom.window,posts=[];
+ const el=id=>w.document.getElementById(id);
+ try{
+  w.fetch=async(path,opts)=>{
+   if(opts?.body)posts.push({path,body:JSON.parse(opts.body)});
+   return {ok:true,json:async()=>({serverNow:'2026-11-12T09:00:00Z',week:'2026-11-09',availableFunds:5000,
+    seasons:[{week:'2026-11-16',starts_at:'2026-11-15T21:00:00Z',status:'scheduled',pool:0,key_cap:50,required_keys:1300,total:0},
+      {week:'2026-11-09',starts_at:'2026-11-08T21:00:00Z',status:'scheduled',pool:1500,key_cap:52,required_keys:1300,total:10}],
+    members:[],fundHistory:[],pendingSources:0})};
+  };
+  w.eval(vaultAdminJs);
+  await until(()=>el('vaultAdminWeek').value==='2026-11-09');
+  assert(el('vaultPrepareGoal').hidden);
+  el('vaultAdminWeek').value='2026-11-16';
+  el('vaultAdminWeek').dispatchEvent(new w.Event('change'));
+  await until(()=>!el('vaultPrepareGoal').hidden);
+  el('vaultAdminPool').value='2100';
+  el('vaultAdminCap').value='72';
+  el('vaultPrepareKeys').value='2600';
+  el('vaultPrepareKeys').dispatchEvent(new w.Event('input',{bubbles:true}));
+  assert.match(el('vaultPrepareLockPreview').textContent,/Энергия: 300.*Ядро: 800/);
+  el('vaultPrepare').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
+  await until(()=>posts.length===1&&!el('vaultPrepare').querySelector('button').disabled);
+  const {requestId,...fields}=posts[0].body;
+  assert.match(requestId,/^[0-9a-f-]{36}$/);
+  assert.equal(posts[0].path,'/api/admin/vault/prepare');
+  assert.deepEqual(fields,{week:'2026-11-16',pool:2100,cap:72,requiredKeys:2600});
+ }finally{w.close()}
+});
