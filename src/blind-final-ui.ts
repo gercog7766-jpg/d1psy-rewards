@@ -20,7 +20,7 @@ export function blindPage(admin: boolean) {
 <label>Поиск скина<input id="search" type="search"></label><label>Приз<select id="prize" required></select></label>
 <button>Запустить раунд</button></form><p id="notice" role="status"></p></section>
 <section class="panel"><h2>История игр</h2><div id="rounds"></div><div class="pager"><button id="older">Раньше</button><button id="newer">Новее</button></div>
-<div id="detail" hidden><h2>Выбор участников</h2><table><thead><tr><th>Имя</th><th>Число</th></tr></thead><tbody id="entries"></tbody></table>
+<div id="detail" hidden><h2>Выбор участников</h2><table><thead><tr><th>Имя</th><th>Взнос</th><th>Число</th></tr></thead><tbody id="entries"></tbody></table>
 <div class="pager"><button id="prevEntries">Назад</button><button id="nextEntries">Далее</button></div></div></section></div>` : `
 <div class="layout"><aside class="panel"><h2>Предыдущие игры</h2><table><thead><tr><th>Имя</th><th>Скин</th></tr></thead><tbody id="history"></tbody></table><p id="emptyHistory">Пока нет победителей</p></aside>
 <section class="panel stage"><p>Побеждает самое маленькое число, которое выбрал ровно один игрок. Для финала нужны хотя бы три подтверждённых числа.</p>
@@ -38,7 +38,7 @@ export const blindScript = String.raw`
   const el = id => document.getElementById(id);
   const messages = {
     invalid_request: 'Проверь введённые значения.', round_active: 'Сначала заверши текущий раунд.',
-    unknown_prize: 'Скин недоступен.', round_closed: 'Раунд уже закрыт.',
+    unknown_prize: 'Скин недоступен.', round_not_found: 'Раунд не найден.', round_closed: 'Раунд уже закрыт.',
     participation_restricted: 'Участие для этого аккаунта ограничено.',
     insufficient_coins: 'Не хватает монет.', entry_required: 'Сначала прими участие.',
     number_locked: 'Ты уже подтвердил число.', authentication_required: 'Войди через Twitch.'
@@ -68,7 +68,7 @@ export const blindScript = String.raw`
   if (document.body.dataset.admin === 'true') {
     const api = '/api/admin/blind-final';
     const labels = { open:'Идёт', won:'Завершён', cancelled:'Отменён', no_winner:'Без победителя' };
-    let page = 0, entryPage = 0, selected, searchTimer, prizeRequest = 0, listRequest = 0, detailRequest = 0;
+    let page = 0, entryPage = 0, selected, watching = false, searchTimer, prizeRequest = 0, listRequest = 0, detailRequest = 0;
     async function prizes() {
       const key = ++prizeRequest;
       try {
@@ -79,15 +79,15 @@ export const blindScript = String.raw`
       } catch (error) { say(errorText(error)); }
     }
     async function detail(id, index) {
+      selected = id;
+      entryPage = index;
       const key = ++detailRequest;
       try {
         const rows = await request(api + '/rounds/' + id + '?page=' + index);
         if (key !== detailRequest) return;
-        selected = id;
-        entryPage = index;
         el('entries').replaceChildren(...rows.map(entry => {
           const user = entry.rewards_users;
-          return row([(user?.twitch_display_name || user?.twitch_login || 'Игрок') + (entry.won ? ' ★' : ''), entry.number ?? 'Не выбрано']);
+          return row([(user?.twitch_display_name || user?.twitch_login || 'Игрок') + (entry.won ? ' ★' : ''), entry.entry_fee ? entry.entry_fee + ' мон.' : 'Бесплатно', entry.number ?? 'Не выбрано']);
         }));
         el('prevEntries').disabled = index === 0;
         el('nextEntries').disabled = rows.length < 100;
@@ -114,11 +114,19 @@ export const blindScript = String.raw`
             try { await request(api + '/cancel', {id: game.id}); await rounds(); }
             catch (error) { say(errorText(error)); }
           }));
-          else item.append(action('Числа', () => detail(game.id, 0)));
+          item.append(action(game.status === 'open' ? 'Участники и числа' : 'Числа', () => {
+            watching = game.status === 'open';
+            return detail(game.id, 0);
+          }));
           return item;
         }));
         el('older').disabled = rows.length < 20;
         el('newer').disabled = index === 0;
+        if (watching && selected) {
+          const game = rows.find(row => row.id === selected);
+          if (game && game.status !== 'open') watching = false;
+          await detail(selected, entryPage);
+        }
       } catch (error) { say(errorText(error)); }
     }
     el('start').onsubmit = async event => {
