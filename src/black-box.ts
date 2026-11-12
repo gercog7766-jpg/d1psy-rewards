@@ -20,7 +20,7 @@ export function installBlackBox(app: Express, db: SupabaseClient, user: RequestH
     }
     next();
   };
-  const known = new Set(['auction_open', 'unknown_prize', 'auction_closed', 'bid_too_low', 'insufficient_coins', 'participation_restricted']);
+  const known = new Set(['auction_open', 'unknown_prize', 'auction_closed', 'bid_too_low', 'insufficient_coins', 'participation_restricted', 'invalid_message', 'chat_rate_limit']);
   function failure(error: { message: string; code: string }) {
     if (known.has(error.message)) return error.message;
     if (error.code === '23505' && error.message.includes('rewards_black_boxes_one_open')) return 'auction_open';
@@ -39,6 +39,30 @@ export function installBlackBox(app: Express, db: SupabaseClient, user: RequestH
     const { data, error } = await db.rpc('rewards_black_box_state');
     if (error) return res.status(503).json({ error: failure(error) });
     return res.json(data);
+  });
+  app.get('/api/black-box/chat/:id', noStore, async (req, res) => {
+    if (!uuid(req.params.id)) return res.status(400).json({ error: 'invalid_request' });
+    const { data, error } = await db.rpc('rewards_black_box_chat_read', { p_box: req.params.id });
+    if (error) return res.status(503).json({ error: failure(error) });
+    return res.json({ messages: data });
+  });
+  app.post('/api/black-box/chat/:id', noStore, user, sameOrigin, async (req, res) => {
+    if (!uuid(req.params.id)) return res.status(400).json({ error: 'invalid_request' });
+    const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
+    if (!message || message.length > 280 || Array.from(message).length > 140 || /[\u0000-\u001f\u007f]/.test(message)) {
+      return res.status(400).json({ error: 'invalid_message' });
+    }
+    const { error } = await db.rpc('rewards_black_box_chat_send', {
+      p_box: req.params.id,
+      p_twitch_user: res.locals.session.twitchUserId,
+      p_message: message
+    });
+    if (error) {
+      const code = failure(error);
+      const status = { invalid_message: 400, participation_restricted: 403, auction_closed: 409, chat_rate_limit: 429 }[code] ?? 503;
+      return res.status(status).json({ error: code });
+    }
+    return res.json({ ok: true });
   });
   app.get('/api/admin/black-box/prizes', noStore, admin, async (req, res) => {
     const term = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 80) : '';
