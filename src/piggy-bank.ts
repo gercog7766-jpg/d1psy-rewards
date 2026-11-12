@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import type { Express, RequestHandler, Response } from 'express';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { piggyPage, piggyScript } from './piggy-bank-ui.js';
@@ -21,6 +22,10 @@ export function installPiggyBank(app: Express, db: SupabaseClient, user: Request
   }
   app.get('/piggy-bank', noStore, user, (_req, res) => res.send(piggyPage(false)));
   app.get('/admin/piggy-bank', noStore, admin, (_req, res) => res.send(piggyPage(true)));
+  app.get('/piggy-bank/pig-v1.webp', (_req, res) => {
+    res.set('Cache-Control', 'public,max-age=31536000,immutable');
+    res.sendFile(fileURLToPath(new URL('../public/piggy-bank/pig-v1.webp', import.meta.url)));
+  });
   app.get('/piggy-bank.js', noStore, (_req, res) => res.type('application/javascript').send(piggyScript));
   app.get('/api/piggy-bank', noStore, user, async (_req, res) => {
     const { data, error } = await db.rpc('rewards_piggy_state');
