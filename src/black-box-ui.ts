@@ -31,6 +31,7 @@ li{padding:8px 0;border-bottom:1px solid #453251}ol{padding-left:23px;max-height
 .chat-meta{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:#c6afda}.chat-meta output{white-space:nowrap;font-variant-numeric:tabular-nums}
 #chatCounter[data-over="true"]{color:#ffadbd}.chat-log:focus-visible{outline:2px solid #c47fff;outline-offset:2px}
 [hidden]{display:none!important}.admin{max-width:560px;margin:auto}
+@media(min-width:761px){.grid>.stage,.grid>.auction-side{align-self:stretch}.auction-side{grid-template-rows:auto 1fr}.chat-panel{display:flex;flex-direction:column}.chat-log{flex-grow:1}}
 @media(max-width:760px){.grid{grid-template-columns:minmax(0,1fr)}.stage{order:-2}.auction-side{order:-1}}
 @media(prefers-reduced-motion:reduce){.case.open .case-lid,.case.open .case-glow{animation-duration:1ms}}
 `;
