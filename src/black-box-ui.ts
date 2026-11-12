@@ -3,7 +3,10 @@ const styles = `
 main{max-width:1180px;margin:auto;padding:28px 18px}a{color:#dfb9ff}h1{font-size:clamp(32px,6vw,55px);margin-bottom:10px}
 h2{font-size:18px;margin:0 0 16px}.grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) minmax(0,1fr);gap:16px;align-items:start}
 .panel{padding:20px;border:1px solid #503365;border-radius:16px;background:#181020;overflow-wrap:anywhere}.stage{text-align:center;background:radial-gradient(ellipse at 50% 45%,#402458,#17101e 72%)}
-#price{font-size:24px;font-weight:800;color:#ffd98a}#timer{font-variant-numeric:tabular-nums;font-size:22px}
+#price{font-size:24px;font-weight:800;color:#ffd98a}.auction-clock{display:flex;justify-content:center;align-items:flex-start;gap:7px;margin:14px 0 0;font-variant-numeric:tabular-nums}
+.clock-unit{display:grid;gap:4px;text-align:center}.clock-unit b{min-width:48px;padding:7px 8px;border:1px solid #644183;border-radius:9px;background:linear-gradient(#2d1d40,#170f22);font-size:22px;line-height:1.15}
+.clock-unit small{color:#c8afd9;font-size:11px}.clock-separator{padding-top:6px;color:#ab84cb;font-size:22px}.auction-clock[data-urgent="true"] .clock-unit b{color:#ffda94;border-color:#a87551}
+#timerStatus{margin:12px 0 0;color:#e3c6f4}
 .case{position:relative;width:min(100%,440px);aspect-ratio:3/2;margin:32px auto 10px;isolation:isolate;perspective:800px}
 .case-body,.case-lid{position:absolute;inset:0;background:url('/black-box/case.jpg') center center/100% 100% no-repeat}
 .case-body{clip-path:polygon(9.8% 39.3%,90.2% 39.3%,90.4% 42%,89.5% 43%,89.3% 49.8%,88.3% 51.4%,87.7% 75%,87.9% 79%,87.4% 84%,83.7% 88.8%,16.5% 88.8%,13% 85.5%,12.2% 83%,12.1% 75.5%,11.6% 53.3%,10.6% 50.2%,10.5% 43.5%,9.6% 42%)}
@@ -36,7 +39,11 @@ export function blackBoxPage(admin: boolean) {
   <label>Подсказка (необязательно)<textarea id="hint" maxlength="400"></textarea></label>
   <button>Запустить торги</button></form><p id="notice" role="status"></p></section>` : `
   <div class="grid"><aside class="panel"><h2>Предыдущий победитель</h2><div id="previous"></div></aside>
-  <section class="panel stage"><div id="price">Загрузка…</div><p id="timer"></p><p id="hint" hidden></p>
+  <section class="panel stage"><div id="price">Загрузка…</div><div id="timer" class="auction-clock" role="timer" aria-label="До окончания торгов" hidden>
+    <span class="clock-unit"><b id="clockHours">00</b><small>часы</small></span><span class="clock-separator" aria-hidden="true">:</span>
+    <span class="clock-unit"><b id="clockMinutes">00</b><small>минуты</small></span><span class="clock-separator" aria-hidden="true">:</span>
+    <span class="clock-unit"><b id="clockSeconds">00</b><small>секунды</small></span>
+  </div><p id="timerStatus" role="status" hidden>Подводим итоги…</p><p id="hint" hidden></p>
   <div class="case" id="case" aria-hidden="true"><div class="case-body"></div><div class="case-glow"></div><div class="case-lid"></div></div>
   <p id="reveal" role="status"></p><form id="bid" hidden><label>Твоя ставка в монетах<input id="amount" type="number" required></label>
   <button id="submit">Сделать ставку</button></form><p id="notice" role="status"></p></section>
@@ -113,8 +120,14 @@ export const blackBoxScript = String.raw`
   function timer() {
     if (!current) return;
     const seconds = Math.max(0, Math.ceil((Date.parse(current.endsAt) - Date.now() - offset) / 1000));
-    el('timer').textContent = seconds ? [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, seconds % 60]
-      .map(value => String(value).padStart(2, '0')).join(':') : 'Подводим итоги…';
+    el('timer').hidden = seconds === 0;
+    el('timer').dataset.urgent = String(seconds <= 600);
+    el('timerStatus').hidden = seconds !== 0;
+    const units = [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, seconds % 60];
+    ['clockHours', 'clockMinutes', 'clockSeconds'].forEach((id, index) => {
+      const value = String(units[index]).padStart(2, '0');
+      if (el(id).textContent !== value) el(id).textContent = value;
+    });
     el('submit').disabled = submitting || !seconds || minimum(current) > 1000000000;
   }
   function previous(result) {
@@ -157,7 +170,8 @@ export const blackBoxScript = String.raw`
         timer();
       } else {
         el('price').textContent = 'Сейчас нет открытых торгов';
-        el('timer').textContent = '';
+        el('timer').hidden = true;
+        el('timerStatus').hidden = true;
       }
       if (old && old.id !== current?.id && old.id === state.closed?.id) {
         revealing = true;
