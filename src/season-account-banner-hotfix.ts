@@ -21,7 +21,7 @@ export function installSeasonAccountBannerHotfix(){
         <div class="seasonAccountOpen">ОТКРЫТЬ BATTLE PASS →</div>
       </section>
       <a href="/black-box" class="blackBoxBanner">
-        <span class="blackBoxBannerCopy"><strong>Чёрный ящик</strong><span>К торгам →</span></span>
+        <span class="blackBoxBannerCopy"><strong>Чёрный ящик</strong><span class="seasonAccountOpen">К ТОРГАМ →</span></span>
         <span class="blackBoxBannerArt" aria-hidden="true">
           <img class="blackBoxBannerKnife" src="https://community.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL6kJ_m-B1Q7uCvZaZkNM-bF1iWzvxzo_VWTSahkBwrjDGMnYftbyifZgQlA8EhRrRfuhm7lIa2MerjtlaKi4NGnius3SMc6Slv574AUPA7uvqA0RoB8ZE" alt="" decoding="async">
           <img class="blackBoxBannerCase" src="/black-box/case.jpg" alt="" decoding="async">
@@ -32,7 +32,7 @@ export function installSeasonAccountBannerHotfix(){
 
       .blackBoxBanner{position:relative;isolation:isolate;display:flex;align-items:center;box-sizing:border-box;min-height:92px;margin:0 0 14px;padding:14px 22px;overflow:hidden;border:1px solid #68438b;border-radius:14px;background:radial-gradient(ellipse at 82% 90%,#482467 0%,transparent 60%),#181024;color:#fff;text-decoration:none}
       .blackBoxBanner:hover{border-color:#a668d6}.blackBoxBanner:focus-visible{outline:2px solid #ce8aff;outline-offset:3px}
-      .blackBoxBannerCopy{z-index:1;display:grid;gap:4px}.blackBoxBannerCopy strong{font-size:clamp(18px,3vw,26px);line-height:1.12}.blackBoxBannerCopy span{font-size:13px;color:#d8b4f4}
+      .blackBoxBannerCopy{z-index:1;display:grid;gap:4px}.blackBoxBannerCopy strong{font-size:clamp(18px,3vw,26px);line-height:1.12}.blackBoxBanner .blackBoxBannerCopy .seasonAccountOpen{position:static;justify-self:start;margin:3px 0 0;color:#fff}
       .blackBoxBannerArt{position:absolute;inset:0 10px 0 auto;width:min(51%,360px);pointer-events:none}
       .blackBoxBannerArt img{position:absolute;object-fit:contain;max-width:none}
       .blackBoxBannerKnife{width:58%;height:112%;left:0;top:-8%;opacity:.46;transform:rotate(-14deg);filter:saturate(.6)}
