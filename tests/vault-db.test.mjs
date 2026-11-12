@@ -32,3 +32,29 @@ test('vault recovery finds source records exactly once, uses canonical completio
 test('vault administration reserves actual funds, freezes cap after earnings and rejects code before all locks',{timeout:30000},async()=>{const db=await dbFixture();try{await now(db,'2026-11-09T12:00:00+03:00');const u=await user(db);await call(db,'admin',['owner','prepare',{week,pool:1000,cap:60,requestId:uuid()}]);assert.equal(Number(await call(db,'available')),500);await call(db,'admin',['owner','prepare',{week,pool:1500,cap:50,requestId:uuid()}]);assert.equal(Number(await call(db,'available')),0);await assert.rejects(call(db,'admin',['owner','prepare',{week,pool:1501,cap:50,requestId:uuid()}]),/insufficient_funds/);await call(db,'admin',['owner','code',{week,digest}]);await call(db,'admin',['owner','entry',{week,enabled:true}]);await earn(db,u,1);await call(db,'contribute',[u,week,uuid(),1]);await assert.rejects(call(db,'code',[u,week,uuid(),digest]),/code_locked/);await assert.rejects(call(db,'admin',['owner','prepare',{week,pool:1500,cap:51,requestId:uuid()}]),/season_locked/);assert.equal((await call(db,'state',[u])).keyCap,50);}finally{await db.close()}});
 
 test('vault configurable goal: proportional positive integer locks, live changes preserve keys, code and payout use the new threshold',{timeout:30000},async()=>{const db=await dbFixture();try{await now(db,'2026-11-09T12:00:00+03:00');const u=await user(db);for(const n of [5,6,7,8,100,1300,2600,999999,1000000]){const locks=await call(db,'lock_targets',[n]);assert.equal(locks.length,5);assert.equal(locks.reduce((a,b)=>a+b,0),n);for(let i=0;i<5;i++){assert(locks[i]>=1);assert(Math.abs(locks[i]-n*[150,200,250,300,400][i]/1300)<1)}}assert.deepEqual(await call(db,'lock_targets',[100]),[12,15,19,23,31]);assert.deepEqual(await call(db,'lock_targets',[2600]),[300,400,500,600,800]);await call(db,'admin',['owner','code',{week,digest}]);await call(db,'admin',['owner','entry',{week,enabled:true}]);await earn(db,u,10);const requestId=uuid(),body={week,requiredKeys:10,requestId};await call(db,'admin',['owner','threshold',body]);await call(db,'admin',['owner','threshold',body]);await assert.rejects(call(db,'admin',['owner','threshold',{...body,requiredKeys:11}]),/request_conflict/);let state=await call(db,'state',[u]);assert.equal(state.threshold,10);assert.deepEqual(state.locks,[1,2,2,2,3]);assert.equal(state.balance,10);assert.equal(state.codeEntry,false);await assert.rejects(call(db,'admin',['owner','threshold',{week,requiredKeys:4,requestId:uuid()}]),/invalid_request/);await assert.rejects(call(db,'code',[u,week,uuid(),digest]),/code_locked/);await call(db,'contribute',[u,week,uuid(),10]);await assert.rejects(call(db,'code',[u,week,uuid(),digest]),/code_locked/);await call(db,'admin',['owner','entry',{week,enabled:true}]);assert.equal((await call(db,'code',[u,week,uuid(),digest])).accepted,true);await call(db,'admin',['owner','threshold',body]);await assert.rejects(call(db,'admin',['owner','threshold',{week,requiredKeys:20,requestId:uuid()}]),/season_locked/);const admin=await call(db,'admin',['owner','state',{week}]);assert.equal(admin.seasons.find(s=>s.week===week).required_keys,10);await now(db,'2026-11-15T20:00:00+03:00');await call(db,'settle',[week]);state=await call(db,'state',[u]);assert.equal(state.status,'success');assert.equal(state.reward,1500);}finally{await db.close()}});
+
+test('next vault saves the pool, cap and proportional goal together before launch', {timeout:30000}, async () => {
+ const db=await dbFixture();
+ try {
+  await db.exec(await readFile(new URL('../supabase/migrations/20261112153056_vault_prepare_next.sql',import.meta.url),'utf8'));
+  await now(db,'2026-11-12T12:00:00+03:00');
+  const read=async target=>(await db.query('select pool,key_cap,required_keys from rewards_vault_seasons where week=$1',[target])).rows[0];
+  const current=await read(week);
+  const upcoming={week:'2026-11-16',pool:1800,cap:72,requiredKeys:2600,requestId:uuid()};
+  await assert.rejects(call(db,'prepare_next',['viewer',upcoming]),/admin_required/);
+  await assert.rejects(call(db,'prepare_next',['owner',{...upcoming,week}]),/season_locked/);
+  await assert.rejects(call(db,'prepare_next',['owner',upcoming]),/insufficient_funds/);
+  assert.equal((await read(upcoming.week)).required_keys,1300);
+  await call(db,'admin',['owner','topup',{amount:2000,requestId:uuid()}]);
+  assert.deepEqual(await call(db,'prepare_next',['owner',upcoming]),{ok:true});
+  assert.deepEqual(await read(upcoming.week),{pool:1800,key_cap:72,required_keys:2600});
+  assert.deepEqual(await call(db,'lock_targets',[2600]),[300,400,500,600,800]);
+  assert.deepEqual(await read(week),current);
+  const reserved=await call(db,'available');
+  await call(db,'prepare_next',['owner',upcoming]);
+  assert.equal(await call(db,'available'),reserved);
+  await assert.rejects(call(db,'prepare_next',['owner',{...upcoming,cap:73}]),/request_conflict/);
+  await now(db,'2026-11-16T00:00:00+03:00');
+  await assert.rejects(call(db,'prepare_next',['owner',{...upcoming,requestId:uuid()}]),/season_locked/);
+ } finally { await db.close(); }
+});
