@@ -1,7 +1,7 @@
 const styles = `
 *{box-sizing:border-box}body{margin:0;background:#0c0911;color:#faf5ff;font:16px system-ui,sans-serif}
 main{max-width:1180px;margin:auto;padding:28px 18px}a{color:#dfb9ff}h1{font-size:clamp(32px,6vw,55px);margin-bottom:10px}
-h2{font-size:18px;margin:0 0 16px}.grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) minmax(0,1fr);gap:16px;align-items:start}
+h2{font-size:18px;margin:0 0 16px}.grid{display:grid;grid-template-columns:minmax(155px,1fr) minmax(0,2fr) minmax(255px,1.4fr);gap:16px;align-items:start}
 .panel{padding:20px;border:1px solid #503365;border-radius:16px;background:#181020;overflow-wrap:anywhere}.stage{text-align:center;background:radial-gradient(ellipse at 50% 45%,#402458,#17101e 72%)}
 #price{font-size:24px;font-weight:800;color:#ffd98a}.auction-clock{display:flex;justify-content:center;align-items:flex-start;gap:7px;margin:14px 0 0;font-variant-numeric:tabular-nums}
 .clock-unit{display:grid;gap:4px;text-align:center}.clock-unit b{min-width:48px;padding:7px 8px;border:1px solid #644183;border-radius:9px;background:linear-gradient(#2d1d40,#170f22);font-size:22px;line-height:1.15}
@@ -21,8 +21,17 @@ form{display:grid;gap:12px}label{display:grid;gap:6px;text-align:left}button,inp
 button{background:#7933c3;font-weight:700;cursor:pointer}button:disabled{opacity:.55;cursor:default}
 li{padding:8px 0;border-bottom:1px solid #453251}ol{padding-left:23px;max-height:360px;overflow:auto;margin:0}
 #notice{min-height:1.5em;color:#f3d2ff}#reveal{color:#ffdc96;font-weight:800}#previous img{max-width:100%;max-height:120px}
+#participants{max-height:175px}.auction-side{display:grid;gap:16px;min-width:0}
+.chat-panel{display:grid;gap:12px}.chat-panel h2,.chat-panel p{margin:0}
+.chat-log{height:clamp(210px,32vh,340px);overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;background:#100c19;border:1px solid #422955;border-radius:9px;padding:10px 12px}
+.chat-message{padding:7px 0;border-bottom:1px solid #342441;font-size:14px}.chat-message:last-child{border:0}
+.chat-message header{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:2px;color:#e9c4ff}
+.chat-message time{font-size:11px;color:#c6afda;white-space:nowrap;font-variant-numeric:tabular-nums}.chat-message p{white-space:pre-wrap}
+.chat-panel form{gap:6px}.chat-controls{display:flex;gap:8px}.chat-controls button{width:auto;flex:none;padding-inline:11px}
+.chat-meta{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:#c6afda}.chat-meta output{white-space:nowrap;font-variant-numeric:tabular-nums}
+#chatCounter[data-over="true"]{color:#ffadbd}.chat-log:focus-visible{outline:2px solid #c47fff;outline-offset:2px}
 [hidden]{display:none!important}.admin{max-width:560px;margin:auto}
-@media(max-width:760px){.grid{grid-template-columns:1fr}.stage{order:-1}}
+@media(max-width:760px){.grid{grid-template-columns:minmax(0,1fr)}.stage{order:-2}.auction-side{order:-1}}
 @media(prefers-reduced-motion:reduce){.case.open .case-lid,.case.open .case-glow{animation-duration:1ms}}
 `;
 
@@ -47,7 +56,17 @@ export function blackBoxPage(admin: boolean) {
   <div class="case" id="case" aria-hidden="true"><div class="case-body"></div><div class="case-glow"></div><div class="case-lid"></div></div>
   <p id="reveal" role="status"></p><form id="bid" hidden><label>Твоя ставка в монетах<input id="amount" type="number" required></label>
   <button id="submit">Сделать ставку</button></form><p id="notice" role="status"></p></section>
-  <aside class="panel"><h2>Участники</h2><ol id="participants"></ol><p id="empty">Ставок пока нет</p></aside></div>`}
+  <div class="auction-side"><aside class="panel"><h2>Участники</h2><ol id="participants"></ol><p id="empty">Ставок пока нет</p></aside>
+  <section class="panel chat-panel" aria-labelledby="chatHeading"><h2 id="chatHeading">Чат торгов</h2>
+    <div class="chat-log" id="chatLog" role="log" aria-labelledby="chatHeading" tabindex="0">
+      <p id="chatEmpty">Загружаем чат…</p><div id="chatMessages"></div>
+    </div>
+    <form id="chatForm" hidden><div class="chat-controls">
+      <input id="chatInput" aria-label="Сообщение" placeholder="Сообщение" maxlength="280" autocomplete="off" required>
+      <button id="chatSubmit" type="submit" disabled>Отправить</button>
+    </div><div class="chat-meta"><span id="chatNotice" role="status"></span><output id="chatCounter" for="chatInput">0 / 140</output></div></form>
+    <p class="chat-meta">Сообщения видны в течение часа</p>
+  </section></div></div>`}
   </main><script src="/black-box.js" defer></script></body></html>`;
 }
 
@@ -64,10 +83,10 @@ export const blackBoxScript = String.raw`
     unknown_prize: 'Выбранный приз недоступен.',
     invalid_request: 'Проверь заполненные поля.'
   };
-  async function request(path, body) {
+  async function request(path, body, signal) {
     const res = await fetch(path, body ? {
-      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
-    } : { cache: 'no-store' });
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body), signal
+    } : { cache: 'no-store', signal });
     const data = await res.json();
     if (!res.ok) throw Error(data.error);
     return data;
@@ -116,10 +135,130 @@ export const blackBoxScript = String.raw`
   }
 
   let current, offset = 0, loading = false, submitting = false, revealing = false;
+  const chatLifetime = 60 * 60 * 1000;
+  const chatTime = new Intl.DateTimeFormat('ru-RU', {hour: '2-digit', minute: '2-digit', second: '2-digit'});
+  const chatLog = el('chatLog'), chatMessages = el('chatMessages'), chatInput = el('chatInput');
+  const chatEntries = new Map();
+  const chatErrors = {
+    authentication_required: 'Войди через Twitch, чтобы писать в чат.',
+    invalid_message: 'Введи сообщение от 1 до 140 символов.',
+    chat_rate_limit: 'Подожди пару секунд перед следующим сообщением.'
+  };
+  let chatId = null, chatRequest = null, chatSending = false, chatLoaded = false, chatFailed = false;
+  function chatEndpoint(id) { return '/api/black-box/chat/' + encodeURIComponent(id); }
+  function updateChatForm() {
+    const count = Array.from(chatInput.value.trim()).length;
+    el('chatCounter').textContent = count + ' / 140';
+    el('chatCounter').dataset.over = String(count > 140);
+    const active = current?.id === chatId && Date.parse(current?.endsAt) > Date.now() + offset;
+    el('chatForm').hidden = !active;
+    el('chatSubmit').disabled = !active || chatSending || !count || count > 140;
+  }
+  function updateChatEmpty() {
+    const empty = el('chatEmpty');
+    empty.hidden = chatEntries.size > 0;
+    empty.textContent = !chatId ? 'Чат откроется с началом торгов.' :
+      chatFailed ? 'Не удалось обновить чат. Повторяем…' :
+      chatLoaded ? 'Сообщений пока нет.' : 'Загружаем чат…';
+  }
+  function selectChat(id) {
+    if (chatId !== id) {
+      chatRequest?.abort();
+      chatRequest = null;
+      chatId = id;
+      chatLoaded = chatFailed = false;
+      chatEntries.clear();
+      chatMessages.replaceChildren();
+      chatInput.value = '';
+      el('chatNotice').textContent = '';
+      updateChatEmpty();
+      if (id) loadChat();
+    }
+    updateChatForm();
+  }
+  function renderChat(rows) {
+    const nearBottom = chatLog.scrollHeight - chatLog.clientHeight - chatLog.scrollTop < 32;
+    const activeIds = rows ? new Set(rows.map(row => row.id)) : null;
+    const cutoff = Date.now() + offset - chatLifetime;
+    for (const [id, entry] of chatEntries) {
+      if (entry.createdAt <= cutoff || activeIds && !activeIds.has(id)) {
+        entry.node.remove();
+        chatEntries.delete(id);
+      }
+    }
+    for (const row of rows || []) {
+      const createdAt = Date.parse(row.createdAt);
+      if (chatEntries.has(row.id) || !Number.isFinite(createdAt) || createdAt <= cutoff) continue;
+      const node = document.createElement('article');
+      node.className = 'chat-message';
+      const header = document.createElement('header');
+      const author = document.createElement('strong');
+      author.textContent = row.author;
+      const time = document.createElement('time');
+      time.dateTime = row.createdAt;
+      time.textContent = chatTime.format(createdAt);
+      const message = document.createElement('p');
+      message.textContent = row.message;
+      header.append(author, time);
+      node.append(header, message);
+      chatMessages.append(node);
+      chatEntries.set(row.id, {node, createdAt});
+    }
+    updateChatEmpty();
+    if (nearBottom) chatLog.scrollTop = chatLog.scrollHeight;
+  }
+  async function loadChat() {
+    renderChat();
+    if (!chatId || chatRequest || document.hidden) return;
+    const controller = new AbortController();
+    const deadline = setTimeout(() => controller.abort(), 6000);
+    chatRequest = controller;
+    try {
+      const data = await request(chatEndpoint(chatId), null, controller.signal);
+      if (chatRequest !== controller) return;
+      chatLoaded = true;
+      chatFailed = false;
+      renderChat(data.messages);
+    } catch {
+      if (chatRequest === controller) {
+        chatFailed = true;
+        updateChatEmpty();
+      }
+    } finally {
+      clearTimeout(deadline);
+      if (chatRequest === controller) chatRequest = null;
+    }
+  }
+  chatInput.addEventListener('input', updateChatForm);
+  el('chatForm').onsubmit = async event => {
+    event.preventDefault();
+    if (el('chatSubmit').disabled || el('chatForm').hidden) return;
+    const id = chatId, value = chatInput.value;
+    const controller = new AbortController();
+    const deadline = setTimeout(() => controller.abort(), 6000);
+    chatSending = true;
+    el('chatNotice').textContent = '';
+    updateChatForm();
+    try {
+      await request(chatEndpoint(id), {message: value.trim()}, controller.signal);
+      if (chatId === id && chatInput.value === value) chatInput.value = '';
+      await loadChat();
+    } catch (error) {
+      if (chatId === id) el('chatNotice').textContent = chatErrors[error.message] || errorMessage(error);
+    } finally {
+      clearTimeout(deadline);
+      chatSending = false;
+      updateChatForm();
+    }
+  };
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) loadChat(); });
+  setInterval(loadChat, 2000);
+
   function minimum(auction) { return auction.highBid == null ? auction.startPrice : auction.highBid + auction.step; }
   function timer() {
     if (!current) return;
     const seconds = Math.max(0, Math.ceil((Date.parse(current.endsAt) - Date.now() - offset) / 1000));
+    if (!seconds && !el('chatForm').hidden) updateChatForm();
     el('timer').hidden = seconds === 0;
     el('timer').dataset.urgent = String(seconds <= 600);
     el('timerStatus').hidden = seconds !== 0;
@@ -148,6 +287,7 @@ export const blackBoxScript = String.raw`
       const old = current;
       current = state.current;
       offset = Date.parse(state.serverNow) - Date.now();
+      selectChat(current?.id || state.closed?.id || null);
       el('hint').hidden = !current?.hint;
       el('hint').textContent = current?.hint || '';
       el('bid').hidden = !current;
