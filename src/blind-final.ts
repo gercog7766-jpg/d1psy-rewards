@@ -69,15 +69,15 @@ export function installBlindFinal(app: Express, db: SupabaseClient, user: Reques
   app.get('/api/admin/blind-final/rounds/:id', noStore, admin, async (req, res) => {
     const page = Number(req.query.page ?? 0);
     if (!uuid(req.params.id) || !integer(page, 0, 100000)) return res.status(400).json({ error: 'invalid_request' });
-    const { data: round, error: roundError } = await db.from('rewards_blind_rounds').select('status,winner_id')
+    const { data: round, error: roundError } = await db.from('rewards_blind_rounds').select('entry_fee,winner_id')
       .eq('id', req.params.id).maybeSingle();
     if (roundError) return errorResponse(res, roundError);
-    if (!round || round.status === 'open') return res.status(409).json({ error: 'round_active' });
+    if (!round) return res.status(404).json({ error: 'round_not_found' });
     const { data, error } = await db.from('rewards_blind_entries')
       .select('number,user_id,rewards_users(twitch_login,twitch_display_name)')
       .eq('round_id', req.params.id).order('number', { nullsFirst: false }).order('user_id').range(page * 100, page * 100 + 99);
     if (error) return errorResponse(res, error);
-    return res.json(data.map(row => ({ ...row, won: row.user_id === round.winner_id })));
+    return res.json(data.map(row => ({ ...row, entry_fee: round.entry_fee, won: row.user_id === round.winner_id })));
   });
   app.post('/api/admin/blind-final/:action', noStore, admin, write, async (req, res) => {
     if (req.params.action === 'cancel' && uuid(req.body?.id)) {
