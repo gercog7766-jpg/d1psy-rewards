@@ -24,3 +24,155 @@ test('v4 SQL/client replay, 6/9/5 capped reserve losses, third-hit settlement, n
  const fresh=randomUUID();await db.exec('reset role');await db.query('insert into rewards_users(id) values($1)',[fresh]);await db.exec('set role service_role');await assert.rejects(db.query('select rewards_nr_start_v3($1,$2,1)',[fresh,randomUUID()]),/client_update_required/);await assert.rejects(step({...cash,user:fresh},before,[],true),/game_not_found/);await db.exec("reset role;create or replace function public.rewards_weekly_now() returns timestamptz language sql stable security invoker set search_path='' as $$select '2026-11-09T12:00:00+03:00'::timestamptz$$;set role service_role");await db.query("insert into rewards_nr_games(id,user_id,seed,version,distance,tick,hits,status,started_at,last_seen) values($1,$2,1,4,24000,1000,3,'crashed','2026-11-09T10:00:00+03:00','2026-11-09T10:01:40+03:00')",[randomUUID(),fresh]);const ranking=(await db.query('select rewards_nr_leaderboard($1) r',[fresh])).rows[0].r;assert.equal(ranking.entries.find(entry=>entry.isMe).distanceMeters,600,'v4 distance uses world units in weekly tops');await db.exec('reset role;set role anon');await assert.rejects(db.query('select rewards_nr_start_v4($1,$2,1)',[fresh,randomUUID()]),/permission denied/);
  }finally{await db.close()}});
 test('three hearts persist across reload, grey out per hit, and show a readable life count',async()=>{for(let hits=0;hits<=3;hits++){const dom=new JSDOM(nightRunHtml,{runScripts:'outside-only'}),w=dom.window;try{const game={id:randomUUID(),...core.initialV4(73471),hits,status:hits===3?'crashed':'playing',paid_coins:7};w.requestAnimationFrame=()=>1;w.HTMLCanvasElement.prototype.getContext=()=>null;w.fetch=async path=>({ok:true,status:200,json:async()=>path.endsWith('leaderboard')?{entries:[]}:{game}});w.eval(nightRunJs);await new Promise(r=>setTimeout(r,10));const hearts=w.document.getElementById('nrHearts');assert.equal(hearts.hidden,false);assert.equal(hearts.children.length,3);assert.equal(hearts.querySelectorAll('.lost').length,hits);assert.equal(hearts.getAttribute('aria-label'),'Жизни: '+(3-hits)+' из 3');if(hits===3)assert(w.document.getElementById('nrMessage').textContent.includes('7 монет зачислено'));}finally{w.close()}}});
+
+test('Night Run recovers a stalled tenth-coin response and continues with keyboard or touch', async () => {
+ for (const mobile of [false, true]) {
+  const dom = new JSDOM(nightRunHtml, {runScripts: 'outside-only'});
+  const w = dom.window;
+  try {
+   const frames = [], timers = new Map(), intervals = new Map(), requests = [];
+   let clock = 1000, nextTimer = 0, server = {id: randomUUID(), ...core.initialV4(73471)};
+   while (server.coin_index < 10 || server.next_coin_tick - server.tick > 6) {
+    server = core.step(server, desired(server));
+    assert.equal(server.status, 'playing');
+   }
+   assert.equal(server.collected_coins, 9);
+   w.performance.now = () => clock;
+   w.requestAnimationFrame = callback => frames.push(callback);
+   w.setTimeout = (callback, delay) => {
+    const id = ++nextTimer;
+    timers.set(id, {callback, at: clock + delay});
+    return id;
+   };
+   w.clearTimeout = id => timers.delete(id);
+   w.setInterval = (callback, delay) => intervals.set(delay, callback);
+   w.matchMedia = query => ({matches: mobile ? query === '(max-width:760px)' : query.includes('pointer:fine')});
+   w.HTMLCanvasElement.prototype.getContext = () => null;
+   let releaseRetry;
+   w.fetch = async (path, options) => {
+    if (path.endsWith('leaderboard')) return {ok: true, json: async () => ({entries: []})};
+    if (path.endsWith('/step')) {
+     const request = JSON.parse(options.body);
+     requests.push(request);
+     if (request.from === server.tick) {
+      for (const lane of request.inputs) server = core.step(server, lane);
+     }
+     if (requests.length === 1) {
+      return {ok: true, json: () => new Promise((_, reject) => {
+       options.signal?.addEventListener('abort', () => reject(options.signal.reason), {once: true});
+      })};
+     }
+     if (requests.length === 2) await new Promise(resolve => {releaseRetry = resolve});
+    }
+    const game = {...server};
+    return {ok: true, json: async () => ({game})};
+   };
+   const settle = () => new Promise(resolve => setImmediate(resolve));
+   const frame = async (elapsed = 100) => {
+    clock += elapsed;
+    for (const [id, timer] of timers) {
+     if (timer.at <= clock) {
+      timers.delete(id);
+      timer.callback();
+     }
+    }
+    frames.shift()(clock);
+    await settle();
+   };
+   const q = id => w.document.getElementById(id);
+   const coinLane = desired(server);
+   let target = server.lane;
+   function steer(direction) {
+    if (!mobile) {
+     w.document.dispatchEvent(new w.KeyboardEvent('keydown', {key: direction > 0 ? 'ArrowRight' : 'ArrowLeft'}));
+    } else {
+     const canvas = q('nrCanvas');
+     canvas.dispatchEvent(new w.MouseEvent('pointerdown', {clientX: 50, clientY: 20}));
+     canvas.dispatchEvent(new w.MouseEvent('pointerup', {clientX: 50 + 35 * direction, clientY: 20}));
+    }
+    target += direction;
+   }
+   w.eval(nightRunJs);
+   await settle();
+   while (target !== coinLane) steer(Math.sign(coinLane - target));
+   for (let i = 0; i < 6; i++) await frame();
+   assert.equal(server.collected_coins, 10, 'server applied the pickup before the response stalled');
+   assert.equal(requests.length, 1);
+
+   for (let i = 0; i < 25; i++) await frame();
+   assert.match(q('nrMessage').textContent, /не ответил вовремя/);
+   intervals.get(1000)();
+   await settle();
+   assert.deepEqual(requests[1], requests[0], 'retry sends the same checkpoint');
+   assert.equal(server.collected_coins, 10, 'retry cannot pick up the same coin twice');
+
+   for (let i = 0; i < 15; i++) await frame();
+   releaseRetry();
+   await settle();
+   assert.equal(q('nrCoins').textContent, '10 монет');
+   const expectedTick = server.tick + 40;
+   for (let i = 0; i < 6; i++) await frame(0);
+   intervals.get(1000)();
+   await settle();
+   for (let i = 0; i < 5; i++) {
+    await frame(0);
+    intervals.get(1000)();
+    await settle();
+   }
+   assert.equal(server.tick, expectedTick, 'elapsed time was retained when the input queue filled');
+   let predicted = {...server};
+   const eleventhCoin = predicted.next_coin_tick;
+   while (predicted.tick < eleventhCoin) {
+    const lane = desired(predicted);
+    while (target !== lane) steer(Math.sign(lane - target));
+    predicted = core.step(predicted, target);
+    assert.equal(predicted.status, 'playing');
+    await frame();
+   }
+   assert.equal(server.collected_coins, 11);
+   assert.equal(server.coins, 11 - server.lost_coins);
+   assert.equal(parseInt(q('nrCoins').textContent, 10), server.coins);
+   assert.equal(q('nrLeft').disabled, false);
+   assert(requests.every(request => !request.stop));
+  } finally {
+   w.close();
+  }
+ }
+});
+
+test('Night Run continues past 500 m after a short foreground browser stall', async () => {
+ const dom = new JSDOM(nightRunHtml, {runScripts: 'outside-only'});
+ const w = dom.window;
+ try {
+  const frames = [], requests = [];
+  let clock = 1000, server = {id: randomUUID(), ...core.initialV4(73471)};
+  while (server.distance < 19800) server = core.step(server, desired(server));
+  w.performance.now = () => clock;
+  w.requestAnimationFrame = callback => frames.push(callback);
+  w.HTMLCanvasElement.prototype.getContext = () => null;
+  w.fetch = async (path, options) => {
+   if (path.endsWith('leaderboard')) return {ok: true, json: async () => ({entries: []})};
+   if (path.endsWith('/step')) {
+    const request = JSON.parse(options.body);
+    requests.push(request);
+    for (const lane of request.inputs) server = core.step(server, lane);
+   }
+   const game = {...server};
+   return {ok: true, json: async () => ({game})};
+  };
+  w.eval(nightRunJs);
+  await new Promise(resolve => setImmediate(resolve));
+  const before = server.tick;
+  clock += 2900;
+  for (let i = 0; i < 5; i++) {
+   frames.shift()(clock);
+   await new Promise(resolve => setImmediate(resolve));
+  }
+  assert(parseInt(w.document.getElementById('nrDistance').textContent, 10) > 500);
+  assert(server.tick > before);
+  assert(requests.every(request => !request.stop));
+  assert.equal(w.document.getElementById('nrLeft').disabled, false);
+ } finally {
+  w.close();
+ }
+});
