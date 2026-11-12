@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import type { Express, RequestHandler } from 'express';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { blackBoxPage, blackBoxScript } from './black-box-ui.js';
@@ -29,6 +30,9 @@ export function installBlackBox(app: Express, db: SupabaseClient, user: RequestH
 
   app.get('/black-box', noStore, (_req, res) => res.send(blackBoxPage(false)));
   app.get('/admin/black-box', noStore, admin, (_req, res) => res.send(blackBoxPage(true)));
+  app.get('/black-box/case.jpg', (_req, res) => {
+    res.sendFile(fileURLToPath(new URL('../public/black-box/dropso-case.jpg', import.meta.url)));
+  });
   app.get('/black-box.js', noStore, (_req, res) => res.type('application/javascript').send(blackBoxScript));
 
   app.get('/api/black-box', noStore, async (_req, res) => {
@@ -38,7 +42,7 @@ export function installBlackBox(app: Express, db: SupabaseClient, user: RequestH
   });
   app.get('/api/admin/black-box/prizes', noStore, admin, async (req, res) => {
     const term = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 80) : '';
-    let query = db.from('rewards_prizes').select('id,name').order('name').limit(100);
+    let query = db.from('rewards_prizes').select('id,name,sell_price_coins').order('name').limit(100);
     if (term) query = query.ilike('name', '%' + term.replace(/[\\%_]/g, '\\$&') + '%');
     const { data, error } = await query;
     if (error) return res.status(503).json({ error: 'unavailable' });
