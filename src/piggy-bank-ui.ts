@@ -1,13 +1,14 @@
 const css = `
 :root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% 0,#321a46,#0e0a15 64%);color:#fbf5ff;font:16px system-ui,sans-serif}main{width:min(100% - 32px,940px);margin:auto;padding:28px 0 50px}a{color:#e3bafa}h1{font-size:clamp(36px,8vw,62px);margin:16px 0}p{color:#d6bfdc}.panel{border:1px solid #684586;border-radius:20px;background:#21132c;padding:22px}.stage{text-align:center;background:radial-gradient(ellipse at 50% 45%,#4e245f,#21132c 68%)}
-#timer{font-size:30px;color:#ffdd9e;font-weight:800;font-variant-numeric:tabular-nums}.pig{position:relative;width:min(100%,330px);aspect-ratio:1.45;margin:12px auto 18px;isolation:isolate}.half{position:absolute;inset:0}.half.left{clip-path:polygon(0 0,52% 0,49% 29%,54% 45%,48% 64%,51% 82%,48% 100%,0 100%)}.half.right{clip-path:polygon(52% 0,100% 0,100% 100%,48% 100%,51% 82%,48% 64%,54% 45%,49% 29%)}
-.body{position:absolute;inset:22% 19% 21% 12%;border-radius:54% 56% 42% 46%;background:radial-gradient(ellipse at 42% 22%,#ffc4e9,#de6eb1 45%,#8c386e);box-shadow:inset 0 -10px 17px #762d6a77,0 14px 32px #16051faa}.ear{position:absolute;top:15%;left:66%;width:15%;height:28%;border-radius:60% 42% 16% 23%;background:linear-gradient(#f49bcf,#bc5499);transform:rotate(18deg)}.ear::after{content:"";position:absolute;inset:19% 23% 24%;border-radius:50%;background:#a83f82}.leg{position:absolute;top:69%;left:24%;width:12%;height:17%;border-radius:15% 15% 32% 32%;background:linear-gradient(#bc5299,#954272);box-shadow:104px 0 #b15594}.tail{position:absolute;top:43%;left:4%;width:12%;aspect-ratio:1;border:5px solid #d879b3;border-right-color:transparent;border-radius:50%;transform:rotate(-24deg)}.slot{position:absolute;top:28%;left:39%;width:24%;height:5%;border-radius:50%;background:#49213f;box-shadow:0 2px #ffc2e1;transform:rotate(-4deg)}.eye{position:absolute;top:43%;left:73%;width:4%;aspect-ratio:1;background:#321329;border-radius:50%;box-shadow:inset 2px 2px #fff9}.snout{position:absolute;left:76%;top:49%;width:20%;height:23%;border-radius:42%;background:linear-gradient(#f3a1cf,#c665a2);box-shadow:inset 0 2px #ffdbed66}.snout::after{content:"";position:absolute;top:41%;left:24%;width:12%;height:27%;border-radius:50%;background:#833760;box-shadow:19px 0 #833760}.pig.burst .left{animation:break-left 1.3s ease-in both}.pig.burst .right{animation:break-right 1.3s ease-in both}.pig.burst::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse,#ffdb7ccc,transparent 66%);animation:flash 1.3s ease-out both}
+#timer{font-size:30px;color:#ffdd9e;font-weight:800;font-variant-numeric:tabular-nums}.pig{position:relative;width:min(100%,330px);aspect-ratio:760/641;margin:12px auto 18px;isolation:isolate}.half{position:absolute;inset:0}.half.left{clip-path:polygon(0 0,52% 0,49% 29%,54% 45%,48% 64%,51% 82%,48% 100%,0 100%)}.half.right{clip-path:polygon(52% 0,100% 0,100% 100%,48% 100%,51% 82%,48% 64%,54% 45%,49% 29%)}
+.half img{display:block;width:100%;height:100%;object-fit:contain}
+#openingTime{color:#ffdd9e;font-weight:700}.pig.burst .left{animation:break-left 1.3s ease-in both}.pig.burst .right{animation:break-right 1.3s ease-in both}.pig.burst::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse,#ffdb7ccc,transparent 66%);animation:flash 1.3s ease-out both}
 @keyframes break-left{15%{transform:translateX(4px)}to{transform:translate(-28%,25%) rotate(-28deg);opacity:0}}@keyframes break-right{15%{transform:translateX(-4px)}to{transform:translate(28%,25%) rotate(28deg);opacity:0}}@keyframes flash{0%,15%,100%{opacity:0}35%{opacity:1}}
 @media(prefers-reduced-motion:reduce){.pig.burst .half,.pig.burst::before{animation-duration:1ms}}
 form{display:flex;justify-content:center;align-items:end;gap:8px;flex-wrap:wrap}label{display:grid;text-align:left;gap:5px}input,button,select{font:inherit;color:inherit;background:#190f24;border:1px solid #795399;border-radius:9px;padding:10px 13px}button{cursor:pointer;background:#793ac1;font-weight:750}button:disabled{opacity:.55;cursor:default}input{width:min(230px,100%)}#notice{min-height:1.4em}.results{margin-top:16px}.results ul{padding-left:20px}.results li{margin:8px 0}.metrics{display:flex;flex-wrap:wrap;gap:14px}.table{overflow-x:auto}table{width:100%;border-collapse:collapse;text-align:left}td,th{padding:9px;border-bottom:1px solid #51385f}.pager{margin-top:10px;display:flex;gap:8px}[hidden]{display:none!important}
 `;
 
-const pig = '<span class="tail"></span><span class="leg"></span><span class="ear"></span><span class="body"></span><span class="slot"></span><span class="eye"></span><span class="snout"></span>';
+const pig = '<img src="/piggy-bank/pig-v1.webp" width="760" height="641" alt="">';
 
 export function piggyPage(admin: boolean) {
   return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Копилка · Dropso</title><style>${css}</style></head>
@@ -15,7 +16,8 @@ export function piggyPage(admin: boolean) {
 <section class="panel"><label>День копилки <select id="day"></select></label><div id="metrics" class="metrics"></div>
 <div class="table"><table><thead><tr><th>Игрок</th><th>Монеты</th><th>Приз</th><th>Цена приза</th></tr></thead><tbody id="entries"></tbody></table></div>
 <div class="pager"><button id="back">Назад</button><button id="next">Далее</button></div><p id="notice" role="status"></p></section>` : `
-<section class="panel stage"><p>Каждый день в 20:00 по Берлину копилка разбивается. От одного до трёх игроков получают скины. Чем больше монет ты внёс, тем выше шанс.</p>
+<section class="panel stage"><p>От одного до трёх игроков получают скины. Чем больше монет ты внёс, тем выше шанс.</p>
+<p>Следующее открытие по местному времени — <time id="openingTime">…</time></p>
 <div id="timer" role="timer">—</div><div id="pig" class="pig" aria-hidden="true"><div class="half left">${pig}</div><div class="half right">${pig}</div></div>
 <form id="add"><label>Монет в копилку<input id="amount" inputmode="numeric" pattern="[1-9][0-9]*" value="1" required></label>
 <button id="submit" disabled>Положить монеты</button></form><p id="notice" role="status"></p></section>
@@ -67,6 +69,7 @@ export const piggyScript = String.raw`
     setInterval(() => load(), 10000);
     return;
   }
+  const localTime = new Intl.DateTimeFormat('ru-RU', {day:'numeric',month:'long',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
   let state, offset = 0, loading = false, busy = false, revealing = false, waitFor = '', retry;
   function tick() {
     if (!state) return;
@@ -89,6 +92,11 @@ export const piggyScript = String.raw`
       const next = await request('/api/piggy-bank');
       if (state && state.day !== next.day) waitFor = state.day;
       state = next;
+      const opening = el('openingTime');
+      if (opening.dateTime !== state.endsAt) {
+        opening.dateTime = state.endsAt;
+        opening.textContent = localTime.format(new Date(state.endsAt));
+      }
       offset = Date.parse(state.now) - Date.now();
       if (waitFor && state.previous?.day === waitFor) {
         waitFor = '';
