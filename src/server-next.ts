@@ -1,3 +1,4 @@
+import {installPiggyBank} from './piggy-bank.js';
 import {installSavings} from './savings.js';
 import {installBlindFinal} from './blind-final.js';
 import {installBlackBox} from './black-box.js';
@@ -44,6 +45,7 @@ installGuessWord(app,requireUser,requireAdmin,db);
 installDropsoConnect(app,requireAdmin,db);
 installBlackBox(app,db,requireUser,requireAdmin,new URL(APP_URL).origin);
 installSavings(app,db,requireUser,requireAdmin,new URL(APP_URL).origin);
+installPiggyBank(app,db,requireUser,requireAdmin,new URL(APP_URL).origin);
 installBlindFinal(app,db,requireUser,requireAdmin,new URL(APP_URL).origin);
 function validTradeUrl(v:string){try{const u=new URL(v);return u.protocol==='https:'&&u.hostname==='steamcommunity.com'&&u.pathname==='/tradeoffer/new/'&&!!u.searchParams.get('partner')&&!!u.searchParams.get('token')}catch{return false}}
 function randomIndex(count:number){if(count<=0)throw new Error('invalid_count');return crypto.randomInt(count)}
