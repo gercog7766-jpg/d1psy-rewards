@@ -1,3 +1,4 @@
+import {fullCoinBalance} from './coin-ledger-paged.js';
 import {fileURLToPath} from 'node:url';
 import type {Express,RequestHandler,Response} from 'express';
 import type {SupabaseClient} from '@supabase/supabase-js';
@@ -18,7 +19,14 @@ export function installSavings(app:Express,db:SupabaseClient,user:RequestHandler
   if(error)return fail(res,error);
   if(action==='state'){
    const {history,colors,...state}=data;
-   return res.json({...state,colors:{pig:colors.pig}});
+   const {data:account,error:lookup}=await db.from('rewards_users').select('id').eq('twitch_user_id',actor).maybeSingle();
+   if(lookup||!account)return res.status(503).json({error:'unavailable'});
+   try{
+    const balance=await fullCoinBalance(db,account.id);
+    return res.json({...state,balance,colors:{pig:colors.pig}});
+   }catch{
+    return res.status(503).json({error:'unavailable'});
+   }
   }
   res.json(data);
  };
