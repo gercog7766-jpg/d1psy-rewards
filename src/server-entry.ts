@@ -1,3 +1,4 @@
+import { installMobileBottomBar } from './mobile-bottom-bar.js';
 import {installGuessWordDecorations} from './guess-word.js';
 import {validateAppUrl} from './app-url-validation.js';
 import {installPausedFeatures} from './paused-features.js';
@@ -156,6 +157,7 @@ installShopVariantRouteFixHotfix();
 installToastUiHotfix();
 installToastActionsHotfix();
 installSiteDialogs();
+installMobileBottomBar();
 installUpgraderHotfix();
 installUpgraderRunFixHotfix();
 installUpgraderUiV2Hotfix();
