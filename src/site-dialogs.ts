@@ -64,7 +64,7 @@ export function installSiteDialogs() {
   const response = express.response;
   const send = response.send;
   response.send = function (body) {
-    if (typeof body === 'string' && /^\\s*(?:<!doctype html|<html\\b)/i.test(body)
+    if (typeof body === 'string' && /^\s*(?:<!doctype html|<html\b)/i.test(body)
       && body.includes('</head>') && !body.includes('id="dropso-dialog-script"')) {
       body = body.replace('</head>', () => styles + script + '</head>');
     }

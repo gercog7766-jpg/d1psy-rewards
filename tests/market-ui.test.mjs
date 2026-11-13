@@ -40,7 +40,9 @@ test('full shop UI: variant favorites, goal, budget/quality filters, sort, persi
   const errors=[];
   async function mount(view=''){
    if(dom)dom.window.close();const vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));dom=new JSDOM(html,{runScripts:'outside-only',url:base+'/shop'+view,virtualConsole:vc});const w=dom.window;
-   w.alert=()=>{};w.confirm=()=>true;w.Response=Response;
+   w.alert=()=>{throw Error('Unexpected native alert')};w.confirm=()=>{throw Error('Unexpected native confirmation')};w.Response=Response;
+   w.HTMLDialogElement.prototype.showModal=function(){this.open=true};
+   w.HTMLDialogElement.prototype.close=function(value){this.returnValue=value;this.open=false;this.dispatchEvent(new w.Event('close'))};
    w.fetch=async(url,opts)=>{
     if(String(url).startsWith('/api/me/economy'))return new Response(JSON.stringify({balance,shop:products}),{status:200});
     if(String(url).startsWith('/api/me/shop-variant-test'))return new Response(JSON.stringify({items:[{itemId:item,name:products[0].name,variants}],balance,hiddenNames:[]}),{status:200});
@@ -49,11 +51,19 @@ test('full shop UI: variant favorites, goal, budget/quality filters, sort, persi
     return new Response('{}',{status:200});
    };
    for(const s of w.document.querySelectorAll('script:not([src])'))w.eval(s.textContent);
-   w.d1Confirm=async()=>true;w.eval(client);
+   assert.equal(typeof w.dropsoConfirm,'function');
+   assert.equal(typeof w.dropsoNotice,'function');
+   w.eval(client);
    await until(()=>w.document.querySelectorAll('#grid .marketCardActions').length>0&&w.document.querySelector('#grid .marketIcon:not(:disabled)'));
    return w;
   }
   let w=await mount();const q=s=>w.document.querySelector(s),all=s=>[...w.document.querySelectorAll(s)],cards=()=>all('#grid .item');
+  function closeDropsoDialog(value='accept'){
+   const dialog=q('#dropso-dialog[open]');
+   assert(dialog,'Dropso dialog should be open');
+   assert(dialog.querySelector('button[value="'+value+'"]:not([hidden])'));
+   dialog.close(value);
+  }
   assert.equal(w.getComputedStyle(q('main')).maxWidth,'none');assert.equal(w.getComputedStyle(q('main')).width,'100%');assert.equal(cards().length,2);assert.equal(cards()[0].dataset.marketCard,'true');assert(cards().every(c=>c.querySelector('.buy').hidden));assert.equal(cards()[0].querySelector('.mkt-open-card').getAttribute('aria-haspopup'),'dialog');assert.equal(cards()[0].querySelector('.mkt-model').textContent,'AK-47');assert.equal(cards()[0].querySelector('.mkt-finish').textContent,'Test');assert.equal(cards()[0].querySelector('.mkt-currency').textContent,' монет');assert(cards()[0].textContent.includes('Обычный · FT'));assert(cards()[0].querySelector('.coins').textContent.includes('100'));
   q('[data-market-budget="near"]').click();assert.equal(cards().length,1);assert(cards()[0].textContent.includes('AK-47'));
   q('[data-market-budget="affordable"]').click();assert.equal(cards().length,2);assert(cards().some(c=>c.textContent.includes('Sticker')));const affordableSkin=cards().find(c=>c.textContent.includes('AK-47'));assert(affordableSkin.textContent.includes('Обычный · BS'));await until(()=>affordableSkin.querySelector('.mkt-open-card'));affordableSkin.querySelector('.mkt-open-card').click();assert.equal(q('#wears .on').dataset.w,'BS');assert(q('#mp').textContent.includes('60'));q('#close').click();
@@ -67,7 +77,9 @@ test('full shop UI: variant favorites, goal, budget/quality filters, sort, persi
   balance=200;w.dispatchEvent(new w.Event('focus'));await until(()=>q('#marketGoal .marketProgress')?.getAttribute('aria-valuenow')==='100');assert(q('#marketGoal').textContent.includes('Цель достигнута!'));
   q('[data-market-goal-open]').click();assert(q('#modal').classList.contains('on'));assert.equal(q('#tabs .on').dataset.k,'stattrak');assert.equal(q('#wears .on').dataset.w,'FN');assert(q('#mp').textContent.includes('200'));
   q('#addCart').click();q('#cartTop').click();assert(q('#cartList').textContent.includes('StatTrak™ · FN'));assert(q('#cartList').textContent.includes('200'));
-  q('#cartClose').click();q('[data-market-goal-open]').click();q('#mb').click();await until(()=>buyRequests.length===1);assert(buyRequests[0].includes('/variant/'+st+'/buy'));await until(()=>q('#bal').textContent.includes('0 Монет'));
+  q('#cartClose').click();q('[data-market-goal-open]').click();q('#mb').click();assert.equal(buyRequests.length,0);
+  closeDropsoDialog('cancel');await pause(0);assert.equal(buyRequests.length,0);
+  q('#mb').click();closeDropsoDialog();await until(()=>buyRequests.length===1);assert(buyRequests[0].includes('/variant/'+st+'/buy'));await until(()=>q('#bal').textContent.includes('0 Монет')&&q('#dropso-dialog[open]'));closeDropsoDialog();
   await until(()=>q('#marketGoal').textContent.includes('Осталось')&&q('#marketGoal').getAttribute('aria-busy')!=='true');
   // Current price/stock changes are reflected after refresh, not stored snapshots.
   balance=200;variants.find(v=>v.id===st).price_coins=250;w.dispatchEvent(new w.Event('focus'));await until(()=>q('#marketGoal .marketProgress')?.getAttribute('aria-valuenow')==='80');assert(q('#marketGoal').textContent.includes('250'));await until(()=>q('#marketGoal').getAttribute('aria-busy')!=='true');
@@ -77,12 +89,12 @@ test('full shop UI: variant favorites, goal, budget/quality filters, sort, persi
   cards().find(c=>c.textContent.includes('StatTrak™ · FN')).querySelector('[data-market-action="unfavorite"]').click();await until(()=>goal===null&&!q('#marketGoal .marketProgress'));assert.equal(favorites.length,1);
   // Fixed items share the same product dialog, quantity and cart flow.
   balance=1000;const agent=randomUUID(),charm=randomUUID();products.push({id:agent,name:'Агент | Test',image_url:'/agent.png',price_coins:20,stock:null},{id:charm,name:'Брелок | Test',image_url:'/charm.png',price_coins:15,stock:null});
-  q('#cartTop').click();q('#cartClear').click();await until(()=>q('#cartList .cartEmpty'));q('#cartClose').click();
+  q('#cartTop').click();q('#cartClear').click();closeDropsoDialog();await until(()=>q('#cartList .cartEmpty'));q('#cartClose').click();
   w.dispatchEvent(new w.Event('focus'));await until(()=>q('#bal').textContent.includes('1000'));q('#reset').click();await until(()=>cards().length===4&&cards().every(c=>c.querySelector('.mkt-open-card')));
   const beforeFixed=buyRequests.length;
   for(const name of ['Sticker | Test','Агент | Test','Брелок | Test']){await until(()=>cards().find(c=>c.textContent.includes(name.split(' | ')[0]))?.querySelector('.mkt-open-card'));cards().find(c=>c.textContent.includes(name.split(' | ')[0])).querySelector('.mkt-open-card').click();assert(q('#modal').classList.contains('on'));assert.equal(q('#mt').textContent,name);assert.equal(q('#tabs').hidden,true);assert.equal(q('#wears').hidden,true);assert.equal(q('#shopQty').textContent,'1');assert.equal(buyRequests.length,beforeFixed);q('#qtyMinus').click();assert.equal(q('#shopQty').textContent,'1');q('#qtyPlus').click();assert.equal(q('#shopQty').textContent,'2');q('#addCart').click();assert(!q('#modal').classList.contains('on'))}
-  q('#cartTop').click();assert.equal(q('#cartList').querySelectorAll('.cartRow').length,3);assert.equal(q('#cartPanelTotal').textContent,'130 Монет');assert([...q('#cartList').querySelectorAll('.qtyNum')].every(n=>n.textContent==='2'));q('#cartBuy').click();await until(()=>buyRequests.length===beforeFixed+6&&!q('#cartPanel').classList.contains('on'));await until(()=>q('#bal').textContent.includes('870'));assert(buyRequests.slice(beforeFixed).every(url=>!url.includes('/variant/')));
-  await until(()=>cards().find(c=>c.textContent.includes('Sticker'))?.querySelector('.mkt-open-card'));cards().find(c=>c.textContent.includes('Sticker')).querySelector('.mkt-open-card').click();q('#qtyPlus').click();q('#mb').click();await until(()=>buyRequests.length===beforeFixed+8);await until(()=>q('#bal').textContent.includes('810'));assert(!q('#modal').classList.contains('on'));
+  q('#cartTop').click();assert.equal(q('#cartList').querySelectorAll('.cartRow').length,3);assert.equal(q('#cartPanelTotal').textContent,'130 Монет');assert([...q('#cartList').querySelectorAll('.qtyNum')].every(n=>n.textContent==='2'));q('#cartBuy').click();closeDropsoDialog();await until(()=>buyRequests.length===beforeFixed+6&&!q('#cartPanel').classList.contains('on'));await until(()=>q('#bal').textContent.includes('870')&&q('#dropso-dialog[open]'));closeDropsoDialog();assert(buyRequests.slice(beforeFixed).every(url=>!url.includes('/variant/')));
+  await until(()=>cards().find(c=>c.textContent.includes('Sticker'))?.querySelector('.mkt-open-card'));cards().find(c=>c.textContent.includes('Sticker')).querySelector('.mkt-open-card').click();q('#qtyPlus').click();q('#mb').click();closeDropsoDialog();await until(()=>buyRequests.length===beforeFixed+8);await until(()=>q('#bal').textContent.includes('810')&&q('#dropso-dialog[open]'));closeDropsoDialog();assert(!q('#modal').classList.contains('on'));
   await until(()=>cards().find(c=>c.textContent.includes('AK-47'))?.querySelector('.mkt-open-card'));cards().find(c=>c.textContent.includes('AK-47')).querySelector('.mkt-open-card').click();assert.equal(q('#tabs').hidden,false);assert.equal(q('#wears').hidden,false);assert.equal(q('#shopQty').textContent,'1');q('#close').click();
   await pause(150);await until(()=>q('#marketGoal').getAttribute('aria-busy')!=='true');
   // A six-column catalog must contain complete rows and keep every product reachable.
