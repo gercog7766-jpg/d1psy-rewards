@@ -22,9 +22,9 @@ export function installSavings(app:Express,db:SupabaseClient,user:RequestHandler
  app.get('/admin/savings',noStore,admin,(_q,r)=>r.send(savingsPage(true)));
  app.get('/admin/piggy-bank',noStore,admin,(_q,r)=>r.redirect(302,'/admin/savings'));
  app.get('/savings/assets/:file',(q,r)=>{
-  const files:Record<string,string>={'pig.png':'pig.png','glasses.png':'glasses.png','crown.png':'crown.png'};
+  const files:Record<string,string>={'pig.webp':'pig.webp','glasses.webp':'glasses.webp','crown.webp':'crown.webp'};
   const file=files[q.params.file];if(!file)return r.sendStatus(404);
-  r.type('png').set('Cache-Control','public,max-age=31536000,immutable').sendFile(fileURLToPath(new URL('../public/savings/'+file,import.meta.url)));
+  r.type('webp').set('Cache-Control','public,max-age=31536000,immutable').sendFile(fileURLToPath(new URL('../public/savings/'+file,import.meta.url)));
  });
  app.get('/savings.js',(_q,r)=>r.type('application/javascript').set('Cache-Control','no-cache').send(savingsScript));
  app.get('/api/savings',noStore,user,async(_q,r)=>rpc(r,r.locals.session.twitchUserId,'state'));
