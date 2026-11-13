@@ -23,9 +23,7 @@ export function installSavings(app:Express,db:SupabaseClient,user:RequestHandler
   res.json(data);
  };
  app.get('/savings',noStore,user,(_q,r)=>r.send(savingsPage(false)));
- app.get('/piggy-bank',noStore,user,(_q,r)=>r.redirect(302,'/savings'));
  app.get('/admin/savings',noStore,admin,(_q,r)=>r.send(savingsPage(true)));
- app.get('/admin/piggy-bank',noStore,admin,(_q,r)=>r.redirect(302,'/admin/savings'));
  app.get('/savings/assets/:file',(q,r)=>{
   const files:Record<string,string>={'pig.webp':'pig.webp','pig-glasses.webp':'pig.webp'};
   const file=files[q.params.file];if(!file)return r.sendStatus(404);
@@ -71,7 +69,4 @@ export function installSavings(app:Express,db:SupabaseClient,user:RequestHandler
   });
   return r.json({rows,hasNext:data.length>size});
  });
- // Finish any old shared-piggy entries already accepted before this feature replaced it.
- let settling=false;
- setInterval(async()=>{if(settling)return;settling=true;try{const {error}=await db.rpc('rewards_piggy_close');if(error&&error.code!=='PGRST202')console.error('legacy_piggy_settlement',error.code)}catch(e){console.error('legacy_piggy_settlement',e)}finally{settling=false}},10000).unref();
 }
