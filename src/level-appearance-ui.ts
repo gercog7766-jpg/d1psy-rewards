@@ -17,8 +17,8 @@ body[data-account-design="neon"][data-level-frame="frame1"]{--chosen-frame:#9f63
 body[data-account-design="neon"][data-level-frame="frame2"]{--chosen-frame:#c084fc;--chosen-glow:0 0 20px #994dea44;--chosen-width:2px}
 body[data-account-design="neon"][data-level-frame="rare"]{--chosen-frame:#f0abfc;--chosen-glow:0 0 24px #d946ef55;--chosen-width:2px}
 body[data-account-design="neon"][data-level-frame="s1"]{--chosen-frame:#74e5e0;--chosen-glow:0 0 23px #39ccc455;--chosen-width:2px}
-body[data-account-design="neon"][data-level-frame]:not([data-level-frame="none"]) :is(main,.card,.dailyBonus,.seasonAccountHero,.blackBoxBanner,.levelWidget,.levelBox,.item){border-color:var(--chosen-frame)!important;box-shadow:var(--chosen-glow)!important}
-body[data-account-design="neon"][data-level-frame]:not([data-level-frame="none"]) :is(.card,.dailyBonus,.seasonAccountHero,.blackBoxBanner,.levelWidget,.levelBox,.item){border-width:var(--chosen-width)!important}
+body[data-account-design="neon"][data-level-frame]:not([data-level-frame="none"]) :is(main,.card,.dailyBonus,.seasonAccountHero,.blackBoxBanner,.savingsBanner,.levelWidget,.levelBox,.item){border-color:var(--chosen-frame)!important;box-shadow:var(--chosen-glow)!important}
+body[data-account-design="neon"][data-level-frame]:not([data-level-frame="none"]) :is(.card,.dailyBonus,.seasonAccountHero,.blackBoxBanner,.savingsBanner,.levelWidget,.levelBox,.item){border-width:var(--chosen-width)!important}
 body[data-account-design="neon"][data-level-color="default"] #levelBadge{color:#e5d9fa;text-shadow:none}
 body[data-account-design="neon"][data-level-color="violet"] #levelBadge{color:#c084fc;text-shadow:0 0 12px #a855f744}
 body[data-account-design="neon"][data-level-color="gold"] #levelBadge{color:#facc15;text-shadow:0 0 14px #eab30866}
