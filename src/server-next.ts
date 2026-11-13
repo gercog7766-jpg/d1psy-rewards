@@ -1,3 +1,4 @@
+import {installLiveChat} from './live-chat.js';
 import {installActivityFeed} from './activity-feed.js';
 import {installPiggyBank} from './piggy-bank.js';
 import {installSavings} from './savings.js';
@@ -46,6 +47,7 @@ installGuessWord(app,requireUser,requireAdmin,db);
 installDropsoConnect(app,requireAdmin,db);
 installBlackBox(app,db,requireUser,requireAdmin,new URL(APP_URL).origin);
 installActivityFeed(app,db,requireUser);
+installLiveChat(app,db,requireUser,new URL(APP_URL).origin);
 installSavings(app,db,requireUser,requireAdmin,new URL(APP_URL).origin);
 installPiggyBank(app,db,requireUser,requireAdmin,new URL(APP_URL).origin);
 installBlindFinal(app,db,requireUser,requireAdmin,new URL(APP_URL).origin);

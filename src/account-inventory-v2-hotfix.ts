@@ -21,11 +21,11 @@ export function installAccountInventoryV2Hotfix(){
    // Upgrader sources stay in history, have no actions and are explicitly lost.
    body=body.replace(
     "actions=choice==='awaiting_choice'&&!received?",
-    "actions=(choice==='upgraded'||choice==='contracted')?'':choice==='awaiting_choice'&&!received?"
+    "actions=(choice==='upgraded'||choice==='contracted'||choice==='gifted')?'':choice==='awaiting_choice'&&!received?"
    );
    body=body.replace(
     "badge=choice==='sold'?'<span class=\"badge sold\">Продано</span>':received?",
-    "badge=choice==='contracted'?'<span class=\"badge sold\">В КОНТРАКТЕ</span>':choice==='upgraded'?'<span class=\"badge sold\">ПРОИГРАН</span>':choice==='sold'?'<span class=\"badge sold\">Продано</span>':received?"
+    "badge=choice==='gifted'?'<span class=\"badge sold\">ПОДАРЕН</span>':choice==='contracted'?'<span class=\"badge sold\">В КОНТРАКТЕ</span>':choice==='upgraded'?'<span class=\"badge sold\">ПРОИГРАН</span>':choice==='sold'?'<span class=\"badge sold\">Продано</span>':received?"
    );
   }
   return original.call(this,body);
