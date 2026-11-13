@@ -15,14 +15,19 @@ export function installSavings(app:Express,db:SupabaseClient,user:RequestHandler
  };
  const rpc=async(res:Response,actor:string,action:string,body:any={})=>{
   const {data,error}=await db.rpc('rewards_personal_savings_rpc',{p_actor:actor,p_action:action,p_body:body});
-  if(error)return fail(res,error);if(action==='state'&&data?.colors)data.colors={pig:data.colors.pig};res.json(data);
+  if(error)return fail(res,error);
+  if(action==='state'){
+   const {history,colors,...state}=data;
+   return res.json({...state,colors:{pig:colors.pig}});
+  }
+  res.json(data);
  };
  app.get('/savings',noStore,user,(_q,r)=>r.send(savingsPage(false)));
  app.get('/piggy-bank',noStore,user,(_q,r)=>r.redirect(302,'/savings'));
  app.get('/admin/savings',noStore,admin,(_q,r)=>r.send(savingsPage(true)));
  app.get('/admin/piggy-bank',noStore,admin,(_q,r)=>r.redirect(302,'/admin/savings'));
  app.get('/savings/assets/:file',(q,r)=>{
-  const files:Record<string,string>={'pig.webp':'pig.webp'};
+  const files:Record<string,string>={'pig.webp':'pig.webp','pig-glasses.webp':'pig.webp'};
   const file=files[q.params.file];if(!file)return r.sendStatus(404);
   r.type('webp').set('Cache-Control','public,max-age=31536000,immutable').sendFile(fileURLToPath(new URL('../public/savings/'+file,import.meta.url)));
  });
@@ -49,7 +54,23 @@ export function installSavings(app:Express,db:SupabaseClient,user:RequestHandler
   }else return r.status(404).json({error:'invalid_request'});
   return rpc(r,r.locals.session.twitchUserId,a,a==='colors'?{pig:b.pig,glasses:b.pig,crown:b.pig}:b);
  });
- app.get('/api/admin/savings',noStore,admin,async(_q,r)=>rpc(r,r.locals.session.twitchUserId,'admin_state'));
+ app.get('/api/admin/savings',noStore,admin,async(q,r)=>{
+  const page=Number(q.query.page??1);
+  if(!Number.isSafeInteger(page)||page<1||page>100000)return r.status(400).json({error:'invalid_request'});
+  const size=50,offset=(page-1)*size;
+  const {data,error}=await db.from('rewards_personal_savings')
+   .select('status,goal_type,goal_at,saved:saved_coins::text,pig_color,rewards_users!rewards_personal_savings_user_id_fkey(twitch_login,twitch_display_name)')
+   .gt('cycles_started',0).order('user_id').range(offset,offset+size);
+  if(error)return fail(r,error);
+  const now=Date.now();
+  const rows=data.slice(0,size).map(entry=>{
+   const user=Array.isArray(entry.rewards_users)?entry.rewards_users[0]:entry.rewards_users;
+   const ready=entry.status==='active'&&entry.goal_type==='date'&&entry.goal_at&&Date.parse(entry.goal_at)<=now;
+   return {name:user?.twitch_display_name||user?.twitch_login||'Пользователь',login:user?.twitch_login,
+    status:ready?'ready':entry.status,saved:entry.saved,color:entry.pig_color};
+  });
+  return r.json({rows,hasNext:data.length>size});
+ });
  // Finish any old shared-piggy entries already accepted before this feature replaced it.
  let settling=false;
  setInterval(async()=>{if(settling)return;settling=true;try{const {error}=await db.rpc('rewards_piggy_close');if(error&&error.code!=='PGRST202')console.error('legacy_piggy_settlement',error.code)}catch(e){console.error('legacy_piggy_settlement',e)}finally{settling=false}},10000).unref();
