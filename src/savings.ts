@@ -15,14 +15,14 @@ export function installSavings(app:Express,db:SupabaseClient,user:RequestHandler
  };
  const rpc=async(res:Response,actor:string,action:string,body:any={})=>{
   const {data,error}=await db.rpc('rewards_personal_savings_rpc',{p_actor:actor,p_action:action,p_body:body});
-  if(error)return fail(res,error);res.json(data);
+  if(error)return fail(res,error);if(action==='state'&&data?.colors)data.colors={pig:data.colors.pig};res.json(data);
  };
  app.get('/savings',noStore,user,(_q,r)=>r.send(savingsPage(false)));
  app.get('/piggy-bank',noStore,user,(_q,r)=>r.redirect(302,'/savings'));
  app.get('/admin/savings',noStore,admin,(_q,r)=>r.send(savingsPage(true)));
  app.get('/admin/piggy-bank',noStore,admin,(_q,r)=>r.redirect(302,'/admin/savings'));
  app.get('/savings/assets/:file',(q,r)=>{
-  const files:Record<string,string>={'pig.webp':'pig.webp','glasses.webp':'glasses.webp','crown.webp':'crown.webp'};
+  const files:Record<string,string>={'pig.webp':'pig.webp'};
   const file=files[q.params.file];if(!file)return r.sendStatus(404);
   r.type('webp').set('Cache-Control','public,max-age=31536000,immutable').sendFile(fileURLToPath(new URL('../public/savings/'+file,import.meta.url)));
  });
@@ -33,7 +33,7 @@ export function installSavings(app:Express,db:SupabaseClient,user:RequestHandler
   const b=q.body,a=String(q.params.action);
   if(!b||Array.isArray(b)||typeof b!=='object')return r.status(400).json({error:'invalid_request'});
   if(a==='colors'){
-   const keys=['pig','glasses','crown'];if(Object.keys(b).length!==keys.length||keys.some(k=>!hex.test(b[k])))return r.status(400).json({error:'invalid_request'});
+   const keys=['pig'];if(Object.keys(b).length!==keys.length||keys.some(k=>!hex.test(b[k])))return r.status(400).json({error:'invalid_request'});
   }else if(['start','extend'].includes(a)){
    const goalKeys=b.goalType==='amount'?['goalType','amount','requestId']:['goalType','goalAt','requestId'];
    if(Object.keys(b).length!==goalKeys.length||Object.keys(b).some(k=>!goalKeys.includes(k))||!uuid.test(b.requestId))return r.status(400).json({error:'invalid_request'});
@@ -47,7 +47,7 @@ export function installSavings(app:Express,db:SupabaseClient,user:RequestHandler
   }else if(a==='break'){
    if(Object.keys(b).length!==1||!uuid.test(b.requestId))return r.status(400).json({error:'invalid_request'});
   }else return r.status(404).json({error:'invalid_request'});
-  return rpc(r,r.locals.session.twitchUserId,a,b);
+  return rpc(r,r.locals.session.twitchUserId,a,a==='colors'?{pig:b.pig,glasses:b.pig,crown:b.pig}:b);
  });
  app.get('/api/admin/savings',noStore,admin,async(_q,r)=>rpc(r,r.locals.session.twitchUserId,'admin_state'));
  // Finish any old shared-piggy entries already accepted before this feature replaced it.
