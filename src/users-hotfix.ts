@@ -34,6 +34,23 @@ export function installUsers(){
   }res.json(data)}
   function page(req:any,res:any){if(req.query.page!==undefined&&(!/^\d{1,6}$/.test(String(req.query.page))||Number(req.query.page)<1)){res.status(400).json({error:'invalid_page'});return null}return Number(req.query.page)||1}
   app.use('/api/me/social',(_req:any,res:any,next:any)=>{res.set('Cache-Control','no-store');next()});
+  async function skinGift(q:any,r:any,send:boolean){
+   r.set('Cache-Control','no-store');
+   if(!login(q.params.login))return r.sendStatus(404);
+   const b=q.body;
+   if(send&&(!b||Object.keys(b).length!==2||!uuid(b.winId)||!uuid(b.requestId)))return r.status(400).json({error:'invalid_request'});
+   const {data,error}=await db.rpc('rewards_skin_gift',{
+    p_actor:r.locals.session.twitchUserId,p_login:q.params.login,p_win:send?b.winId:null,p_request:send?b.requestId:null
+   });
+   if(error){
+    const known=['skin_gift_limit','skin_unavailable','request_conflict','contact_unavailable','user_unavailable','self_action'];
+    const reason=known.find(code=>error.message===code);
+    return r.status(reason?409:503).json({error:reason||'unavailable'});
+   }
+   return r.json(data);
+  }
+  app.get('/api/me/skin-gifts/:login',auth,(q:any,r:any)=>skinGift(q,r,false));
+  app.post('/api/me/skin-gifts/:login',auth,origin,(q:any,r:any)=>skinGift(q,r,true));
   app.get('/community',auth,(_req:any,res:any)=>res.set('Cache-Control','no-store').send(communityHtml));
   app.get('/social.css',(_req:any,res:any)=>res.type('text/css').send(socialCss));
   app.get('/social.js',(_req:any,res:any)=>res.type('application/javascript').set('Cache-Control','no-cache').send(socialJs));
@@ -45,7 +62,7 @@ export function installUsers(){
    if(!login(req.params.login))return res.sendStatus(404);const b=req.body||{};let params:any;
    if(action==='friend'&&['request','accept','remove','decline','block','unblock'].includes(b.action)&&Object.keys(b).every(k=>k==='action'))params={p_action:b.action};
    if(action==='message'&&typeof b.text==='string'&&b.text.trim().length>=1&&b.text.length<=2000&&uuid(b.requestId)&&Object.keys(b).every(k=>['text','requestId'].includes(k)))params={p_body:b.text,p_request:b.requestId};
-   if(action==='gift'&&Number.isInteger(b.amount)&&b.amount>=1&&b.amount<=10&&uuid(b.requestId)&&Object.keys(b).every(k=>['amount','requestId'].includes(k)))params={p_amount:b.amount,p_request:b.requestId};
+   if(action==='gift'&&Number.isInteger(b.amount)&&b.amount>=1&&b.amount<=20&&uuid(b.requestId)&&Object.keys(b).every(k=>['amount','requestId'].includes(k)))params={p_amount:b.amount,p_request:b.requestId};
    if(action==='read'&&Number.isSafeInteger(b.through)&&b.through>0&&Object.keys(b).every(k=>k==='through'))params={p_through:Number(b.through)};
    if(!params)return res.status(400).json({error:'invalid_request'});const id=await user(res);if(id)await rpc(res,({friend:'rewards_friend_action',message:'rewards_send_message',read:'rewards_social_read',gift:'rewards_send_coin_gift'} as any)[action],{p_user:id,p_login:req.params.login,...params});
   });

@@ -1,3 +1,5 @@
+import express from 'express';
+import {compactTradeStyle} from './live-chat.js';
 import { installMobileBottomBar } from './mobile-bottom-bar.js';
 import {installGuessWordDecorations} from './guess-word.js';
 import {validateAppUrl} from './app-url-validation.js';
@@ -177,4 +179,9 @@ installAdminGrantsLoaderHotfix();
 installAdminDashboardHotfix();
 installHomeHotfix();
 installRawPageScrollbars();
+const sendWithTrade = express.response.send;
+express.response.send = function(body){
+ if(this.req?.path==='/account'&&typeof body==='string')body=body.replace('</head>',()=>compactTradeStyle+'</head>');
+ return sendWithTrade.call(this,body);
+};
 await import('./server-next.js');
