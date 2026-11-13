@@ -17,7 +17,7 @@ export function installProfileCustomization(app:Express,userAuth:RequestHandler,
  for(const admin of [false,true])app.post('/api/'+(admin?'admin/profile-titles':'me/profile-customization')+'/:action',admin?adminAuth:userAuth,origin,throttle,async(q,r)=>{
   const b=q.body,a=String(q.params.action),keys:Record<string,string[]|undefined>=admin?{grant:['userId','title'],revoke:['userId']}:{buy:['itemId','requestId'],save:['bio','frame','background','titleVisible']};const expected=keys[a];
   if(!expected||!b||Array.isArray(b)||typeof b!=='object'||Object.keys(b).length!==expected.length||Object.keys(b).some(k=>!expected.includes(k)))return void r.status(400).json({error:'invalid_request'});
-  if(a==='buy'&&(!uuid(b.requestId)||typeof b.itemId!=='string'||! /^[a-z]{1,20}$/.test(b.itemId))||a==='save'&&(typeof b.bio!=='string'||Array.from(b.bio).length>240||typeof b.frame!=='string'||typeof b.background!=='string'||b.frame.length>20||b.background.length>20||typeof b.titleVisible!=='boolean')||admin&&(!uuid(b.userId)||a==='grant'&&(typeof b.title!=='string'||!b.title.trim()||Array.from(b.title).length>40)))return void r.status(400).json({error:'invalid_request'});
+  if(a==='buy'&&(!uuid(b.requestId)||typeof b.itemId!=='string'||! /^[a-z][a-z_]{0,19}$/.test(b.itemId))||a==='save'&&(typeof b.bio!=='string'||Array.from(b.bio).length>240||typeof b.frame!=='string'||typeof b.background!=='string'||b.frame.length>20||b.background.length>20||typeof b.titleVisible!=='boolean')||admin&&(!uuid(b.userId)||a==='grant'&&(typeof b.title!=='string'||!b.title.trim()||Array.from(b.title).length>40)))return void r.status(400).json({error:'invalid_request'});
   await rpc(r,a,b);
  });
  // Installed before the dashboard route so the link is included in its final HTML.
