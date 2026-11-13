@@ -29,7 +29,7 @@ document.addEventListener('input',e=>{if(e.target.id==='joinPassword')privatePas
 document.addEventListener('click',async e=>{const b=e.target.closest('button,a');if(!b||b.disabled)return;
  if(b.dataset.join){if(data?.room?.id===b.dataset.join&&data.room.participant){navigate(b.dataset.join);load();return}if(data?.room?.id!==b.dataset.join){navigate(b.dataset.join);await load();if(data?.room?.isPrivate)return}action('join',{password:privatePassword},b.dataset.join)}
  if(b.dataset.cell!==undefined)action('move',{cell:Number(b.dataset.cell),revision:data.room.revision});
- if(b.hasAttribute('data-leave')&&confirm(data.room.status==='waiting'?'Отменить ожидание соперника?':'Сдаться? Партия завершится поражением.'))action('leave');
+ if(b.hasAttribute('data-leave')&&await window.dropsoConfirm(data.room.status==='waiting'?'Отменить ожидание соперника?':'Сдаться? Партия завершится поражением.'))action('leave');
  if(b.hasAttribute('data-current')){navigate(data.currentRoomId);load()}
  if(b.hasAttribute('data-new')){navigate('');notice('');load()}
  if(b.dataset.view){e.preventDefault();navigate(b.dataset.view);load()}

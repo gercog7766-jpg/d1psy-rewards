@@ -48,7 +48,7 @@ import { installShopNameNormalizeHotfix } from './shop-name-normalize-hotfix.js'
 import { installShopVariantRouteFixHotfix } from './shop-variant-route-fix-hotfix.js';
 import { installToastUiHotfix } from './toast-ui-hotfix.js';
 import { installToastActionsHotfix } from './toast-actions-hotfix.js';
-import { installShopConfirmHotfix } from './shop-confirm-hotfix.js';
+import { installSiteDialogs } from './site-dialogs.js';
 import { installShopCartHotfix } from './shop-cart-hotfix.js';
 import { installShopCartClearHotfix } from './shop-cart-clear-hotfix.js';
 import { installSellAllHotfix } from './sell-all-hotfix.js';
@@ -155,7 +155,7 @@ installShopNameNormalizeHotfix();
 installShopVariantRouteFixHotfix();
 installToastUiHotfix();
 installToastActionsHotfix();
-installShopConfirmHotfix();
+installSiteDialogs();
 installUpgraderHotfix();
 installUpgraderRunFixHotfix();
 installUpgraderUiV2Hotfix();

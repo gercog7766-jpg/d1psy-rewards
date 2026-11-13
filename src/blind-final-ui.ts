@@ -110,7 +110,7 @@ export const blindScript = String.raw`
           title.append(document.createElement('br'), settings);
           item.append(title);
           if (game.status === 'open') item.append(action('Отменить', async () => {
-            if (!window.confirm('Отменить раунд и вернуть взносы?')) return;
+            if (!await window.dropsoConfirm('Отменить раунд и вернуть взносы?')) return;
             try { await request(api + '/cancel', {id: game.id}); await rounds(); }
             catch (error) { say(errorText(error)); }
           }));
@@ -250,14 +250,14 @@ export const blindScript = String.raw`
     catch (error) { message = errorText(error); say(message); }
     finally { pending = false; await refresh(); timer(); }
   }
-  el('enter').onclick = () => {
+  el('enter').onclick = async () => {
     const fee = state?.current?.fee;
-    if (!fee || window.confirm('Зарезервировать ' + fee + ' мон. за участие?')) play('enter');
+    if (!fee || await window.dropsoConfirm('Зарезервировать ' + fee + ' мон. за участие?')) play('enter');
   };
-  el('pick').onsubmit = event => {
+  el('pick').onsubmit = async event => {
     event.preventDefault();
     const number = Number(el('number').value);
-    if (window.confirm('Подтвердить число ' + number + '?')) play('pick', number);
+    if (await window.dropsoConfirm('Подтвердить число ' + number + '?')) play('pick', number);
   };
   el('replay').onclick = () => { if (state?.latest) reveal(state.latest); };
   refresh();
