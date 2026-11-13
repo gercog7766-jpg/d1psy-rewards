@@ -33,7 +33,7 @@ function inject(body:string){
   if(!su||!cu||!pr||!amountEl)return;
   var body=kind==='skin'?{userId:su.value,prizeId:pr.value}:{userId:cu.value,amount:Number(amountEl.value)};
   if(!body.userId||(kind==='skin'&&!body.prizeId)||(kind==='coins'&&(!Number.isSafeInteger(body.amount)||body.amount===0))){if(msg)msg.textContent='Выберите пользователя и проверьте данные.';return}
-  if(!confirm(kind==='skin'?'Начислить выбранный скин пользователю?':(body.amount<0?'Списать '+Math.abs(body.amount)+' Монет у пользователя?':'Начислить '+body.amount+' Монет пользователю?')))return;
+  if(!await window.dropsoConfirm(kind==='skin'?'Начислить выбранный скин пользователю?':(body.amount<0?'Списать '+Math.abs(body.amount)+' Монет у пользователя?':'Начислить '+body.amount+' Монет пользователю?')))return;
   var btn=document.getElementById(kind==='skin'?'grantSkin':'grantCoin');if(btn)btn.disabled=true;
   try{var r=await fetch('/api/admin/grants/'+kind,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}),j=await r.json().catch(function(){return {}});if(msg)msg.textContent=r.ok?(kind==='coins'&&body.amount<0?'Готово. Монеты списаны.':'Готово. Начисление выполнено.'):'Ошибка: '+(j.error||r.status);if(r.ok)await loadGrantOptions()}catch(e){if(msg)msg.textContent='Ошибка сети'}finally{if(btn)btn.disabled=false}
  }

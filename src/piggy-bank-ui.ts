@@ -117,7 +117,7 @@ export const piggyScript = String.raw`
     if (!state || busy || revealing) return;
     const amount = el('amount').value.trim();
     if (!/^[1-9]\d*$/.test(amount)) { say(messages.invalid_request); return; }
-    if (!window.confirm('Внести ' + amount + ' мон. в копилку?')) return;
+    if (!await window.dropsoConfirm('Внести ' + amount + ' мон. в копилку?')) return;
     if (!retry || retry.day !== state.day || retry.amount !== amount) retry = {day:state.day,amount,requestId:crypto.randomUUID()};
     busy = true;
     tick();

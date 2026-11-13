@@ -13,7 +13,7 @@ export function installShopCartClearHotfix(){
    body=body.replace("fetch('/api/me/shop-variant-test/'+encodeURIComponent(x.itemId)+'/buy',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({variantId:x.variantId})})","fetch('/api/me/shop/'+encodeURIComponent(x.itemId)+'/variant/'+encodeURIComponent(x.variantId)+'/buy',{method:'POST'})");
    if(!body.includes("q('#cartClear')")){
     body=body.replace("var buy=q('#cartBuy');if(buy)buy.disabled=!shopCart.length||total>shopBalance}","var buy=q('#cartBuy');if(buy)buy.disabled=!shopCart.length||total>shopBalance;var clr=q('#cartClear');if(clr)clr.disabled=!shopCart.length}");
-    body=body.replace("if(q('#cartClose'))q('#cartClose').onclick=function(){q('#cartPanel').classList.remove('on')};if(q('#cartBuy'))q('#cartBuy').onclick=cartCheckout;","if(q('#cartClose'))q('#cartClose').onclick=function(){q('#cartPanel').classList.remove('on')};if(q('#cartClear'))q('#cartClear').onclick=function(){if(!shopCart.length)return;if(confirm('Очистить корзину?')){shopCart=[];cartSave();cartRender()}};if(q('#cartBuy'))q('#cartBuy').onclick=cartCheckout;");
+    body=body.replace("if(q('#cartClose'))q('#cartClose').onclick=function(){q('#cartPanel').classList.remove('on')};if(q('#cartBuy'))q('#cartBuy').onclick=cartCheckout;","if(q('#cartClose'))q('#cartClose').onclick=function(){q('#cartPanel').classList.remove('on')};if(q('#cartClear'))q('#cartClear').onclick=async function(){if(shopPurchaseBusy||!shopCart.length)return;if(await window.dropsoConfirm('Очистить корзину?')){shopCart=[];cartSave();cartRender()}};if(q('#cartBuy'))q('#cartBuy').onclick=cartCheckout;");
    }
   }
   return original.call(this,body);
