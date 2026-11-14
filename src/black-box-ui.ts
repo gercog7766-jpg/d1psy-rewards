@@ -26,6 +26,7 @@ li{padding:8px 0;border-bottom:1px solid #453251}ol{padding-left:23px;max-height
 .chat-log{height:clamp(210px,32vh,340px);overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;background:#100c19;border:1px solid #422955;border-radius:9px;padding:10px 12px}
 .chat-message{padding:7px 0;border-bottom:1px solid #342441;font-size:14px}.chat-message:last-child{border:0}
 .chat-message header{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:2px;color:#e9c4ff}
+.chat-message .chat-remove{width:auto;padding:4px 8px;font-size:12px}
 .chat-message time{font-size:11px;color:#c6afda;white-space:nowrap;font-variant-numeric:tabular-nums}.chat-message p{white-space:pre-wrap}
 .chat-panel form{gap:6px}.chat-controls{display:flex;gap:8px}.chat-controls button{width:auto;flex:none;padding-inline:11px}
 .chat-meta{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:#c6afda}.chat-meta output{white-space:nowrap;font-variant-numeric:tabular-nums}
@@ -140,6 +141,7 @@ export const blackBoxScript = String.raw`
   const chatTime = new Intl.DateTimeFormat('ru-RU', {hour: '2-digit', minute: '2-digit', second: '2-digit'});
   const chatLog = el('chatLog'), chatMessages = el('chatMessages'), chatInput = el('chatInput');
   const chatEntries = new Map();
+  let canModerateChat = false;
   const chatErrors = {
     authentication_required: 'Войди через Twitch, чтобы писать в чат.',
     invalid_message: 'Введи сообщение от 1 до 140 символов.',
@@ -201,6 +203,32 @@ export const blackBoxScript = String.raw`
       const message = document.createElement('p');
       message.textContent = row.message;
       header.append(author, time);
+      if (canModerateChat) {
+        const box = chatId, button = document.createElement('button');
+        button.type = 'button'; button.className = 'chat-remove'; button.textContent = 'Удалить';
+        button.onclick = async () => {
+          if (button.disabled || chatId !== box) return;
+          button.disabled = true;
+          try {
+            if (!await window.dropsoConfirm('Удалить сообщение?') || chatId !== box) return;
+            const response = await fetch('/api/admin/black-box/chat/' + encodeURIComponent(box) + '/' + encodeURIComponent(row.id), {method: 'DELETE'});
+            if (!response.ok) throw Error();
+            if (chatId === box) {
+              chatRequest?.abort();
+              chatRequest = null;
+              node.remove();
+              chatEntries.delete(row.id);
+              updateChatEmpty();
+              void loadChat();
+            }
+          } catch {
+            window.dropsoNotice('Не удалось удалить сообщение.');
+          } finally {
+            button.disabled = false;
+          }
+        };
+        header.append(button);
+      }
       node.append(header, message);
       chatMessages.append(node);
       chatEntries.set(row.id, {node, createdAt});
@@ -230,6 +258,13 @@ export const blackBoxScript = String.raw`
       if (chatRequest === controller) chatRequest = null;
     }
   }
+  fetch('/api/me/live-chat/moderation', {cache: 'no-store'}).then(response => {
+    if (response.status !== 204) return;
+    canModerateChat = true;
+    chatEntries.clear();
+    chatMessages.replaceChildren();
+    void loadChat();
+  }).catch(() => {});
   chatInput.addEventListener('input', updateChatForm);
   el('chatForm').onsubmit = async event => {
     event.preventDefault();

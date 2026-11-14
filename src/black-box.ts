@@ -64,6 +64,15 @@ export function installBlackBox(app: Express, db: SupabaseClient, user: RequestH
     }
     return res.json({ ok: true });
   });
+  app.delete('/api/admin/black-box/chat/:box/:id', noStore, admin, async (req, res) => {
+    if (req.get('origin') !== origin) return res.sendStatus(403);
+    const { box, id } = req.params;
+    if (!uuid(box) || typeof id !== 'string' || !/^[1-9][0-9]{0,18}$/.test(id) || BigInt(id) > 9223372036854775807n) {
+      return res.sendStatus(400);
+    }
+    const { error } = await db.from('rewards_black_box_chat').delete().eq('box_id', box).eq('id', id);
+    return res.sendStatus(error ? 503 : 204);
+  });
   app.get('/api/admin/black-box/prizes', noStore, admin, async (req, res) => {
     const term = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 80) : '';
     let query = db.from('rewards_prizes').select('id,name,sell_price_coins').order('name').limit(100);
