@@ -1,4 +1,5 @@
 import express from 'express';
+import {isDropsoAdmin} from './admin-role-controls.js';
 import { createClient } from '@supabase/supabase-js';
 
 const db=createClient(process.env.SUPABASE_URL||'https://ssqjogdcynmjjgtxknng.supabase.co',process.env.SUPABASE_SECRET_KEY||'not-configured',{auth:{persistSession:false}});
@@ -25,6 +26,7 @@ export function installAccountStatusHotfix(){
             ]);
             participation=part||null;
             participantCount=count||0;
+            if(participation?.eligible&&await isDropsoAdmin(db,body.twitch_user_id))participation=null;
           }
           return originalJson({...body,currentGiveaway:round?{...round,participant_count:participantCount,participating:!!participation?.eligible,user_message_count:participation?.message_count||0}:null});
         }catch{return originalJson({...body,currentGiveaway:null})}
