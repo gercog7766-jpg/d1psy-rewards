@@ -17,22 +17,22 @@ test('upgrader reads the entire ledger, slider increases chance, refreshes after
  const result=await fetch(base+'/api/me/upgrader/balance?user_id='+uuid(),{headers:{Cookie:cookie}});assert.equal(result.status,200);assert.equal((await result.json()).balance,280);assert(result.headers.get('cache-control').includes('no-store'));assert.deepEqual(pages.slice(0,3),[{offset:0,limit:500},{offset:500,limit:500},{offset:1000,limit:500}]);
  failPage=true;const failure=await fetch(base+'/api/me/upgrader/balance',{headers:{Cookie:cookie}});assert.equal(failure.status,503);assert.deepEqual(await failure.json(),{error:'balance_load_failed'});
  const html=await(await fetch(base+'/upgrader',{headers:{Cookie:cookie}})).text(),client=await(await fetch(base+'/upgrader.js')).text();dom=new JSDOM(html,{url:base+'/upgrader',runScripts:'outside-only'});const w=dom.window,q=id=>w.document.getElementById(id);w.alert=()=>{};w.localStorage.setItem('d1psy_upgrader_fast_spin','1');w.fetch=(path,opts={})=>fetch(base+path,{...opts,headers:{...opts.headers,Cookie:cookie}});w.eval(client);
- await until(()=>q('inv').querySelector('[data-s]'));assert.equal(q('coinBalance').textContent,'Баланс недоступен');assert(!q('coinBalanceRetry').hidden);q('inv').querySelector('[data-s]').click();q('targets').querySelector('[data-t]').click();assert(q('coinBoostRange').disabled);
+ await until(()=>q('inv').querySelector('[data-s]')&&q('coinBalance').textContent==='Баланс недоступен');assert(!q('coinBalanceRetry').hidden);q('inv').querySelector('[data-s]').click();q('targets').querySelector('[data-t]').click();assert(q('coinBoostRange').disabled);
  failPage=false;q('coinBalanceRetry').click();await until(()=>q('coinBalance').textContent==='Баланс: 280 Монет');assert.equal(q('coinBoostRange').disabled,false);assert.equal(q('coinBoostRange').max,'29');assert.equal(q('pct').textContent,'12.9%');q('coinBoostRange').value='10';q('coinBoostRange').dispatchEvent(new w.Event('input'));assert.equal(q('coinBoostValue').textContent,'10 Монет');assert.equal(q('pct').textContent,'38.6%');assert.equal(q('go').disabled,false);q('coinBoostRange').value='29';q('coinBoostRange').dispatchEvent(new w.Event('input'));assert.equal(q('pct').textContent,'85.0%');q('coinBoostRange').value='10';q('coinBoostRange').dispatchEvent(new w.Event('input'));
- q('go').click();await until(()=>rpc!==null);assert.equal(rpc.p_user_id,user);assert.equal(rpc.p_extra_coins,10);await until(()=>q('coinBalance').textContent==='Баланс: 270 Монет');assert.equal(q('coinBoostRange').value,'0');assert.equal(q('coinBoostValue').textContent,'0 Монет');assert.equal(q('source').textContent,'Предмет не выбран');
+ await q('go').onclick();assert(rpc);assert.equal(rpc.p_user_id,user);assert.equal(rpc.p_extra_coins,10);await until(()=>q('coinBalance').textContent==='Баланс: 270 Монет');assert.equal(q('coinBoostRange').value,'0');assert.equal(q('coinBoostValue').textContent,'0 Монет');assert.equal(q('source').textContent,'Предмет не выбран');
  // A valid zero balance is distinct from an unavailable balance.
  ledger.splice(0,ledger.length);spent=0;q('coinBalanceRetry').click();await until(()=>q('coinBalance').textContent==='Баланс: 0 Монет');assert(q('coinBalanceRetry').hidden);q('inv').querySelector('[data-s]').click();q('targets').querySelector('[data-t]').click();assert(q('coinBoostRange').disabled);assert.equal(q('coinBoostRange').max,'0');
  ledger.push({amount:-100});q('coinBalanceRetry').click();
  await until(()=>q('coinBalance').textContent==='Баланс: -100 Монет');
  assert(q('coinBalanceRetry').hidden);assert(q('coinBoostRange').disabled);assert.equal(q('go').disabled,false);
- rpc=null;q('go').click();await until(()=>rpc!==null);assert.equal(rpc.p_extra_coins,0);
+ rpc=null;await q('go').onclick();assert(rpc);assert.equal(rpc.p_extra_coins,0);
  await until(()=>q('source').textContent==='Предмет не выбран');
  const pick=(side,id)=>w.document.querySelector('[data-'+side+'="'+id+'"]').click();
  for(const [sourceIds,targetIds] of [[[source],[variant,secondVariant]],[[source,secondSource],[variant]],[[source,secondSource],[variant,secondVariant]]]){
   sourceIds.forEach(id=>pick('s',id));targetIds.forEach(id=>pick('t',id));
   assert.equal(q('source').querySelectorAll('.skin-preview img').length,sourceIds.length);
   assert.equal(q('target').querySelectorAll('.skin-preview img').length,targetIds.length);
-  rpc=null;q('go').click();await until(()=>rpc!==null);
+  rpc=null;await q('go').onclick();assert(rpc);
   assert.deepEqual(rpc.p_source_win_ids,sourceIds);assert.deepEqual(rpc.p_target_variant_ids,targetIds);assert.equal(rpc.p_extra_coins,0);
   await until(()=>q('source').textContent==='Предмет не выбран');
  }
