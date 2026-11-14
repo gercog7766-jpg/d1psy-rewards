@@ -40,7 +40,7 @@ export const blindScript = String.raw`
     invalid_request: 'Проверь введённые значения.', round_active: 'Сначала заверши текущий раунд.',
     unknown_prize: 'Скин недоступен.', round_not_found: 'Раунд не найден.', round_closed: 'Раунд уже закрыт.',
     participation_restricted: 'Участие для этого аккаунта ограничено.',
-    insufficient_coins: 'Не хватает монет.', entry_required: 'Сначала прими участие.',
+    admin_cannot_play:'Администраторы не могут участвовать.', insufficient_coins: 'Не хватает монет.', entry_required: 'Сначала прими участие.',
     number_locked: 'Ты уже подтвердил число.', authentication_required: 'Войди через Twitch.'
   };
   function say(message) { el('notice').textContent = message; }

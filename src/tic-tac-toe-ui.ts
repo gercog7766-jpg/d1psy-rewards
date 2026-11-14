@@ -18,9 +18,11 @@ function render(){
  const r=data?.room;
  const chat=document.querySelector('[data-chat-panel="room"]');
  if(chat){
-  const chatRoom=r?.participant?r.id:'';
-  if((chat.dataset.room||'')!==chatRoom){
+  const chatRoom=r?.id||'';
+  const participant=String(Boolean(r?.participant));
+  if((chat.dataset.room||'')!==chatRoom||chat.dataset.chatParticipant!==participant){
    chat.dataset.room=chatRoom;
+   chat.dataset.chatParticipant=participant;
    window.dispatchEvent(new Event('dropso-room-change'));
   }
  }
