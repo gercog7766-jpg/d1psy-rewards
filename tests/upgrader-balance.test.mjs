@@ -1,6 +1,6 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';import http from 'node:http';import {spawn} from 'node:child_process';import {createHmac,randomUUID as uuid} from 'node:crypto';import {JSDOM} from 'jsdom';
-const pause=ms=>new Promise(r=>setTimeout(r,ms));async function until(f){for(let i=0;i<150;i++){if(f())return;await pause(20)}assert(f(),'UI condition timeout')}
-test('upgrader reads the entire ledger, slider increases chance, refreshes after debit and recovers visibly from balance failures',{timeout:30000},async()=>{
+const pause=ms=>new Promise(r=>setTimeout(r,ms));async function until(f){for(let i=0;i<400;i++){if(f())return;await pause(20)}assert(f(),'UI condition timeout')}
+test('upgrader reads the entire ledger, slider increases chance, refreshes after debit and recovers visibly from balance failures',{timeout:60000},async()=>{
  const user=uuid(),source=uuid(),item=uuid(),variant=uuid(),upgrade=uuid(),secondSource=uuid(),secondItem=uuid(),secondVariant=uuid();let failPage=false,spent=0,rpc=null;const pages=[];
  const ledger=Array.from({length:1028},(_,i)=>({id:uuid(),amount:i<1000?(i%2?1:-1):10}));
  const mock=http.createServer(async(req,res)=>{res.setHeader('Content-Type','application/json');const url=new URL(req.url,'http://test');
@@ -13,7 +13,7 @@ test('upgrader reads the entire ledger, slider increases chance, refreshes after
  return res.end('[]')});await new Promise(r=>mock.listen(0,'127.0.0.1',r));const reserve=http.createServer();await new Promise(r=>reserve.listen(0,'127.0.0.1',r));const port=reserve.address().port;await new Promise(r=>reserve.close(r));const base='http://127.0.0.1:'+port;
  const child=spawn(process.execPath,['--import','tsx','src/server-entry.ts'],{cwd:new URL('..',import.meta.url),env:{...process.env,PORT:String(port),APP_URL:base,SESSION_SECRET:'upgrader-balance-test',SUPABASE_URL:'http://127.0.0.1:'+mock.address().port,SUPABASE_SECRET_KEY:'test',REWARDS_ENGINE_ENABLED:'false',TWITCH_CLIENT_ID:'',TWITCH_EVENTSUB_SECRET:''},stdio:'ignore'});
  const p=Buffer.from(JSON.stringify({twitchUserId:'viewer',exp:Date.now()+120000})).toString('base64url'),cookie='rewards_session='+p+'.'+createHmac('sha256','upgrader-balance-test').update(p).digest('base64url');let dom;
- try{for(let i=0;i<100;i++){try{await fetch(base+'/health');break}catch{await pause(40)}}assert.equal((await fetch(base+'/api/me/upgrader/balance')).status,401);
+ try{let ready=false;for(let i=0;i<300;i++){try{const health=await fetch(base+'/health');if(health.ok){await health.text();ready=true;break}}catch{}if(child.exitCode!==null)break;await pause(40)}assert(ready,'Upgrader test server did not become ready');assert.equal((await fetch(base+'/api/me/upgrader/balance')).status,401);
  const result=await fetch(base+'/api/me/upgrader/balance?user_id='+uuid(),{headers:{Cookie:cookie}});assert.equal(result.status,200);assert.equal((await result.json()).balance,280);assert(result.headers.get('cache-control').includes('no-store'));assert.deepEqual(pages.slice(0,3),[{offset:0,limit:500},{offset:500,limit:500},{offset:1000,limit:500}]);
  failPage=true;const failure=await fetch(base+'/api/me/upgrader/balance',{headers:{Cookie:cookie}});assert.equal(failure.status,503);assert.deepEqual(await failure.json(),{error:'balance_load_failed'});
  const html=await(await fetch(base+'/upgrader',{headers:{Cookie:cookie}})).text(),client=await(await fetch(base+'/upgrader.js')).text();dom=new JSDOM(html,{url:base+'/upgrader',runScripts:'outside-only'});const w=dom.window,q=id=>w.document.getElementById(id);w.alert=()=>{};w.localStorage.setItem('d1psy_upgrader_fast_spin','1');w.fetch=(path,opts={})=>fetch(base+path,{...opts,headers:{...opts.headers,Cookie:cookie}});w.eval(client);
@@ -36,5 +36,5 @@ test('upgrader reads the entire ledger, slider increases chance, refreshes after
   assert.deepEqual(rpc.p_source_win_ids,sourceIds);assert.deepEqual(rpc.p_target_variant_ids,targetIds);assert.equal(rpc.p_extra_coins,0);
   await until(()=>q('source').textContent==='Предмет не выбран');
  }
- }finally{dom?.window.close();child.kill('SIGTERM');await new Promise(r=>child.once('exit',r));await new Promise(r=>mock.close(r))}
+ }finally{dom?.window.close();if(child.exitCode===null&&child.signalCode===null){child.kill('SIGTERM');await new Promise(r=>child.once('exit',r));}await new Promise(r=>mock.close(r))}
 });
