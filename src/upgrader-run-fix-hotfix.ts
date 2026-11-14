@@ -19,6 +19,9 @@ async function currentUser(req:any,res:any){
  }catch{res.status(401).json({error:'authentication_required'});return null}
 }
 
+const isUuid=(value:unknown):value is string=>typeof value==='string'&&/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(value);
+const validGroup=(ids:unknown)=>Array.isArray(ids)&&ids.length>=1&&ids.length<=4&&ids.every(isUuid)&&new Set(ids.map(id=>id.toLowerCase())).size===ids.length;
+const upgradeErrors=['source_not_found','source_not_available','source_has_no_value','source_already_used','target_not_available','target_variant_not_available','target_must_be_more_expensive','chance_too_low','invalid_extra_coins','insufficient_coins'];
 function payload(x:any){return {ok:true,result:x.result,chanceBps:Number(x.chance_bps),rollBps:Number(x.roll_bps),upgradeId:x.id||x.upgrade_id,rewardWinId:x.reward_win_id||null}}
 
 export function installUpgraderRunFixHotfix(){
@@ -35,9 +38,29 @@ export function installUpgraderRunFixHotfix(){
    });
    app.post('/api/me/upgrader/run',express.json(),async(req:any,res:any)=>{
     const u=await currentUser(req,res);if(!u)return;
-    const {sourceWinId,targetShopItemId,targetVariantId}=req.body||{};
-    const extraCoins=Math.max(0,Math.floor(Number(req.body?.extraCoins)||0));
-    if(!sourceWinId||!targetShopItemId||!targetVariantId)return res.status(400).json({error:'invalid_request'});
+    let {sourceWinId,targetShopItemId,targetVariantId}=req.body||{};
+    const extraCoins=req.body?.extraCoins??0;
+    if(!Number.isSafeInteger(extraCoins)||extraCoins<0||extraCoins>2147483647)return res.status(400).json({error:'invalid_extra_coins'});
+    const {sourceWinIds,targets}=req.body||{};
+    if(sourceWinIds!==undefined||targets!==undefined){
+     if(!validGroup(sourceWinIds)||!Array.isArray(targets)||!validGroup(targets.map(target=>target?.variantId))||!targets.every(target=>isUuid(target.itemId))){
+      return res.status(400).json({error:'invalid_request'});
+     }
+     if(sourceWinIds.length!==1||targets.length!==1){
+      const {data,error}=await db.rpc('rewards_run_skin_upgrade_multi',{
+       p_user_id:u.id,p_source_win_ids:sourceWinIds,p_target_shop_item_ids:targets.map(target=>target.itemId),
+       p_target_variant_ids:targets.map(target=>target.variantId),p_extra_coins:extraCoins
+      });
+      if(error)return res.status(409).json({error:upgradeErrors.find(code=>error.message.includes(code))||'upgrade_failed'});
+      const result=Array.isArray(data)?data[0]:data;
+      if(!result||!['won','lost'].includes(result.result))return res.status(500).json({error:'invalid_upgrade_result'});
+      return res.json(payload(result));
+     }
+     sourceWinId=sourceWinIds[0];
+     targetShopItemId=targets[0].itemId;
+     targetVariantId=targets[0].variantId;
+    }
+    if(!isUuid(sourceWinId)||!isUuid(targetShopItemId)||!isUuid(targetVariantId))return res.status(400).json({error:'invalid_request'});
 
     const {data:existing}=await db.from('rewards_upgrades').select('id,result,chance_bps,roll_bps,reward_win_id,target_shop_item_id,target_shop_variant_id,extra_coins').eq('user_id',u.id).eq('source_win_id',sourceWinId).maybeSingle();
     if(existing){
@@ -50,8 +73,7 @@ export function installUpgraderRunFixHotfix(){
      const {data:saved}=await db.from('rewards_upgrades').select('id,result,chance_bps,roll_bps,reward_win_id,target_shop_item_id,target_shop_variant_id,extra_coins').eq('user_id',u.id).eq('source_win_id',sourceWinId).maybeSingle();
      if(saved&&saved.target_shop_item_id===targetShopItemId&&saved.target_shop_variant_id===targetVariantId&&Number(saved.extra_coins||0)===extraCoins)return res.status(200).json(payload(saved));
      const m=String(error.message||'');
-     const known=['source_not_found','source_not_available','source_has_no_value','source_already_used','target_not_available','target_variant_not_available','target_must_be_more_expensive','chance_too_low','invalid_extra_coins','insufficient_coins'];
-     return res.status(409).json({error:known.find(x=>m.includes(x))||'upgrade_failed'});
+     return res.status(409).json({error:upgradeErrors.find(x=>m.includes(x))||'upgrade_failed'});
     }
     const x=Array.isArray(data)?data[0]:data;
     if(!x||!['won','lost'].includes(String(x.result)))return res.status(500).json({error:'invalid_upgrade_result'});
