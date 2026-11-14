@@ -14,8 +14,10 @@ const snapshot=(session,seq,kills=0,extra={})=>({session,seq,kills,at:Math.floor
 
 async function fixture(configure=true){
  const db=new PGlite();
- await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;create table rewards_streamers(twitch_broadcaster_id text,is_primary boolean,enabled boolean);insert into rewards_streamers values('100',true,true),('200',false,true);create table rewards_users(id uuid primary key default gen_random_uuid(),twitch_user_id text,twitch_display_name text,banned boolean default false,participation_restricted boolean default false,steam_trade_url_valid boolean default true);create table rewards_prizes(id uuid primary key default gen_random_uuid(),name text,status text,sell_price_coins int);create table rewards_wins(id uuid primary key default gen_random_uuid(),user_id uuid,prize_id uuid,source_type text,delivery_status text,choice_status text);create table rewards_coin_transactions(id uuid primary key default gen_random_uuid(),user_id uuid,amount int,transaction_type text,note text);create function rewards_crypto_index(n int) returns int language sql as 'select 0';grant select,insert,update on all tables in schema public to service_role;insert into rewards_users(twitch_user_id,twitch_display_name) values('200','Viewer');insert into rewards_prizes(name,status,sell_price_coins) values('Test skin 10','available',10),('Test skin 4','available',4);`);
+ await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;create table rewards_streamers(twitch_broadcaster_id text,is_primary boolean,enabled boolean);insert into rewards_streamers values('100',true,true),('200',false,true);create table rewards_admins(twitch_user_id text primary key);create table rewards_users(id uuid primary key default gen_random_uuid(),twitch_user_id text,twitch_display_name text,banned boolean default false,participation_restricted boolean default false,steam_trade_url_valid boolean default true);create table rewards_prizes(id uuid primary key default gen_random_uuid(),name text,status text,sell_price_coins int);create table rewards_wins(id uuid primary key default gen_random_uuid(),user_id uuid,prize_id uuid,source_type text,delivery_status text,choice_status text);create table rewards_coin_transactions(id uuid primary key default gen_random_uuid(),user_id uuid,amount int,transaction_type text,note text);create function rewards_crypto_index(n int) returns int language sql as 'select 0';grant select,insert,update on all tables in schema public to service_role;insert into rewards_users(twitch_user_id,twitch_display_name) values('200','Viewer');insert into rewards_prizes(name,status,sell_price_coins) values('Test skin 10','available',10),('Test skin 4','available',4);`);
  for(const name of ['20261111080955_dropso_connect.sql','20261111083625_connect_round_kills.sql','20261111092039_connect_independent_events.sql','20261111095514_connect_event_default.sql','20261111100504_connect_coin_ranges.sql','20261111101406_connect_coin_compat.sql','20261111112000_connect_program_config.sql']) await db.exec(await readFile(new URL('../supabase/migrations/'+name,import.meta.url),'utf8'));
+ const exclusion=await readFile(new URL('../supabase/migrations/20261114114824_exclude_admins_from_stream_drops.sql',import.meta.url),'utf8');
+ await db.exec(`set check_function_bodies=off; ${exclusion} reset check_function_bodies;`);
  await db.exec('set role service_role');
  const call=async(fn,args)=>(await db.query('select '+fn+'('+args.map((_,i)=>'$'+(i+1)).join(',')+') d',args.map(v=>v&&typeof v==='object'?JSON.stringify(v):v))).rows[0].d;
  const admin=(action,body={})=>call('rewards_connect_admin',['100',action,body]);
@@ -74,4 +76,19 @@ test('web admin creates the program key while event settings move into Windows 2
 test('admin UI safely upgrades a legacy kills/wins config while reading state',async()=>{
  const legacy={enabled:false,kills:{enabled:true,every:5,type:'coins',coins:5,min:2,max:20},wins:{enabled:false,every:1,type:'skin',coins:5,min:2,max:20},modes:['competitive'],cooldown:15,lookback:300,minViewers:1,maxAwards:100,budget:1000,tradeRequired:true,excludePrevious:false};
  const dom=new JSDOM(connectHtml,{url:'https://dropso.site/admin/connect',runScripts:'outside-only'}),w=dom.window;try{w.fetch=async()=>({ok:true,json:async()=>({config:legacy,history:[]})});w.eval(connectJs);await new Promise(r=>setTimeout(r,30));assert.equal(w.document.getElementById('message').textContent,'');assert.equal(w.document.getElementById('aceEnabled'),null);assert.equal(w.document.getElementById('winEnabled'),null);assert.equal(w.document.getElementById('enabled'),null);assert(!w.document.getElementById('modes'));assert(!w.document.getElementById('tradeRequired'));assert(!w.document.getElementById('maxAwards'));}finally{w.close()}
+});
+
+
+test('Dropso Connect excludes admins before entry and after promotion',async()=>{
+ const f=await fixture();try{
+  const {session,ingest,chat,db,admin}=f;
+  await db.exec("reset role;insert into rewards_admins values('200');set role service_role");
+  await ingest(snapshot(session,1));await chat();
+  assert.equal((await db.query('select count(*) n from rewards_connect_chat')).rows[0].n,0);
+  await db.exec('reset role;delete from rewards_admins;set role service_role');await chat();
+  await db.exec("reset role;insert into rewards_admins values('200');set role service_role");
+  await ingest(snapshot(session,2,2));
+  assert.equal((await admin('state')).session.awards,0);
+  assert.equal((await db.query('select count(*) n from rewards_coin_transactions')).rows[0].n,0);
+ }finally{await f.db.close()}
 });
