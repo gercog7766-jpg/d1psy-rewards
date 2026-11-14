@@ -1,3 +1,4 @@
+import {installAdminRoleControls} from './admin-role-controls.js';
 import {installLiveChat} from './live-chat.js';
 import {installActivityFeed} from './activity-feed.js';
 import {installPiggyBank} from './piggy-bank.js';
@@ -43,11 +44,12 @@ function requireUser(req:express.Request,res:express.Response,next:express.NextF
 async function requireAdmin(req:express.Request,res:express.Response,next:express.NextFunction){const s=readSession(req);if(!s)return res.status(401).json({error:'authentication_required'});const {data,error}=await db.from('rewards_admins').select('twitch_user_id').eq('twitch_user_id',s.twitchUserId).maybeSingle();if(error)return res.status(500).json({error:'admin_lookup_failed'});if(!data)return res.status(403).json({error:'admin_required'});res.locals.session=s;next()}
 installStreamerPilot(app,requireUser,requireAdmin,subscribeToPartnerChat,partnerChatReady);
 installProfileCustomization(app,requireUser,requireAdmin);
+installAdminRoleControls(app,db,requireUser,requireAdmin,new URL(APP_URL).origin);
 installGuessWord(app,requireUser,requireAdmin,db);
 installDropsoConnect(app,requireAdmin,db);
 installBlackBox(app,db,requireUser,requireAdmin,new URL(APP_URL).origin);
 installActivityFeed(app,db,requireUser);
-installLiveChat(app,db,requireUser,new URL(APP_URL).origin);
+installLiveChat(app,db,requireUser,new URL(APP_URL).origin,requireAdmin);
 installSavings(app,db,requireUser,requireAdmin,new URL(APP_URL).origin);
 installPiggyBank(app,db,requireUser,requireAdmin,new URL(APP_URL).origin);
 installBlindFinal(app,db,requireUser,requireAdmin,new URL(APP_URL).origin);

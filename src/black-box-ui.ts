@@ -77,7 +77,7 @@ export const blackBoxScript = String.raw`
   const messages = {
     authentication_required: 'Войди через Twitch, чтобы сделать ставку.',
     participation_restricted: 'Участие для этого аккаунта ограничено.',
-    insufficient_coins: 'На балансе не хватает монет.',
+    admin_cannot_play:'Администраторы не могут участвовать.', insufficient_coins: 'На балансе не хватает монет.',
     auction_open: 'Предыдущие торги ещё идут.',
     auction_closed: 'Торги уже закончились.',
     bid_too_low: 'Ставку перебили. Проверь новый минимум.',
