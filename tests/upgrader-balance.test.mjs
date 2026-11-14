@@ -22,5 +22,9 @@ test('upgrader reads the entire ledger, slider increases chance, refreshes after
  q('go').click();await until(()=>rpc!==null);assert.equal(rpc.p_user_id,user);assert.equal(rpc.p_extra_coins,10);await until(()=>q('coinBalance').textContent==='Баланс: 270 Монет');assert.equal(q('coinBoostRange').value,'0');assert.equal(q('coinBoostValue').textContent,'0 Монет');assert.equal(q('source').textContent,'Предмет не выбран');
  // A valid zero balance is distinct from an unavailable balance.
  ledger.splice(0,ledger.length);spent=0;q('coinBalanceRetry').click();await until(()=>q('coinBalance').textContent==='Баланс: 0 Монет');assert(q('coinBalanceRetry').hidden);q('inv').querySelector('[data-s]').click();q('targets').querySelector('[data-t]').click();assert(q('coinBoostRange').disabled);assert.equal(q('coinBoostRange').max,'0');
+ ledger.push({amount:-100});q('coinBalanceRetry').click();
+ await until(()=>q('coinBalance').textContent==='Баланс: -100 Монет');
+ assert(q('coinBalanceRetry').hidden);assert(q('coinBoostRange').disabled);assert.equal(q('go').disabled,false);
+ rpc=null;q('go').click();await until(()=>rpc!==null);assert.equal(rpc.p_extra_coins,0);
  }finally{dom?.window.close();child.kill('SIGTERM');await new Promise(r=>child.once('exit',r));await new Promise(r=>mock.close(r))}
 });
