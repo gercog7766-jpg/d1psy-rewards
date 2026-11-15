@@ -1,3 +1,5 @@
+import { majorMedals } from './major-medals.js';
+
 export const majorPickemPage = `<!doctype html><html lang="ru"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Major Pick’em · Dropso</title>
@@ -7,7 +9,8 @@ body{margin:0;background:radial-gradient(ellipse at 69% 0,#321a4c,#110d19 66%);c
 main{width:min(1080px,100%);margin:auto;padding:24px clamp(12px,3vw,28px) 56px}a{color:#e7c4ff}
 nav{display:flex;gap:18px;flex-wrap:wrap}.heading{margin:28px 0 16px}h1{font-size:clamp(38px,7vw,70px);letter-spacing:-.055em;line-height:1.05;margin:0 0 8px}h2{font-size:21px;margin:0 0 10px}.muted{color:#cfbdde}
 .panel,.slot{background:#211630;border:1px solid #654684;border-radius:15px;padding:14px;margin:12px 0}
-.tracker,.tabs,.actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.tracker span{background:#2d1c41;border:1px solid #725294;border-radius:9px;padding:7px 12px}
+.tracker,.tabs,.actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.tracker>span{background:#2d1c41;border:1px solid #725294;border-radius:9px;padding:7px 12px}
+#medal{display:inline-flex;align-items:center;gap:8px}#medal img{width:36px;height:42px;object-fit:contain}
 button,select{font:inherit;color:#fbf0ff;min-height:42px;border:1px solid #9567c5;background:#33204d;border-radius:9px;padding:7px 12px}
 button{cursor:pointer;font-weight:700}button:disabled{cursor:default;opacity:.65}button[aria-pressed=true],.primary{background:#793cba}
 button:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid white;outline-offset:3px}
@@ -21,7 +24,7 @@ button:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid whit
 </style></head><body><main>
 <nav><a href="/predict">← Предикты</a><a href="/account">Главная</a></nav>
 <header class="heading"><h1>Major Pick’em</h1><p class="muted">PGL Major Singapore 2026 · три стадии швейцарки и плей-офф</p></header>
-<div class="tracker"><span id="tokens">Жетоны Major Dropso: —</span><span id="medal">Медаль: —</span></div>
+<div class="tracker"><span id="tokens">Жетоны Major Dropso: —</span><span id="medal"><img alt="" hidden><span id="medalName">Медаль: —</span></span></div>
 <section class="panel" aria-label="Участие"><div class="actions"><button class="primary" type="button" id="enter" disabled>Войти за 250 монет</button><span id="entryStatus" class="muted"></span></div><p id="notice" role="status"></p></section>
 <div class="tabs" id="tabs" aria-label="Стадии турнира"></div>
 <section class="panel"><h2 id="stageTitle">Stage 1</h2><p class="muted" id="stageInfo">Загружаем сетку…</p>
@@ -29,14 +32,15 @@ button:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid whit
 <section class="panel" id="pairsPanel" hidden><h2>Первый раунд</h2><ul class="matches" id="matches"></ul></section>
 <section class="panel"><h2>Как засчитывается прогноз</h2>
 <p>В швейцарке жетон даётся за точный счёт по сериям. Для медали 3:1 и 3:2 взаимозаменяемы, как и 1:3 и 2:3. Счёт 3:0 и 0:3 должен совпасть точно.</p>
-<p>От шести попаданий за стадию дают одну ступень медали. В плей-офф для следующей ступени нужны минимум два верных четвертьфинала, один полуфинал и верный победитель финала.</p>
+<p>Бронза появляется в профиле сразу после покупки пропуска. Шесть верных прогнозов за стадию швейцарки повышают медаль на одну ступень. В плей-офф для следующей ступени нужны минимум два верных четвертьфинала, один полуфинал и верный победитель финала.</p>
+<p>Бронза → Серебро → Золото → Бриллиант → Бриллиант внутри.</p>
 </section>
 </main><script defer src="/predict/major-pickem.js"></script></body></html>`;
 
 export const majorPickemScript = String.raw`(() => {
   const el = id => document.getElementById(id);
   const limits = [['3:0',2],['3:1',3],['3:2',3],['1:3',3],['2:3',3],['0:3',2]];
-  const medals = ['Пока нет','Бронза','Серебро','Золото','Бриллиант'];
+  const medals = ${JSON.stringify(majorMedals)};
   const errors = {
     entry_closed:'Сейчас вход закрыт. Следи за открытием следующей стадии.',
     entry_required:'Сначала оплати вход.',
@@ -86,7 +90,11 @@ export const majorPickemScript = String.raw`(() => {
   function render() {
     if (!state) return;
     el('tokens').textContent='Жетоны Major Dropso: '+state.tokens;
-    el('medal').textContent='Медаль: '+medals[state.medal];
+    const medal=medals[state.medal];
+    const image=el('medal').querySelector('img');
+    image.hidden=!medal;
+    if(medal && image.getAttribute('src')!==medal.image)image.src=medal.image;
+    el('medalName').textContent='Медаль: '+(medal?.name || 'Пока нет');
     const enter=el('enter');enter.hidden=state.entered;enter.disabled=busy || !state.eligible || !state.canEnter;
     el('entryStatus').textContent=state.entered ? 'Вход оплачен на весь турнир' : 'Баланс: '+state.balance+' монет';
     el('tabs').replaceChildren(...state.stages.map(item => {

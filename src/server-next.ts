@@ -51,7 +51,7 @@ installAdminRoleControls(app,db,requireUser,requireAdmin,new URL(APP_URL).origin
 installGuessWord(app,requireUser,requireAdmin,db);
 installThreeDoors(app,db,requireUser,new URL(APP_URL).origin);
 installPick(app,db,requireUser,new URL(APP_URL).origin);
-installMajorPickem(app,db,requireUser,new URL(APP_URL).origin);
+installMajorPickem(app,db,requireUser,requireAdmin,new URL(APP_URL).origin);
 installRedButton(app,db,requireUser,new URL(APP_URL).origin);
 installDropsoConnect(app,requireAdmin,db);
 installBlackBox(app,db,requireUser,requireAdmin,new URL(APP_URL).origin);
