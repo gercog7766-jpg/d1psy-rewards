@@ -298,3 +298,55 @@ test('teams can be selected before purchase, and the completed bracket submits S
     assert.equal(docs.querySelectorAll('#grid .result-team').length,16);
   } finally {window.close();}
 });
+
+test('Major Pick’em admin lists paid players and saved stages with pagination and admin-only access', async () => {
+  const {default:express}=await import('express');
+  const {createClient}=await import('@supabase/supabase-js');
+  const {JSDOM}=await import('jsdom');
+  const {installMajorPickem}=await import('../src/major-pickem.ts');
+  const requests=[];
+  const db=createClient('https://supabase.test','server-key',{global:{fetch:async url=>{
+    requests.push(new URL(url));
+    const entries=Array.from({length:51},(_,i)=>({
+      player:{twitch_display_name:i===0?'<img onerror=alert(1)>':'Player '+i,twitch_login:'player'+i},
+      tokens:i===0?12:0,picks:i===0?[{stage:1},{stage:3}]:[],
+    }));
+    return Response.json(entries);
+  }}});
+  const app=express();
+  installMajorPickem(app,db,(_req,res)=>res.sendStatus(401),(req,res,next)=>{
+    const role=req.get('x-test-role');
+    if(role==='admin')next();
+    else res.sendStatus(role?403:401);
+  },'https://dropso.test');
+  const server=app.listen(0,'127.0.0.1');
+  try {
+    await new Promise(resolve=>server.once('listening',resolve));
+    const url='http://127.0.0.1:'+server.address().port+'/admin/major-pickem';
+    assert.equal((await fetch(url)).status,401);
+    assert.equal((await fetch(url,{headers:{'x-test-role':'viewer'}})).status,403);
+    const headers={'x-test-role':'admin'};
+    assert.equal((await fetch(url+'?page=0',{headers})).status,400);
+    assert.equal(requests.length,0);
+    const response=await fetch(url+'?page=2',{headers});
+    assert.equal(response.status,200);
+    assert.equal(response.headers.get('cache-control'),'private, no-store');
+    const [request]=requests;
+    assert.equal(request.pathname,'/rest/v1/rewards_major_pickem_entries');
+    assert.match(request.searchParams.get('select'),/tokens,player:rewards_users!.*\(twitch_login,twitch_display_name\),picks:rewards_major_pickem_picks!.*\(stage\)/);
+    assert.equal(request.searchParams.get('order'),'entered_at.desc,user_id.asc');
+    assert.equal(request.searchParams.get('offset'),'50');
+    assert.equal(request.searchParams.get('limit'),'51');
+    const {window}=new JSDOM(await response.text());
+    try {
+      const doc=window.document;
+      assert.equal(doc.querySelectorAll('tbody tr').length,50);
+      assert.equal(doc.querySelector('tbody img'),null);
+      const [player,...values]=doc.querySelector('tbody tr').children;
+      assert.equal(player.textContent,'<img onerror=alert(1)>@player0');
+      assert.deepEqual(values.map(cell=>cell.textContent),['Сохранён','—','Сохранён','—','12']);
+      assert.equal(doc.querySelector('[rel=prev]').getAttribute('href'),'?page=1');
+      assert.equal(doc.querySelector('[rel=next]').getAttribute('href'),'?page=3');
+    } finally {window.close();}
+  } finally {await new Promise(resolve=>server.close(resolve));}
+});
