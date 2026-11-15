@@ -1,3 +1,4 @@
+import {installPromoHistory} from './promo-history.js';
 import express from 'express';
 import {promoRewardBrowserScript,promoRewardTypes} from './promo-rewards.js';
 import {threeDoorsStakes} from './three-doors.js';
@@ -6,6 +7,7 @@ const db=createClient(process.env.SUPABASE_URL||'https://ssqjogdcynmjjgtxknng.su
 export function installPromoCodeHotfix(){const p:any=(express as any).application,og=p.get,ol=p.listen;let userAuth:any=null,adminAuth:any=null;
 p.get=function(path:any,...hs:any[]){if(path==='/api/me'&&hs.length>1)userAuth=hs[0];if(path==='/api/admin/state'&&hs.length>1)adminAuth=hs[0];return og.call(this,path,...hs)};
 p.listen=function(...args:any[]){const app:any=this;if(!app.locals.__promo&&userAuth&&adminAuth){app.locals.__promo=true;
+ installPromoHistory(app,db,adminAuth);
  app.post('/api/me/promo/redeem',userAuth,async(req:any,res:any)=>{
   res.set('Cache-Control','private, no-store');
   const origin=new URL(process.env.APP_URL||'http://localhost:'+String(process.env.PORT||10000)).origin;
