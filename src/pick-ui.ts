@@ -5,7 +5,7 @@ export const pickPage = `<!doctype html><html lang="ru"><head><meta charset="utf
 <style>
 *{box-sizing:border-box}body{margin:0;min-height:100vh;color:#f8efff;background:radial-gradient(ellipse at top,#382050,#130d22 51%,#0b0812);font:16px/1.5 system-ui}
 main{width:min(1040px,100%);margin:auto;padding:24px clamp(12px,4vw,38px) 56px}nav{display:flex;justify-content:space-between;gap:12px}a{color:#e3bdff}
-header{text-align:center;margin:28px 0 20px}h1{margin:0;font-size:clamp(44px,10vw,84px);line-height:1;letter-spacing:-.045em}header p,.tiers{color:#d3c1e4}
+header{text-align:center;margin:28px 0 20px}h1{margin:0;font-size:clamp(44px,10vw,84px);line-height:1;letter-spacing:-.045em}header p{color:#d3c1e4}
 .board{border:1px solid #6c4b91;border-radius:20px;background:#1b112ae0;padding:clamp(8px,3vw,24px)}.cards{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:clamp(4px,1.7vw,16px)}
 .card{min-width:0;aspect-ratio:3/4;position:relative;padding:0;border:0;border-radius:10px;background:none;perspective:850px;color:inherit;font:inherit;cursor:pointer}.card:disabled{cursor:default}
 .card:focus-visible,#start:focus-visible{outline:3px solid #fff;outline-offset:3px}
@@ -16,7 +16,7 @@ header{text-align:center;margin:28px 0 20px}h1{margin:0;font-size:clamp(44px,10v
 .card:enabled:hover .back{border-color:#ecd6ff;box-shadow:0 0 16px #a45cea88}.front{transform:rotateY(180deg);display:grid;align-content:center;justify-items:center;gap:4px;background:radial-gradient(ellipse,#513570,#211430);padding:4%;overflow-wrap:anywhere}
 .front img{width:100%;height:clamp(30px,8vw,97px);object-fit:contain}.name{font-size:clamp(8px,1.5vw,14px);line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.price{font-size:clamp(10px,1.8vw,16px);font-weight:800;color:#f5dba0}
 .card.revealed .flip{transform:rotateY(180deg)}.card.chosen .front{border-color:#ffd57a;background:radial-gradient(ellipse,#695022,#302143);box-shadow:0 0 13px #ffd57a80}
-#instructions,#notice,.tiers{text-align:center}#instructions{margin:16px 0 0;min-height:1.5em}#notice{color:#ffb7ca}#notice:empty{display:none}
+#instructions,#notice{text-align:center}#instructions{margin:16px 0 0;min-height:1.5em}#notice{color:#ffb7ca}#notice:empty{display:none}
 .controls{text-align:center;margin:18px 0}#start{font:inherit;font-weight:750;color:#fff;background:#7841b8;border:1px solid #a677df;border-radius:10px;padding:10px 18px;cursor:pointer}#start:disabled{opacity:.6;cursor:default}
 @media(prefers-reduced-motion:reduce){.flip{transition:none}}
 </style></head><body><main>
@@ -26,7 +26,7 @@ header{text-align:center;margin:28px 0 20px}h1{margin:0;font-size:clamp(44px,10v
 <div class="cards">${Array.from({length: 5}, (_, i) => `<button class="card" type="button" data-card="${i + 1}" aria-label="Карта ${i + 1}" disabled><span class="flip"><span class="face back"><img src="${brandLogoUrl}" alt=""></span><span class="face front" aria-hidden="true"><img alt="" hidden><span class="name"></span><span class="price"></span></span></span></button>`).join('')}</div>
 <p id="instructions" role="status">Загружаем карты…</p>
 </section>
-<div class="controls"><p class="tiers" id="tiers"></p><button type="button" id="start" disabled>Раздать карты за 50 монет</button><p id="notice" role="alert"></p></div>
+<div class="controls"><button type="button" id="start" disabled>Раздать карты за 50 монет</button><p id="notice" role="alert"></p></div>
 </main><script src="/games/pick.js" defer></script></body></html>`;
 
 export const pickScript = String.raw`(() => {
@@ -49,7 +49,6 @@ export const pickScript = String.raw`(() => {
     const attempt = state?.attempt;
     const active = attempt && !attempt.chosen;
     const winning = attempt?.cards?.[attempt.chosen - 1];
-    document.getElementById('tiers').textContent = prices ? 'Цены скинов: ' + prices.join(' / ') + ' монет' : '';
     document.getElementById('balance').textContent = 'Баланс: ' + (state ? state.balance + ' монет' : '—');
     start.disabled = !state?.canPlay || !prices || busy || Boolean(active) || Date.now() < unlockAt;
     instructions.textContent = !state ? (busy ? 'Загружаем карты…' : 'Не удалось загрузить карты.') :
