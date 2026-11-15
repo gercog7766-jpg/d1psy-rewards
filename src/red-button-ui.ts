@@ -15,7 +15,7 @@ main{max-width:1020px;margin:auto;padding:22px 14px 52px}a{color:#e9c6ff}h1{font
 <div class="layout"><div>
 <section class="panel stage" aria-label="Текущий раунд">
   <p class="muted">Сегодняшний приз</p><img id="image" hidden alt=""><strong id="prize">Загрузка…</strong>
-  <p id="countdown" class="clock"></p><p id="holder" class="muted"></p>
+  <p id="countdown" class="clock"></p><p id="holder" class="muted"></p><p id="playerCount" class="muted"></p>
   <button type="button" id="press" class="press" disabled>Войти за 10 монет</button>
   <p id="notice" role="status"></p>
 </section>
@@ -62,6 +62,7 @@ export const redButtonScript = String.raw`(() => {
     if (round?.image && image.getAttribute('src') !== round.image) image.src = round.image;
     if (!round?.image) image.removeAttribute('src');
     el('holder').textContent = round?.holder ? 'Кнопку держит ' + round.holder : 'Кнопку пока никто не держит';
+    el('playerCount').textContent = Number.isInteger(round?.playerCount) ? 'Игроков в раунде: ' + round.playerCount : '';
     chat.dataset.room = round?.id || '';
     chat.dataset.chatParticipant = String(Boolean(round?.joined));
     if (pending?.roundId !== round?.id) pending = undefined;
