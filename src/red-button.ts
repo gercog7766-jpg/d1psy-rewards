@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Express, RequestHandler } from 'express';
 import { redButtonPage, redButtonScript } from './red-button-ui.js';
@@ -26,6 +27,9 @@ export function installRedButton(app:Express,db:SupabaseClient,user:RequestHandl
       .json({error:failures.has(error.message) ? error.message : 'game_unavailable'});
   };
   app.get('/games/red-button',noStore,user,(_req,res) => res.send(redButtonPage));
+  app.get('/games/red-button/button-v1.webp',(_req,res) =>
+    res.type('webp').set('Cache-Control','public,max-age=31536000,immutable')
+      .sendFile(resolve('assets/games/red-button/button-v1.webp')));
   app.get('/games/red-button.js',noStore,(_req,res) => res.type('application/javascript').send(redButtonScript));
   app.get('/api/me/red-button',noStore,user,action(false));
   app.post('/api/me/red-button',noStore,user,action(true));
