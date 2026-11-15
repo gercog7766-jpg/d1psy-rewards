@@ -12,7 +12,7 @@ main{width:min(1330px,100%);margin:auto;padding:24px clamp(12px,3vw,28px) 56px}a
 nav{display:flex;gap:18px;flex-wrap:wrap}.heading{margin:28px 0 16px}h1{font-size:clamp(38px,7vw,70px);letter-spacing:-.055em;line-height:1.05;margin:0 0 8px}h2{font-size:21px;margin:0 0 10px}.muted{color:#cfbdde}
 .panel{background:#211630;border:1px solid #654684;border-radius:15px;padding:14px;margin:12px 0}
 .tracker,.tabs,.actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.tracker>span{background:#2d1c41;border:1px solid #725294;border-radius:9px;padding:7px 12px}
-.tracker-item{display:inline-flex;align-items:center;gap:8px}#tokenIcon{width:26px;height:26px;object-fit:contain}#medal img{width:36px;height:42px;object-fit:contain}
+.tracker{align-items:stretch}.tracker-item{display:inline-flex;align-items:center;gap:8px;min-height:58px}.tracker-item img{width:42px;height:42px;object-fit:contain;flex:none}
 button{font:inherit;color:#fbf0ff;min-height:42px;border:1px solid #9567c5;background:#33204d;border-radius:9px;padding:7px 12px}
 button{cursor:pointer;font-weight:700}button:disabled{cursor:default;opacity:.65}button[aria-pressed=true],.primary{background:#793cba}
 button:focus-visible,a:focus-visible{outline:2px solid white;outline-offset:3px}
@@ -47,7 +47,7 @@ button:focus-visible,a:focus-visible{outline:2px solid white;outline-offset:3px}
 ${majorPickemShopCss}</style></head><body><main>
 <nav><a href="/predict">← Предикты</a><a href="/account">Главная</a><a href="#majorShop">Магазин Pick’em</a></nav>
 <header class="heading"><h1>Major Pick’em</h1><p class="muted">PGL Major Singapore 2026 · три стадии швейцарки и плей-офф</p></header>
-<div class="tracker"><span class="tracker-item"><img id="tokenIcon" src="/predict/major-token.webp" width="26" height="26" alt=""><span id="tokens">Жетоны Major Dropso: —</span></span><span id="medal" class="tracker-item"><img alt="" hidden><span id="medalName">Медаль: —</span></span></div>
+<div class="tracker"><span class="tracker-item"><img id="tokenIcon" src="/predict/major-token.webp" width="42" height="42" alt=""><span id="tokens">Жетоны Major Dropso: —</span></span><span id="medal" class="tracker-item"><img width="42" height="42" alt="" hidden><span id="medalName">Медаль: —</span></span></div>
 <section class="panel" aria-label="Участие"><div class="actions"><button class="primary" type="button" id="enter" disabled>Войти за 250 монет</button><span id="entryStatus" class="muted"></span></div><p id="notice" role="status"></p><button type="button" id="retryPickem" hidden>Повторить загрузку</button></section>
 <div class="tabs" id="tabs" aria-label="Стадии турнира"></div>
 <section class="panel bracket-panel">

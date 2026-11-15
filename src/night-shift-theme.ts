@@ -29,7 +29,7 @@ body[data-night-shift] :where(.primary,.play,.save,.go,.marketButton,#mb):hover:
 body[data-night-shift] :where(.secondary,.retry,.clear,.pg,.pager button){border-color:#624080;background:#191026;color:#dfc9f3;border-radius:10px}
 body[data-night-shift] :where(.tab.on,.tournament-tab[aria-selected=true],.marketTab.on,.pg.on,.pager button.active,.navlinks a.active){border-color:#b452ef;background:linear-gradient(135deg,#982bea,#651ac2);color:#fff;box-shadow:0 0 14px #9327ed24}
 body[data-night-shift] :where(.notice){background:#130d24;border-color:#644084;color:#cdb5df;border-radius:12px}
-body[data-night-shift] :where(.card,.panel,.game,.person,.profile-head,.public-goal,.profile-level,.market,.bet-slip,.history,.machine,.summary,.catalog,.dialogInner,.resultbox){border-color:var(--ns-border);background:linear-gradient(135deg,#140d2c,#0b081a 78%);border-radius:17px;box-shadow:0 12px 30px #0003,inset 0 1px #b879ff08}
+body[data-night-shift] :where(.card,.panel,.game,.person,.profile-head,.public-goal,.profile-level,.market,.bet-slip,.history,.machine,.summary,.catalog,.dialogInner,.resultbox):where(:not([data-background])){border-color:var(--ns-border);background:linear-gradient(135deg,#140d2c,#0b081a 78%);border-radius:17px;box-shadow:0 12px 30px #0003,inset 0 1px #b879ff08}
 body[data-night-shift] :where(.card h2,.panel h2,.market h2){font-size:22px}
 body[data-night-shift] :where(.profile-level-track,.marketProgress,.taskProgress){background:#261342}
 body[data-night-shift] :where(.profile-level-fill,.marketProgress i,.taskProgress i){background:linear-gradient(90deg,#8925ff,#c43dff);box-shadow:0 0 12px #a52eff44}
@@ -95,7 +95,7 @@ body[data-night-shift="contracts"] .catalog .item.on{background:#29113f;border-c
 body[data-night-shift="contracts"] :is(.resultPrice,.sum .value){color:#ffda79}
 body[data-night-shift="contracts"] .brandIcon{background:linear-gradient(135deg,#a02dff,#52209a);border-color:#bd6bf0}
 /* Directory and profiles: retain online/privacy indicators and goal progress. */
-body[data-night-shift="users"] :is(.person,.profile-head,.public-goal,.profile-level,.privacy){background:radial-gradient(ellipse at 100% 0,#7124b11a,transparent 60%),linear-gradient(135deg,#140d2c,#0b081a);border-color:#593382;border-radius:15px;box-shadow:inset 0 1px #b879ff08}
+body[data-night-shift="users"] :is(.person,.profile-head,.profile-achievements,.public-goal,.profile-level,.privacy):where(:not([data-background])){background:radial-gradient(ellipse at 100% 0,#7124b11a,transparent 60%),linear-gradient(135deg,#140d2c,#0b081a);border-color:#593382;border-radius:15px;box-shadow:inset 0 1px #b879ff08}
 body[data-night-shift="users"] .person:hover{border-color:#a251ce;box-shadow:0 0 18px #952ad31f}
 body[data-night-shift="users"] .person strong{font-size:15px;color:#f6edff}
 body[data-night-shift="users"] .items .item{background:linear-gradient(150deg,#160e30,#0b081a);border-color:#543182;border-radius:14px}
