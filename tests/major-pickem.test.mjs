@@ -138,6 +138,66 @@ const scheduledPairs = [
   ['liquid','bcgame'],['parivision','dendele'],['faze','wildcard'],['eternal-fire','flyquest'],
 ].map(([a,b])=>({a,b,at:'2026-11-24T04:00:00Z'}));
 
+const referenceRounds = [
+  [['nip','m80'],['parivision','dendele'],['heroic','imperial'],['faze','wildcard'],
+    ['liquid','bcgame'],['eternal-fire','flyquest'],['100t','chinggis'],['9z','lynn-vision']],
+  [['nip','imperial'],['parivision','9z'],['faze','100t'],['liquid','eternal-fire'],
+    ['heroic','lynn-vision'],['m80','chinggis'],['dendele','flyquest'],['wildcard','bcgame']],
+  [['eternal-fire','100t'],['imperial','parivision'],['nip','bcgame'],['liquid','m80'],
+    ['heroic','flyquest'],['faze','9z'],['dendele','lynn-vision'],['chinggis','wildcard']],
+  [['imperial','9z'],['liquid','heroic'],['100t','nip'],
+    ['flyquest','chinggis'],['m80','bcgame'],['faze','dendele']],
+  [['100t','flyquest'],['9z','m80'],['heroic','faze']],
+];
+const referenceWinners = [
+  ['nip','parivision','imperial','faze','liquid','eternal-fire','100t','9z'],
+  ['imperial','parivision','100t','eternal-fire','heroic','m80','flyquest','bcgame'],
+  ['eternal-fire','parivision','nip','liquid','heroic','9z','dendele','chinggis'],
+  ['imperial','liquid','nip','flyquest','m80','faze'],
+  ['100t','9z','heroic'],
+];
+
+test('Stage 1 reproduces all five rounds and qualification records in the reference simulator', async () => {
+  const {JSDOM}=await import('jsdom');
+  const {majorPickemPage,majorPickemScript}=await import('../src/major-pickem-ui.ts');
+  const {stageOneSeeds}=await import('../src/major-pickem-swiss.ts');
+  const {window}=new JSDOM(majorPickemPage,{runScripts:'outside-only',url:'https://dropso.test'});
+  try {
+    window.fetch=async()=>({ok:true,json:async()=>({
+      now:new Date().toISOString(),balance:500,eligible:true,canEnter:true,entered:false,medal:0,tokens:0,
+      draftKey:'test',stages:[{id:1,label:'Stage 1',status:'open',lockAt:new Date(Date.now()+3600000).toISOString(),
+        teams:stageOneSeeds.map(id=>({id,name:id})),pairs:scheduledPairs}],
+    })});
+    // This round-two pair could exist with the previous Stage 1 seed order.
+    const validDraft=Object.fromEntries(referenceRounds[0].map((pair,index)=>[
+      '0/'+[...pair].sort().join('/'),referenceWinners[0][index],
+    ]));
+    validDraft['1/imperial/nip']='imperial';
+    const key='major-pickem-swiss-v1:test:1';
+    window.localStorage.setItem(key,JSON.stringify({...validDraft,'1/chinggis/dendele':'chinggis'}));
+    window.eval(majorPickemScript);
+    await new Promise(resolve=>setImmediate(resolve));
+    const doc=window.document;
+    assert.deepEqual(JSON.parse(window.localStorage.getItem(key)),validDraft);
+    for(const [index,pairs] of referenceRounds.entries()){
+      const round=doc.querySelector('[data-round="'+index+'"]');
+      assert.deepEqual([...round.querySelectorAll('.match')].map(match=>
+        [...match.querySelectorAll('button')].map(team=>team.dataset.team)),pairs);
+      // The bracket is rebuilt after each pick, so subsequent clicks use the current DOM.
+      for(const winner of referenceWinners[index])doc.querySelector('[data-round="'+index+'"] [data-team="'+winner+'"]').click();
+    }
+    const result=score=>[...doc.querySelectorAll('[data-result="'+score+'"] .result-team span')].map(node=>node.textContent);
+    assert.deepEqual(result('3:0'),['eternal-fire','parivision']);
+    assert.deepEqual(result('3:1'),['imperial','liquid','nip']);
+    assert.deepEqual(result('3:2'),['100t','9z','heroic']);
+    assert.deepEqual(result('1:3'),['chinggis','bcgame','dendele']);
+    assert.deepEqual(result('2:3'),['flyquest','m80','faze']);
+    assert.deepEqual(result('0:3'),['lynn-vision','wildcard']);
+    assert.equal(doc.querySelector('[data-result="3:0"]').closest('.round').dataset.round,'3');
+    assert.equal(doc.querySelector('[data-result="3:2"]').closest('.round').dataset.round,'4');
+  } finally {window.close();}
+});
+
 test('Swiss bracket pairs the same record with Buchholz seeding and finishes with 16 scored teams', async () => {
   const {swissBracketScript,stageOneSeeds}=await import('../src/major-pickem-swiss.ts');
   const buildSwiss=new Function(swissBracketScript+'\nreturn buildSwiss;')();
@@ -147,7 +207,7 @@ test('Swiss bracket pairs the same record with Buchholz seeding and finishes wit
   for(const match of bracket.rounds[0])selected[match.id]=match.a;
   bracket=buildSwiss(scheduledPairs,stageOneSeeds,selected);
   assert.deepEqual(bracket.rounds[1].slice(0,4).map(({a,b})=>[a,b]),
-    [['nip','9z'],['parivision','eternal-fire'],['heroic','100t'],['faze','liquid']]);
+    [['nip','9z'],['parivision','100t'],['heroic','eternal-fire'],['faze','liquid']]);
 
   for(let run=1;run<=128;run++){
     let random=run;
@@ -222,6 +282,6 @@ test('teams can be selected before purchase, and the completed bracket submits S
     assert.equal(request.length,1);
     assert.equal(Object.keys(request[0].selections).length,16);
     assert.equal(query('#saved').textContent,'Прогноз сохранён');
-    assert.equal(docs.querySelectorAll('#results .result-team').length,16);
+    assert.equal(docs.querySelectorAll('#grid .result-team').length,16);
   } finally {window.close();}
 });
