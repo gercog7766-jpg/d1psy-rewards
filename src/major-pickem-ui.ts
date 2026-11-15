@@ -80,8 +80,8 @@ export const majorPickemScript = String.raw`(() => {
     user_unavailable:'Для твоего аккаунта участие недоступно.'
   };
   const drafts=new Map();
-  const fmt=new Intl.DateTimeFormat('ru-RU',{timeZone:'Europe/Berlin',dateStyle:'short',timeStyle:'short'});
-  const time=new Intl.DateTimeFormat('ru-RU',{timeZone:'Europe/Berlin',hour:'2-digit',minute:'2-digit'});
+  const localDateTime=new Intl.DateTimeFormat('ru-RU',{dateStyle:'short',timeStyle:'short'});
+  const localTime=new Intl.DateTimeFormat('ru-RU',{hour:'2-digit',minute:'2-digit'});
   let state,stageId=1,busy=false,offset=0;
 
   const activeStage=()=>state?.stages.find(item=>item.id===stageId);
@@ -197,9 +197,11 @@ export const majorPickemScript = String.raw`(() => {
         for(let i=0;i<slots;i++){
           const match=groupMatches?.[i];
           const row=node('div',undefined,'match');
-          const middle=match?.at ? time.format(new Date(match.at)) : 'VS';
+          const startsAt=match?.at ? new Date(match.at) : null;
+          const middle=node('small',startsAt ? localTime.format(startsAt) : 'VS');
+          if(startsAt)middle.title=localDateTime.format(startsAt);
           for(const side of ['a','b']){
-            if(side==='b')row.append(node('small',middle));
+            if(side==='b')row.append(middle);
             const team=participants.get(match?.[side]);
             if(!team){row.append(node('span','—','team placeholder'));continue;}
             const button=node('button',undefined,'team');
@@ -276,7 +278,7 @@ export const majorPickemScript = String.raw`(() => {
     const item=activeStage();if(!item)return;
     el('stageTitle').textContent=item.label;
     el('stageInfo').textContent=item.lockAt ? (open(item) ? 'Приём до ' : 'Дедлайн: ') +
-      fmt.format(new Date(item.lockAt))+' по Берлину'+(open(item)?'':' · приём закрыт')
+      localDateTime.format(new Date(item.lockAt))+' · местное время'+(open(item)?'':' · приём закрыт')
       : 'Сетка появится после подтверждения участников и расписания.';
     drawBracket(item,setup(item));
   }
