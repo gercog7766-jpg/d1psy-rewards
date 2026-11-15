@@ -18,6 +18,11 @@ header{text-align:center;margin:28px 0 20px}h1{margin:0;font-size:clamp(44px,10v
 .card.revealed .flip{transform:rotateY(180deg)}.card.chosen .front{border-color:#ffd57a;background:radial-gradient(ellipse,#695022,#302143);box-shadow:0 0 13px #ffd57a80}
 #instructions,#notice{text-align:center}#instructions{margin:16px 0 0;min-height:1.5em}#notice{color:#ffb7ca}#notice:empty{display:none}
 .controls{text-align:center;margin:18px 0}#start{font:inherit;font-weight:750;color:#fff;background:#7841b8;border:1px solid #a677df;border-radius:10px;padding:10px 18px;cursor:pointer}#start:disabled{opacity:.6;cursor:default}
+.prize-preview{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:clamp(4px,1vw,9px);width:min(100%,540px);padding:0;margin:14px auto 0;list-style:none}
+.prize-preview:empty{display:none}
+.prize-preview li{display:grid;align-content:start;justify-items:center;min-width:0;gap:4px;padding:5px;border:1px solid #6c4b917a;border-radius:9px;background:#261836;color:#efe1fc}
+.prize-preview img,.prize-preview .no-photo{width:100%;height:clamp(25px,7vw,48px);object-fit:contain}
+.prize-preview span:last-child{font-size:clamp(9px,1.5vw,12px);line-height:1.15;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 @media(prefers-reduced-motion:reduce){.flip{transition:none}}
 </style></head><body><main>
 <nav><a href="/account">← Главная</a><span id="balance">Баланс: —</span></nav>
@@ -26,7 +31,7 @@ header{text-align:center;margin:28px 0 20px}h1{margin:0;font-size:clamp(44px,10v
 <div class="cards">${Array.from({length: 5}, (_, i) => `<button class="card" type="button" data-card="${i + 1}" aria-label="Карта ${i + 1}" disabled><span class="flip"><span class="face back"><img src="${brandLogoUrl}" alt=""></span><span class="face front" aria-hidden="true"><img alt="" hidden><span class="name"></span><span class="price"></span></span></span></button>`).join('')}</div>
 <p id="instructions" role="status">Загружаем карты…</p>
 </section>
-<div class="controls"><button type="button" id="start" disabled>Раздать карты за 50 монет</button><p id="notice" role="alert"></p></div>
+<div class="controls"><button type="button" id="start" disabled>Раздать карты за 50 монет</button><ul id="prizePreview" class="prize-preview" aria-label="Возможные скины"></ul><p id="notice" role="alert"></p></div>
 </main><script src="/games/pick.js" defer></script></body></html>`;
 
 export const pickScript = String.raw`(() => {
@@ -34,6 +39,7 @@ export const pickScript = String.raw`(() => {
   const instructions = document.getElementById('instructions');
   const notice = document.getElementById('notice');
   const start = document.getElementById('start');
+  const prizePreview = document.getElementById('prizePreview');
   const errors = {
     insufficient_coins: 'Для входа нужно 50 монет.',
     quote_changed: 'Набор призов изменился. Проверь новые цены перед входом.',
@@ -80,6 +86,21 @@ export const pickScript = String.raw`(() => {
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || 'game_unavailable');
     state = data;
+    if (Array.isArray(data.preview) || !action) {
+      prizePreview.replaceChildren(...(data.preview || []).map(item => {
+        const tile = document.createElement('li');
+        const art = document.createElement(item.image ? 'img' : 'span');
+        if (item.image) {
+          art.src = item.image;
+          art.alt = '';
+          art.decoding = 'async';
+        } else art.className = 'no-photo';
+        const name = document.createElement('span');
+        name.textContent = item.name;
+        tile.append(art, name);
+        return tile;
+      }));
+    }
     if (!action || data.prices) prices = data.prices;
   }
 
