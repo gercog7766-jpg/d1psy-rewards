@@ -1,3 +1,4 @@
+import {installThreeDoors} from './three-doors.js';
 import {installAdminRoleControls} from './admin-role-controls.js';
 import {installLiveChat} from './live-chat.js';
 import {installActivityFeed} from './activity-feed.js';
@@ -46,6 +47,7 @@ installStreamerPilot(app,requireUser,requireAdmin,subscribeToPartnerChat,partner
 installProfileCustomization(app,requireUser,requireAdmin);
 installAdminRoleControls(app,db,requireUser,requireAdmin,new URL(APP_URL).origin);
 installGuessWord(app,requireUser,requireAdmin,db);
+installThreeDoors(app,db,requireUser,new URL(APP_URL).origin);
 installDropsoConnect(app,requireAdmin,db);
 installBlackBox(app,db,requireUser,requireAdmin,new URL(APP_URL).origin);
 installActivityFeed(app,db,requireUser);
