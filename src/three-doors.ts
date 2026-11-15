@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Express, RequestHandler } from 'express';
 import { threeDoorsPage, threeDoorsScript } from './three-doors-ui.js';
 
-const stakes = [15, 25, 50, 75, 100, 150, 250];
+const stakes = [10, 20, 50, 100, 200, 500];
 const errors = new Set([
   'invalid_request', 'invalid_attempt', 'attempt_in_progress', 'cooldown',
   'insufficient_coins', 'prize_unavailable', 'user_unavailable',
@@ -31,7 +31,7 @@ export function installThreeDoors(app: Express, db: SupabaseClient, user: Reques
       }
     }
     const { data, error } = await db.rpc('rewards_three_doors', {
-      p_actor: res.locals.session.twitchUserId, p_action: action,
+      p_actor: res.locals.session.twitchUserId, p_action: action === 'start' ? 'start_v2' : action,
       p_attempt: action === 'state' ? null : body.id,
       p_stake: action === 'start' ? body.stake : null,
       p_door: action === 'pick' || action === 'finish' ? body.door : null,
