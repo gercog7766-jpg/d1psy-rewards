@@ -163,9 +163,10 @@ test('Stage 1 reproduces all five rounds and qualification records in the refere
   const {stageOneSeeds}=await import('../src/major-pickem-swiss.ts');
   const {window}=new JSDOM(majorPickemPage,{runScripts:'outside-only',url:'https://dropso.test'});
   try {
+    const lockAt='2026-11-24T03:45:00Z';
     window.fetch=async()=>({ok:true,json:async()=>({
-      now:new Date().toISOString(),balance:500,eligible:true,canEnter:true,entered:false,medal:0,tokens:0,
-      draftKey:'test',stages:[{id:1,label:'Stage 1',status:'open',lockAt:new Date(Date.now()+3600000).toISOString(),
+      now:'2026-11-15T20:00:00Z',balance:500,eligible:true,canEnter:true,entered:false,medal:0,tokens:0,
+      draftKey:'test',stages:[{id:1,label:'Stage 1',status:'open',lockAt,
         teams:stageOneSeeds.map(id=>({id,name:id})),pairs:scheduledPairs}],
     })});
     // This round-two pair could exist with the previous Stage 1 seed order.
@@ -178,6 +179,12 @@ test('Stage 1 reproduces all five rounds and qualification records in the refere
     window.eval(majorPickemScript);
     await new Promise(resolve=>setImmediate(resolve));
     const doc=window.document;
+    const dateTime=new Intl.DateTimeFormat('ru-RU',{dateStyle:'short',timeStyle:'short'});
+    const time=new Intl.DateTimeFormat('ru-RU',{hour:'2-digit',minute:'2-digit'});
+    const firstMatch=doc.querySelector('[data-round="0"] .match small');
+    assert.equal(doc.getElementById('stageInfo').textContent,'Приём до '+dateTime.format(new Date(lockAt))+' · местное время');
+    assert.equal(firstMatch.textContent,time.format(new Date(scheduledPairs[0].at)));
+    assert.equal(firstMatch.title,dateTime.format(new Date(scheduledPairs[0].at)));
     assert.deepEqual(JSON.parse(window.localStorage.getItem(key)),validDraft);
     for(const [index,pairs] of referenceRounds.entries()){
       const round=doc.querySelector('[data-round="'+index+'"]');
