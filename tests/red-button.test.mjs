@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import { PGlite } from '@electric-sql/pglite';
 
-test('red button charges once per day, hides holds, caps the last hold at Moscow midnight and settles once', async () => {
+test('red button charges once per day, hides holds and settles the sum of holds once', async () => {
   const db = new PGlite();
   try {
     await db.exec(`
@@ -29,6 +29,7 @@ test('red button charges once per day, hides holds, caps the last hold at Moscow
       insert into rewards_shop_item_variants select id,'normal','FT',100,true from rewards_shop_items;
     `);
     await db.exec(await readFile(new URL('../supabase/migrations/20261115133000_red_button.sql',import.meta.url),'utf8'));
+    await db.exec(await readFile(new URL('../supabase/migrations/20261115141000_red_button_total_hold.sql',import.meta.url),'utf8'));
     await db.exec('set role service_role');
     const call = async (actor,round=null,request=null) => (await db.query('select rewards_red_button($1,$2,$3) as data',[actor,round,request])).rows[0].data;
     const first=(await call('a')).round, token=randomUUID();
@@ -45,13 +46,20 @@ test('red button charges once per day, hides holds, caps the last hold at Moscow
     await db.query("update rewards_red_button_members set last_press=now()-interval '21 minutes' where round_id=$1",[first.id]);
     await call('a',first.id,randomUUID());
     assert.equal((await db.query('select count(*)::int as n from rewards_coin_transactions where amount=-10')).rows[0].n,2);
-    await db.query("update rewards_red_button_holds set started_at=now()-interval '3 hours' where request_id=$1",[token]);
-    await db.query("update rewards_red_button_rounds set day=day-1,ends_at=now()+interval '1 second' where id=$1",[first.id]);
-    await db.query("update rewards_red_button_rounds set ends_at=now() where id=$1",[first.id]);
+    // Alice has two holds of 3h and 2h; Bob has the longest individual hold (4h).
+    await db.query("update rewards_red_button_rounds set day=day-1,ends_at=now() where id=$1",[first.id]);
+    await db.query(`with ranked as (
+      select request_id,row_number() over(order by started_at,request_id) n
+      from rewards_red_button_holds where round_id=$1
+    )
+    update rewards_red_button_holds h set
+      started_at=r.ends_at-case ranked.n when 1 then interval '9 hours' when 2 then interval '6 hours' else interval '2 hours' end,
+      ended_at=case ranked.n when 1 then r.ends_at-interval '6 hours' when 2 then r.ends_at-interval '2 hours' end
+    from ranked, rewards_red_button_rounds r where h.request_id=ranked.request_id and r.id=$1`,[first.id]);
     const next=await call('b');
     assert.notEqual(next.round.prize,first.prize);
     assert.equal(next.history[0].nick,'Alice');
-    assert(next.history[0].duration >= 10_799_000);
+    assert.equal(next.history[0].duration,18_000_000);
     await call('b');
     assert.equal((await db.query('select count(*)::int as n from rewards_wins')).rows[0].n,1);
     await db.exec('reset role;set role authenticated');

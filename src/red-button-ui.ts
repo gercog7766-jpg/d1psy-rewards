@@ -6,8 +6,15 @@ main{max-width:1020px;margin:auto;padding:22px 14px 52px}a{color:#e9c6ff}h1{font
 .layout{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:14px;align-items:start}
 .panel{background:#211429;border:1px solid #644578;border-radius:18px;padding:15px;margin:0 0 14px}.stage{text-align:center;display:grid;justify-items:center;gap:5px}
 .stage img{max-width:100%;width:320px;height:110px;object-fit:contain}.stage p{margin:3px 0}.clock{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums;color:#ffe4a5}
-.press{width:min(85%,245px);min-height:92px;margin:15px 0;border:2px solid #ff7496;border-radius:50%;color:#fff;background:radial-gradient(ellipse at 48% 28%,#fa5475,#b82446 57%,#7f0a2a);box-shadow:0 7px 0 #570c26,0 14px 38px #ee345d5f;font:800 18px/1.2 system-ui;cursor:pointer;padding:10px}
-.press:enabled:active{transform:translateY(3px);box-shadow:0 4px 0 #570c26}.press:disabled{opacity:.66;cursor:default}.press:focus-visible{outline:3px solid white;outline-offset:5px}
+.press{display:grid;justify-items:center;width:min(100%,370px);margin:8px 0 14px;padding:0 8px 7px;border:0;border-radius:17px;background:transparent;color:#fff;font:800 17px/1.25 system-ui;cursor:pointer}
+.press-art{display:block;width:100%;filter:drop-shadow(0 12px 22px #ef345d78);transition:transform .15s ease,filter .15s ease}
+.stage .press img{display:block;width:100%;height:auto;clip-path:url(#redButtonCutout)}
+.press:enabled:hover .press-art{filter:drop-shadow(0 14px 25px #fb346ca8) brightness(1.1)}
+.press:enabled:active .press-art{transform:translateY(6px) scale(.965)}
+.press:disabled .press-art{opacity:.67;filter:drop-shadow(0 8px 14px #b83a7479)}
+.press:disabled{cursor:default}.press:focus-visible{outline:3px solid white;outline-offset:3px}
+.press-label{padding:6px 12px;background:#36192c;border:1px solid #a34462;border-radius:8px}
+@media(prefers-reduced-motion:reduce){.press-art{transition:none}}
 #notice{color:#ffadc4}.muted{color:#d5bad7}table{border-collapse:collapse;width:100%;font-size:14px;text-align:left}td,th{border-bottom:1px solid #604263;padding:7px 4px;overflow-wrap:anywhere}th:last-child,td:last-child{text-align:right}
 .dropso-live-chat{margin:0 0 14px}@media(max-width:700px){.layout{grid-template-columns:1fr}}
 </style></head><body><main>
@@ -16,10 +23,11 @@ main{max-width:1020px;margin:auto;padding:22px 14px 52px}a{color:#e9c6ff}h1{font
 <section class="panel stage" aria-label="Текущий раунд">
   <p class="muted">Сегодняшний приз</p><img id="image" hidden alt=""><strong id="prize">Загрузка…</strong>
   <p id="countdown" class="clock"></p><p id="holder" class="muted"></p><p id="playerCount" class="muted"></p>
-  <button type="button" id="press" class="press" disabled>Войти за 10 монет</button>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs><clipPath id="redButtonCutout" clipPathUnits="objectBoundingBox"><path d="M .494 .181 C .602 .179 .688 .272 .711 .373 C .768 .420 .805 .520 .805 .633 C .805 .771 .661 .891 .493 .891 C .332 .890 .177 .793 .177 .645 C .177 .528 .218 .423 .277 .379 C .312 .274 .398 .181 .494 .181 Z"/></clipPath></defs></svg>
+  <button type="button" id="press" class="press" disabled><span class="press-art"><img src="/games/red-button/button-v1.webp" width="768" height="512" alt=""></span><span id="pressLabel" class="press-label">Войти за 10 монет</span></button>
   <p id="notice" role="status"></p>
 </section>
-<section class="panel"><h2>Как играть</h2><p>Вход в раунд стоит 10 монет. Первое нажатие оплачивает вход и передаёт кнопку тебе. После каждого успешного нажатия нужно подождать 20 минут. Если кнопку ещё никто не перехватил, ты продолжаешь держать её.</p><p>Побеждает тот, кто дольше всех держал кнопку без перерыва. При равенстве побеждает тот, кто раньше начал это удержание. Время победителя появится в истории после раунда. Раунды заканчиваются в полночь по Москве.</p></section>
+<section class="panel"><h2>Как играть</h2><p>Вход в раунд стоит 10 монет. Первое нажатие оплачивает вход и передаёт кнопку тебе. После каждого успешного нажатия нужно подождать 20 минут. Если кнопку ещё никто не перехватил, ты продолжаешь держать её.</p><p>Время всех твоих удержаний за раунд складывается. Побеждает игрок с наибольшей суммой. При равенстве побеждает тот, кто раньше впервые перехватил кнопку. Время победителя появится в истории после раунда. Раунды заканчиваются в полночь по Москве.</p></section>
 </div><div>
 <section class="dropso-live-chat" data-chat-panel="room" data-chat-participant="false" data-room="" hidden>
   <h2>Чат раунда</h2><ol aria-label="Сообщения"></ol><form><input name="message" maxlength="140" aria-label="Сообщение" required><button type="submit">Отправить</button></form><p role="status"></p>
@@ -51,7 +59,7 @@ export const redButtonScript = String.raw`(() => {
     const wait = secondsUntil(round?.readyAt);
     el('countdown').textContent = round ? 'До конца раунда: ' + duration(left) : '';
     button.disabled = !state?.canPlay || !round || !left || busy || round.holding || wait > 0;
-    button.textContent = !round?.joined ? 'Войти за 10 монет и нажать' : round.holding
+    el('pressLabel').textContent = !round?.joined ? 'Войти за 10 монет и нажать' : round.holding
       ? 'Кнопка у тебя' : wait ? 'Нажатие через ' + duration(wait) : 'Перехватить кнопку';
   }
   function render() {
