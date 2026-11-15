@@ -64,7 +64,7 @@ export const redButtonScript = String.raw`(() => {
   }
   function render() {
     const round = state.round;
-    el('prize').textContent = round ? [round.prize,round.wear,round.price+' мон.'].filter(Boolean).join(' · ') : 'Раунд пока недоступен';
+    el('prize').textContent = round?.prize || 'Раунд пока недоступен';
     const image = el('image');
     image.hidden = !round?.image;
     if (round?.image && image.getAttribute('src') !== round.image) image.src = round.image;
