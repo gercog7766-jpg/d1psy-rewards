@@ -1,8 +1,8 @@
 // Swiss pairing and difficulty score from Valve's Major supplemental rulebook.
-// Stage 1 first-round pairs are ordered by the tournament simulator's initial seed.
+// PGL Singapore Stage 1 seeds, in rank order. Round 1 is seed 1 vs 9 through 8 vs 16.
 export const stageOneSeeds = [
-  'nip','parivision','heroic','faze','liquid','100t','eternal-fire','9z',
-  'm80','dendele','imperial','wildcard','bcgame','chinggis','flyquest','lynn-vision',
+  'nip','parivision','heroic','faze','liquid','eternal-fire','100t','9z',
+  'm80','dendele','imperial','wildcard','bcgame','flyquest','chinggis','lynn-vision',
 ];
 
 export const swissRounds = [

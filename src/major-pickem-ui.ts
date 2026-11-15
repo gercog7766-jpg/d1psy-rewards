@@ -8,7 +8,7 @@ export const majorPickemPage = `<!doctype html><html lang="ru"><head><meta chars
 <style>
 *{box-sizing:border-box}[hidden]{display:none!important}
 body{margin:0;background:radial-gradient(ellipse at 69% 0,#321a4c,#110d19 66%);color:#f8efff;font:16px/1.5 system-ui}
-main{width:min(1080px,100%);margin:auto;padding:24px clamp(12px,3vw,28px) 56px}a{color:#e7c4ff}
+main{width:min(1330px,100%);margin:auto;padding:24px clamp(12px,3vw,28px) 56px}a{color:#e7c4ff}
 nav{display:flex;gap:18px;flex-wrap:wrap}.heading{margin:28px 0 16px}h1{font-size:clamp(38px,7vw,70px);letter-spacing:-.055em;line-height:1.05;margin:0 0 8px}h2{font-size:21px;margin:0 0 10px}.muted{color:#cfbdde}
 .panel{background:#211630;border:1px solid #654684;border-radius:15px;padding:14px;margin:12px 0}
 .tracker,.tabs,.actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.tracker>span{background:#2d1c41;border:1px solid #725294;border-radius:9px;padding:7px 12px}
@@ -17,26 +17,33 @@ button{font:inherit;color:#fbf0ff;min-height:42px;border:1px solid #9567c5;backg
 button{cursor:pointer;font-weight:700}button:disabled{cursor:default;opacity:.65}button[aria-pressed=true],.primary{background:#793cba}
 button:focus-visible,a:focus-visible{outline:2px solid white;outline-offset:3px}
 #notice:not(:empty){margin:12px 0 0;color:#ead4ff}#notice:empty{margin:0}
-.bracket-panel{background:linear-gradient(150deg,#241632,#161021);padding:clamp(12px,2vw,22px)}
+.tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;border:1px solid #78589c;border-radius:12px;overflow:hidden;background:#281c38}
+.tabs button{border:0;border-radius:0;padding-inline:4px;background:transparent}.tabs button+button{border-left:1px solid #78589c}
+.tabs button[aria-pressed=true]{background:#65329d}.tabs button:focus-visible{outline-offset:-4px}
+.bracket-panel{background:linear-gradient(150deg,#241a32,#1a1426);padding:clamp(12px,2vw,22px)}
 .bracket-head{display:flex;justify-content:space-between;gap:14px;align-items:baseline;flex-wrap:wrap}
 .bracket-head p{margin:0}.bracket-hint{font-size:14px;margin:6px 0 16px}
-.bracket-scroll{overflow:auto;overscroll-behavior-inline:contain;scroll-padding-inline:6px;padding:4px 2px 14px}
-.bracket{display:grid;grid-template-columns:repeat(5,minmax(152px,1fr));gap:16px;min-width:830px}
-.round{min-width:0;position:relative}.round:not(:last-child)::after{content:"";position:absolute;inset:43px -9px 0 auto;border-right:1px dashed #8965b365;pointer-events:none}
-.round h3{margin:0 0 8px;font-size:15px;color:#e4cefa}.round h4{margin:0 0 4px;color:#c7abd9;font-size:13px}.group+.group{margin-top:14px}
-.match{display:grid;grid-template-columns:1fr auto 1fr;gap:3px;align-items:center;padding:3px;background:#2a1e3a;border:1px solid #58416b;border-radius:10px;margin:4px 0}
-.match>small{font-size:10px;color:#c9afd9}.match .team{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:3px;min-width:0;min-height:52px;padding:3px 1px;background:#362449;border:1px solid transparent;border-radius:7px;font-size:10px;line-height:1.1;text-align:center;overflow-wrap:anywhere}
-.match .team[aria-pressed=true]{background:#204b3c;border-color:#7ad3a9;color:#e0ffef}.match .team[aria-pressed=false].lost{opacity:.55}
-.match .team:hover:not(:disabled){border-color:#c49afa}.match .team:disabled{opacity:1}.match .placeholder{opacity:.55}
-.logo{width:24px;height:24px;object-fit:contain}.match .logo[hidden]{display:block!important;visibility:hidden}
-.result-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin:12px 0}
-.result-card{min-width:0;border:1px solid #468269;background:#183931;border-radius:10px;padding:8px;font-size:12px}
-.result-card.out{border-color:#a15269;background:#411f35}.result-card h3{font-size:15px;margin:0 0 4px}
-.result-team{display:flex;gap:5px;align-items:center;overflow-wrap:anywhere;margin:4px 0}.result-team img{flex:none;width:20px;height:20px}
+.round-nav{display:none;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px}.round-nav button{min-width:42px}
+.bracket-scroll{overflow:auto;overscroll-behavior-inline:contain;scroll-snap-type:x proximity;scroll-padding-inline:4px;padding:4px 4px 16px}
+.bracket{display:grid;grid-template-columns:repeat(5,minmax(170px,1fr));gap:16px;min-width:914px}
+.round{min-width:0;display:flex;flex-direction:column;scroll-snap-align:start}
+.round h3{font-size:16px;text-align:center;margin:0 0 12px;color:#f0dcff}
+.round-flow{display:flex;flex:1;flex-direction:column;justify-content:center;gap:15px}
+.group{display:grid;gap:5px}.group h4{margin:0;color:#dcc5ef;font-size:14px;font-variant-numeric:tabular-nums}
+.match{display:grid;grid-template-columns:minmax(0,1fr) 34px minmax(0,1fr);align-items:stretch;padding:3px;background:#322640;border:1px solid #614975;border-radius:9px}
+.match>small{align-self:center;text-align:center;font-size:11px;color:#ddc9ee;font-variant-numeric:tabular-nums}
+.match .team{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:3px;min-width:0;min-height:65px;padding:4px 2px;background:#433151;border:1px solid transparent;border-radius:6px;font-size:12px;line-height:1.15;text-align:center;overflow-wrap:anywhere}
+.match .team[aria-pressed=true]{background:#194835;border-color:#7ad3a9;color:#e0ffef}.match .team.lost{color:#dccbe5;background:#372a44}.match .team.lost .logo{opacity:.6}
+.match .team:hover:not(:disabled){border-color:#c49afa}.match .team:disabled{opacity:1}.match .placeholder{color:#bdaacb;background:#352740}
+.logo{width:30px;height:30px;object-fit:contain}.match .logo[hidden]{display:block!important;visibility:hidden}
+.result-group{display:grid;gap:5px}.result-card{min-width:0;min-height:76px;border:1px solid #519474;background:#1c432f;border-radius:8px;padding:6px;font-size:11px;text-align:center}
+.result-card.out{border-color:#ac6073;background:#542739}.result-card h4{font-size:15px;font-variant-numeric:tabular-nums;margin:0 0 4px}
+.result-roster{display:flex;justify-content:center;gap:3px}.result-team{flex:0 1 33%;min-width:0;display:flex;gap:3px;flex-direction:column;align-items:center;overflow-wrap:anywhere;font-weight:600;line-height:1.15}
+.result-team img{width:26px;height:26px}.result-empty{align-self:center;color:#e0cce9}
 #pickemConfirm{background:#231731;color:#f7efff;border:1px solid #976ac0;border-radius:16px;padding:18px;width:min(420px,calc(100% - 28px));max-height:calc(100% - 32px)}
 #pickemConfirm::backdrop{background:#0d0717b8}#pickemConfirm .actions{justify-content:flex-end}
-@media(max-width:820px){.bracket-scroll{scroll-snap-type:x proximity}.round{scroll-snap-align:start}.result-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media(max-width:460px){.bracket{grid-template-columns:repeat(5,155px);min-width:max-content;gap:12px}.bracket-head{gap:4px}.tabs button{flex:1 1 auto}.result-card{padding:6px}}
+@media(max-width:1020px){.round-nav{display:flex}}
+@media(max-width:600px){.bracket{grid-template-columns:repeat(5,clamp(185px,65vw,270px));min-width:max-content;gap:12px}.round-flow{justify-content:flex-start}.bracket-head{gap:4px}}
 ${majorPickemShopCss}</style></head><body><main>
 <nav><a href="/predict">← Предикты</a><a href="/account">Главная</a><a href="#majorShop">Магазин Pick’em</a></nav>
 <header class="heading"><h1>Major Pick’em</h1><p class="muted">PGL Major Singapore 2026 · три стадии швейцарки и плей-офф</p></header>
@@ -46,8 +53,8 @@ ${majorPickemShopCss}</style></head><body><main>
 <section class="panel bracket-panel">
 <div class="bracket-head"><h2 id="stageTitle">Stage 1</h2><p class="muted" id="stageInfo" role="status">Загружаем сетку…</p></div>
 <p class="muted bracket-hint" id="bracketHint" hidden>Выбирай победителя в каждом матче. Пары следующего раунда появятся, когда заполнится текущий.</p>
+<div class="round-nav" id="roundNav" role="group" aria-label="Перейти к раунду" hidden><span class="muted">Раунды</span></div>
 <div class="bracket-scroll" id="bracketScroll" tabindex="0" aria-label="Сетка матчей"><div id="grid" class="bracket"></div></div>
-<div class="result-grid" id="results"></div>
 <div class="actions"><button class="primary" id="save" type="button" hidden>Сохранить прогноз</button><button id="reset" type="button" hidden>Сбросить сетку</button><span id="saved" class="muted" role="status"></span></div></section>
 <dialog id="pickemConfirm" aria-labelledby="pickemConfirmTitle">
 <h2 id="pickemConfirmTitle">Купить пропуск?</h2><p>250 монет за участие во всех стадиях турнира. Бронзовая медаль появится в профиле сразу после оплаты.</p>
@@ -63,7 +70,6 @@ ${majorPickemShop}
 export const majorPickemScript = String.raw`(() => {
   ${swissBracketScript}
   const el=id=>document.getElementById(id);
-  const scores=['3:0','3:1','3:2','1:3','2:3','0:3'];
   const medals=${JSON.stringify(majorMedals)};
   const errors={
     entry_closed:'Сейчас вход закрыт. Следи за открытием следующей стадии.',
@@ -120,38 +126,69 @@ export const majorPickemScript = String.raw`(() => {
     return {participants,firstRound,seeds};
   }
 
+  function resultGroup(scores,displayed,participants){
+    const group=node('div',undefined,'result-group');
+    for(const score of scores){
+      const card=node('section',undefined,'result-card'+(score.startsWith('3:')?'':' out'));
+      card.dataset.result=score;
+      card.append(node('h4',score));
+      const roster=node('div',undefined,'result-roster');
+      const teams=Object.keys(displayed).filter(id=>displayed[id]===score && participants.has(id));
+      if(!teams.length)roster.append(node('span','—','result-empty'));
+      for(const id of teams){
+        const team=participants.get(id),tile=node('div',undefined,'result-team');
+        tile.append(logo(team),node('span',team.name));
+        roster.append(tile);
+      }
+      card.append(roster);
+      group.append(card);
+    }
+    return group;
+  }
+  function showRound(round,target){
+    const scroller=el('bracketScroll');
+    target.focus({preventScroll:true});
+    scroller.scrollLeft+=round.getBoundingClientRect().left-scroller.getBoundingClientRect().left-4;
+  }
+
   function drawBracket(item, config){
-    const grid=el('grid'),results=el('results'),scroller=el('bracketScroll');
+    const grid=el('grid'),scroller=el('bracketScroll');
     const show=Boolean(config);
-    for(const id of ['bracketScroll','bracketHint','results','reset'])el(id).hidden=!show;
+    for(const id of ['bracketScroll','bracketHint','roundNav','reset'])el(id).hidden=!show;
     el('save').hidden=!config || !canSave(item);
-    grid.replaceChildren();results.replaceChildren();
+    grid.replaceChildren();
     if(!show){
       el('saved').textContent='';
       return;
     }
-    const choices=draft(item);
     const {participants,firstRound,seeds}=config;
-    const simulation=buildSwiss(firstRound,seeds,choices);
+    const stored=draft(item);
+    const simulation=buildSwiss(firstRound,seeds,stored);
+    const chosenMatches=simulation.rounds.flat().filter(match=>match.winner);
+    const choices=Object.fromEntries(chosenMatches.map(match=>[match.id,match.winner]));
+    if(chosenMatches.length!==Object.keys(stored).length)updateDraft(item,choices);
     const complete=Object.keys(simulation.terminal).length===16;
     const saved=item.picks || {};
     const same=complete && Object.keys(simulation.terminal).every(id=>saved[id]===simulation.terminal[id]);
     const includeSaved=Object.keys(saved).length>0;
-    const fresh=Object.keys(choices).length>0;
+    const fresh=chosenMatches.length>0;
     el('save').disabled=busy || !complete;
     el('reset').disabled=busy || !fresh;
-    const count=simulation.rounds.flat().filter(match=>match.winner).length;
     el('saved').textContent=same ? 'Прогноз сохранён' : includeSaved && !fresh
-      ? 'Ниже показаны сохранённые итоги. В сетке можно собрать новый прогноз.'
+      ? 'В сетке показаны сохранённые итоги. Можно собрать новый прогноз.'
       : includeSaved ? 'В сетке новый вариант. Прежний прогноз действует до сохранения.'
-      : canSave(item) ? 'Выбрано матчей: '+count+' из 33'
+      : canSave(item) ? 'Выбрано матчей: '+chosenMatches.length+' из 33'
       : open(item) && state.eligible && !state.entered ? 'Для сохранения нужен пропуск.' : '';
     const displayed=fresh ? simulation.terminal : saved;
 
     for(const [roundIndex,groups] of swissRounds.entries()){
       const round=node('section',undefined,'round');
       round.dataset.round=roundIndex;
-      round.append(node('h3','Раунд '+(roundIndex+1)));
+      const heading=node('h3','Раунд '+(roundIndex+1));
+      heading.tabIndex=-1;
+      const flow=node('div',undefined,'round-flow');
+      if(roundIndex===3)flow.append(resultGroup(['3:0'],displayed,participants));
+      if(roundIndex===4)flow.append(resultGroup(['3:1','3:2'],displayed,participants));
       const matches=simulation.rounds[roundIndex];
       for(const [score,slots] of groups){
         const group=node('div',undefined,'group');
@@ -179,12 +216,11 @@ export const majorPickemScript = String.raw`(() => {
               updateDraft(item,next);
               drawBracket(item,config);
               const buttonAfter=[...grid.querySelectorAll('button')].find(node=>node.dataset.match===match.id && node.dataset.team===team.id);
-              if(window.matchMedia?.('(max-width: 820px)').matches && !matches.some(other=>other.id!==match.id&&!other.winner)){
+              if(scroller.scrollWidth>scroller.clientWidth && !matches.some(other=>other.id!==match.id&&!other.winner)){
                 const nextRound=grid.querySelector('[data-round="'+(roundIndex+1)+'"]');
                 const nextButton=nextRound?.querySelector('button');
                 if(nextButton){
-                  nextButton.focus({preventScroll:true});
-                  scroller.scrollLeft+=nextRound.getBoundingClientRect().left-scroller.getBoundingClientRect().left;
+                  showRound(nextRound,nextButton);
                   return;
                 }
               }
@@ -194,23 +230,24 @@ export const majorPickemScript = String.raw`(() => {
           }
           group.append(row);
         }
-        round.append(group);
+        flow.append(group);
       }
+      if(roundIndex===3)flow.append(resultGroup(['0:3'],displayed,participants));
+      if(roundIndex===4)flow.append(resultGroup(['1:3','2:3'],displayed,participants));
+      round.append(heading,flow);
       grid.append(round);
     }
+  }
 
-    for(const score of scores){
-      const card=node('section',undefined,'result-card'+(score.startsWith('3:')?'':' out'));
-      card.append(node('h3',score));
-      const teams=Object.keys(displayed).filter(id=>displayed[id]===score && participants.has(id));
-      if(!teams.length)card.append(node('span','—'));
-      for(const id of teams){
-        const team=participants.get(id),line=node('div',undefined,'result-team');
-        line.append(logo(team),node('span',team.name));
-        card.append(line);
-      }
-      results.append(card);
-    }
+  for(const roundIndex of swissRounds.keys()){
+    const jump=node('button',String(roundIndex+1));
+    jump.type='button';
+    jump.setAttribute('aria-label','Перейти к раунду '+(roundIndex+1));
+    jump.onclick=()=>{
+      const round=el('grid').querySelector('[data-round="'+roundIndex+'"]');
+      if(round)showRound(round,round.querySelector('h3'));
+    };
+    el('roundNav').append(jump);
   }
 
   function render(){
