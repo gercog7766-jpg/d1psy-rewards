@@ -37,7 +37,7 @@ function boot(){
   const sections=[
     ['.logo-menu-balance','#promoOpen','#accountStatisticsLink','a[href="/profile/customize"]','a[href="/referrals"]','#d1PwaOpen'],
     ['a[href="/users"]','#messagesTopLink','a[href="/community"]','#notificationsLink'],
-    ['a[href="/shop"],a[href="#shop"]','a[href="/upgrader"],a[href="/upgrade"]','#skinBattlesLink','#threeDoorsLink','#pickLink','#gamesLink','#piggyBankLink','#predictLink','#streamersLink','#suggestionsLink']
+    ['a[href="/shop"],a[href="#shop"]','a[href="/upgrader"],a[href="/upgrade"]','#skinBattlesLink','#threeDoorsLink','#pickLink','#gamesLink','#predictLink','#streamersLink','#suggestionsLink']
   ];
   const media=matchMedia('(min-width:900px)');
   const moved=[];

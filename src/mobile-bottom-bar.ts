@@ -25,7 +25,7 @@ const styles = `<style id="dropso-mobile-bar-style">
 
 export function withMobileBottomBar(html: string, path: string) {
   const supported = path === '/account' || path === '/shop' || path === '/black-box'
-    || path === '/piggy-bank' || path === '/savings' || path === '/notifications'
+    || path === '/savings' || path === '/notifications'
     || entries.some(entry => path === entry.href || path.startsWith(entry.href + '/'));
   if (!supported || html.includes('id="dropso-mobile-bar"') || !/<body\b[^>]*>/i.test(html)
     || !/<\/body>/i.test(html) || !/<\/head>/i.test(html)) return html;
