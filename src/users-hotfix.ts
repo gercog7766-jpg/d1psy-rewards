@@ -1,3 +1,4 @@
+import {majorMedals} from './major-medals.js';
 import {attachProfileStyles} from './profile-customization.js';
 import {createTwitchAvatarSync} from './twitch-avatars.js';
 import {attachStreamerPartners} from './users-partners.js';
@@ -27,10 +28,14 @@ export function installUsers(){
   function origin(req:any,res:any,next:any){const expected=new URL(process.env.APP_URL||'http://localhost:'+String(process.env.PORT||10000)).origin;if(req.get('sec-fetch-site')==='cross-site'||(req.get('origin')&&req.get('origin')!==expected))return res.sendStatus(403);if(!req.is('application/json'))return res.sendStatus(415);next()}
   async function user(res:any){const{data,error}=await db.from('rewards_users').select('id').eq('twitch_user_id',res.locals.session.twitchUserId).single();if(error||!data){res.status(503).json({error:'users_unavailable'});return null}return data.id}
   async function rpc(res:any,name:string,params:any){if(name==='rewards_users_directory'||name==='rewards_user_profile')void syncAvatars();const{data,error}=await db.rpc(name,params);res.set('Cache-Control','no-store');if(error){const reason=['profile_not_found','user_unavailable','device_required','invalid_request','self_action','contact_blocked','gift_daily_limit','insufficient_coins','request_conflict','message_rate_limit','contact_unavailable','requests_limit','request_not_found','invalid_action','friend_request_limit'].find(x=>error.message.includes(x));if(!reason)console.error('users_rpc_failed',name,error.code);return res.status(reason==='profile_not_found'?404:reason?409:503).json({error:reason||'users_unavailable'})}if(name==='rewards_users_directory'||name==='rewards_user_profile'){try{await attachStreamerPartners(db,name==='rewards_users_directory'?data.users:[data]);await attachProfileStyles(db,name==='rewards_users_directory'?data.users:[data])}catch{ return res.status(503).json({error:'users_unavailable'})}}if(name==='rewards_user_profile'){
-   const {data:target,error:levelError}=await db.from('rewards_users').select('xp_total').eq('twitch_login',data.login).single();
+   const {data:target,error:levelError}=await db.from('rewards_users').select('id,xp_total').eq('twitch_login',data.login).single();
    if(levelError||!target)return res.status(503).json({error:'users_unavailable'});
    const xp=Math.max(0,Number(target.xp_total)||0),level=Math.max(1,Math.floor((Math.sqrt(9+8*xp/75)-3)/2)+1),from=Math.round(37.5*(level-1)*(level+2)),to=Math.round(37.5*level*(level+3));
    data.levelProgress={xp,level,levelXp:xp-from,nextXp:to-from};
+   if(!data.isPrivate || data.isSelf){
+    const {data:entry}=await db.from('rewards_major_pickem_entries').select('medal').eq('user_id',target.id).maybeSingle();
+    if(entry?.medal && majorMedals[entry.medal])data.majorMedal=majorMedals[entry.medal];
+   }
   }res.json(data)}
   function page(req:any,res:any){if(req.query.page!==undefined&&(!/^\d{1,6}$/.test(String(req.query.page))||Number(req.query.page)<1)){res.status(400).json({error:'invalid_page'});return null}return Number(req.query.page)||1}
   app.use('/api/me/social',(_req:any,res:any,next:any)=>{res.set('Cache-Control','no-store');next()});
