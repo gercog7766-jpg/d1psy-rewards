@@ -31,7 +31,7 @@ header p{color:#d3c1e4;margin:14px auto 0;max-width:52ch}
 select,#start{font:inherit;color:#fff;border:1px solid #9562c1;border-radius:10px;padding:9px 12px;background:#321d4b}
 #start{background:#7639b8;font-weight:750;cursor:pointer}#start:disabled{opacity:.6;cursor:default}
 #terms,#notice{flex-basis:100%;margin:0;text-align:center;color:#dac7eb;font-size:14px}
-#notice:empty{display:none}#notice{color:#ffbdc9}.rules{margin:18px 0 0;color:#d6c2e8}
+#notice:empty{display:none}#notice{color:#ffbdc9}
 @media(prefers-reduced-motion:reduce){.panel{transition:none}}
 </style></head><body><main>
 <nav><a href="/account">← Главная</a><span id="balance">Баланс: —</span></nav>
@@ -45,7 +45,6 @@ select,#start{font:inherit;color:#fff;border:1px solid #9562c1;border-radius:10p
   <button id="start" type="button" disabled>Начать попытку</button>
   <p id="terms"></p><p id="notice" role="alert"></p>
 </div>
-<p class="rules">Одна попытка каждые два часа. Если поменять дверь, шанс выиграть — 2 из 3. Если оставить — 1 из 3. При проигрыше монеты за вход не возвращаются.</p>
 </main><script src="/games/three-doors.js" defer></script></body></html>`;
 }
 
