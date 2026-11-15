@@ -1,3 +1,4 @@
+import {promoRewardBrowserScript} from '../src/promo-rewards.ts';
 import test from 'node:test';import assert from 'node:assert/strict';import {PGlite} from '@electric-sql/pglite';import {readFileSync} from 'node:fs';
 test('completed promo names can be reused, active duplicates and streamer namespace cannot; archive preserves history',async()=>{
  const db=new PGlite();await db.exec(`create role anon;create role authenticated;create role service_role;create table rewards_promo_codes(id integer primary key,code text,active boolean default true,activation_count integer default 0,max_activations integer default 1,expires_at timestamptz);create unique index rewards_promo_codes_code_ci on rewards_promo_codes(lower(code));create table redemption(id integer,promo_id integer references rewards_promo_codes(id));`);
@@ -13,5 +14,5 @@ test('completed promo names can be reused, active duplicates and streamer namesp
 });
 test('admin markup provides completed-code deletion and keeps active-code cancellation',()=>{
  const src=readFileSync(new URL('../src/promo-ui-fix-hotfix.ts',import.meta.url),'utf8');assert.match(src,/data-promo-delete/);assert.match(src,/data-promo-cancel/);
- const script=src.slice(src.indexOf('const js=`')+10,src.indexOf('`;',src.indexOf('const js=`'))).split('<script>')[1].split('</script>')[0];new Function(script);
+ const script=src.slice(src.indexOf('const js=`')+10,src.indexOf('`;',src.indexOf('const js=`'))).split('<script>')[1].split('</script>')[0];new Function(script.replace('${promoRewardBrowserScript}',promoRewardBrowserScript));
 });

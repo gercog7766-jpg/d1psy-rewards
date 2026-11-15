@@ -18,6 +18,7 @@ export function installEconomyWinsHotfix(){
    const {data,error}=await db.from('rewards_wins')
     .select('id,won_at,delivery_status,delivered_at,choice_status,choice_at,sold_for_coins,rewards_prizes(name,image_url,sell_price_coins)')
     .eq('user_id',u.id)
+    .or('source_type.is.null,source_type.neq.promo_upgrade')
     .order('won_at',{ascending:false});
    if(error) return res.status(500).json({error:error.message});
    return res.json(data||[]);

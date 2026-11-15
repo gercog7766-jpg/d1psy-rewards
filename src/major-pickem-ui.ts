@@ -260,7 +260,7 @@ export const majorPickemScript = String.raw`(() => {
     if(medal && image.getAttribute('src')!==medal.image)image.src=medal.image;
     el('medalName').textContent='Медаль: '+(medal?.name || 'Пока нет');
     const enter=el('enter');enter.hidden=state.entered;enter.disabled=busy || !state.eligible || !state.canEnter;
-    el('entryStatus').textContent=state.entered ? 'Пропуск на весь турнир куплен'
+    el('entryStatus').textContent=state.entered ? 'Пропуск на весь турнир активирован'
       : !state.eligible ? 'Для твоего аккаунта участие недоступно'
       : !state.canEnter ? 'Покупка пропуска сейчас закрыта'
       : 'Баланс: '+state.balance+' монет';

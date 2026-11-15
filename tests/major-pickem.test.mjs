@@ -309,7 +309,7 @@ test('Major Pick’em admin lists paid players and saved stages with pagination 
     requests.push(new URL(url));
     const entries=Array.from({length:51},(_,i)=>({
       player:{twitch_display_name:i===0?'<img onerror=alert(1)>':'Player '+i,twitch_login:'player'+i},
-      tokens:i===0?12:0,picks:i===0?[{stage:1},{stage:3}]:[],
+      paid:i===0?0:250,tokens:i===0?12:0,picks:i===0?[{stage:1},{stage:3}]:[],
     }));
     return Response.json(entries);
   }}});
@@ -333,7 +333,7 @@ test('Major Pick’em admin lists paid players and saved stages with pagination 
     assert.equal(response.headers.get('cache-control'),'private, no-store');
     const [request]=requests;
     assert.equal(request.pathname,'/rest/v1/rewards_major_pickem_entries');
-    assert.match(request.searchParams.get('select'),/tokens,player:rewards_users!.*\(twitch_login,twitch_display_name\),picks:rewards_major_pickem_picks!.*\(stage\)/);
+    assert.match(request.searchParams.get('select'),/paid,tokens,player:rewards_users!.*\(twitch_login,twitch_display_name\),picks:rewards_major_pickem_picks!.*\(stage\)/);
     assert.equal(request.searchParams.get('order'),'entered_at.desc,user_id.asc');
     assert.equal(request.searchParams.get('offset'),'50');
     assert.equal(request.searchParams.get('limit'),'51');
@@ -343,7 +343,7 @@ test('Major Pick’em admin lists paid players and saved stages with pagination 
       assert.equal(doc.querySelectorAll('tbody tr').length,50);
       assert.equal(doc.querySelector('tbody img'),null);
       const [player,...values]=doc.querySelector('tbody tr').children;
-      assert.equal(player.textContent,'<img onerror=alert(1)>@player0');
+      assert.equal(player.textContent,'<img onerror=alert(1)>@player0Промокод');
       assert.deepEqual(values.map(cell=>cell.textContent),['Сохранён','—','Сохранён','—','12']);
       assert.equal(doc.querySelector('[rel=prev]').getAttribute('href'),'?page=1');
       assert.equal(doc.querySelector('[rel=next]').getAttribute('href'),'?page=3');

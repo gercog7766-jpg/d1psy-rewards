@@ -2,6 +2,7 @@ export const majorPickemAdminPath = '/admin/major-pickem';
 
 export type MajorPickemEntrant = {
   tokens: number;
+  paid: number;
   player: { twitch_login: string | null; twitch_display_name: string | null } | null;
   picks: { stage: number }[];
 };
@@ -14,11 +15,11 @@ function escapeText(value: string) {
 }
 
 export function majorPickemAdminPage(entries: MajorPickemEntrant[], page: number, hasNext: boolean) {
-  const rows = entries.map(({player, picks, tokens}) => {
+  const rows = entries.map(({player, picks, tokens, paid}) => {
     const login = player?.twitch_login;
     const name = player?.twitch_display_name || login || 'Без имени';
     const saved = new Set(picks.map(pick => pick.stage));
-    return `<tr><th scope="row">${escapeText(name)}${login ? `<small>@${escapeText(login)}</small>` : ''}</th>${
+    return `<tr><th scope="row">${escapeText(name)}${login ? `<small>@${escapeText(login)}</small>` : ''}<small>${paid === 0 ? 'Промокод' : 'Куплен'}</small></th>${
       stages.map((_, index) => saved.has(index + 1)
         ? '<td class="saved">Сохранён</td>'
         : '<td class="muted">—</td>').join('')
@@ -41,7 +42,7 @@ nav{display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin-top:16px}
 <p class="muted" id="participants">Участники с пропуском · сохранённые прогнозы и баланс жетонов</p>
 <div class="table-scroll" tabindex="0" role="region" aria-labelledby="participants">
 <table aria-labelledby="participants"><thead><tr><th scope="col">Игрок</th>${stages.map(stage => `<th scope="col">${stage}</th>`).join('')}<th scope="col">Жетоны</th></tr></thead>
-<tbody>${rows || `<tr><td colspan="6">${page === 1 ? 'Пока никто не купил пропуск.' : 'На этой странице нет участников.'}</td></tr>`}</tbody></table></div>
+<tbody>${rows || `<tr><td colspan="6">${page === 1 ? 'Пока ни у кого нет пропуска.' : 'На этой странице нет участников.'}</td></tr>`}</tbody></table></div>
 ${page > 1 || hasNext ? `<nav aria-label="Страницы участников">${page > 1 ? `<a href="?page=${page - 1}" rel="prev">← Назад</a>` : ''}<span>Страница ${page}</span>${hasNext ? `<a href="?page=${page + 1}" rel="next">Дальше →</a>` : ''}</nav>` : ''}
 </main></body></html>`;
 }

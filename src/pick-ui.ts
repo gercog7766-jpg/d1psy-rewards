@@ -41,7 +41,7 @@ export const pickScript = String.raw`(() => {
   const start = document.getElementById('start');
   const prizePreview = document.getElementById('prizePreview');
   const errors = {
-    insufficient_coins: 'Для входа нужно 50 монет.',
+    insufficient_coins: 'Недостаточно монет для оплаты входа в Pick.',
     quote_changed: 'Набор призов изменился. Проверь новые цены перед входом.',
     prize_unavailable: 'Сейчас для раскладки не хватает скинов.',
     invalid_attempt: 'Карты уже изменились. Обновили поле.',
@@ -56,10 +56,15 @@ export const pickScript = String.raw`(() => {
     const active = attempt && !attempt.chosen;
     const winning = attempt?.cards?.[attempt.chosen - 1];
     document.getElementById('balance').textContent = 'Баланс: ' + (state ? state.balance + ' монет' : '—');
+    const promo = Math.max(0, Number(state?.promoBalance) || 0);
+    const covered = Math.min(promo,50);
+    const cost = 50-covered;
+    start.textContent = cost===0 ? 'Раздать карты по промокоду'
+      : covered ? 'Раздать карты · доплата '+cost+' монет' : 'Раздать карты за 50 монет';
     start.disabled = !state?.canPlay || !prices || busy || Boolean(active) || Date.now() < unlockAt;
     instructions.textContent = !state ? (busy ? 'Загружаем карты…' : 'Не удалось загрузить карты.') :
       winning ? 'Твой скин — ' + winning.name + ' · ' + winning.price + ' монет.' :
-      active ? 'Выбери одну карту.' : !prices ? 'Раскладка временно недоступна.' : 'Вход стоит 50 монет.';
+      active ? 'Выбери одну карту.' : !prices ? 'Раскладка временно недоступна.' : promo ? 'Баланс для Pick: '+promo+' монет. Вход стоит 50 монет.' : 'Вход стоит 50 монет.';
     let revealOrder = 0;
     for (const button of cards) {
       const position = Number(button.dataset.card);
