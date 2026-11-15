@@ -75,7 +75,10 @@ export const threeDoorsScript = String.raw`(() => {
     const active = a && !finished;
     const rest = a ? Math.max(0, Math.ceil((Date.parse(a.nextAt) - Date.now() - clockOffset) / 1000)) : 0;
     const cost = Number(stake.value);
-    terms.textContent = 'Скин за ' + cost * 2 + ' монет · продажа из инвентаря за ' + Math.floor(cost * 1.3) + ' монет';
+    const target = cost * 13 / 10;
+    terms.textContent = a && (!finished || rest)
+      ? 'Скин за ' + a.prize.price + ' монет · продажа из инвентаря за ' + a.prize.sale + ' монет'
+      : 'Цель — ' + target + ' монет. Из магазина подбирается скин с ближайшей ценой.';
     document.getElementById('balance').textContent = 'Баланс: ' + (state ? state.balance + ' монет' : '—');
     stake.disabled = start.disabled = !state?.canPlay || busy || Boolean(active) || rest > 0;
     if (!state) instructions.textContent = busy ? 'Загружаем игру…' : 'Не удалось загрузить поле.';

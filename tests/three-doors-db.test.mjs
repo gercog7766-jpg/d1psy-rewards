@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import { PGlite } from '@electric-sql/pglite';
 
+const pricingMigration = await readFile(new URL('../supabase/migrations/20261115100000_three_doors_prize_pricing.sql', import.meta.url), 'utf8');
 const migration = await readFile(new URL('../supabase/migrations/20261115092000_three_doors.sql', import.meta.url), 'utf8');
 
 test('three doors keeps the prize private and charges and awards once across retries', async () => {
@@ -54,7 +55,13 @@ test('three doors keeps the prize private and charges and awards once across ret
     await assert.rejects(call('pick', id, null, 2), /invalid_attempt/);
     await assert.rejects(call('finish', id, null, picked.attempt.emptyDoor), /invalid_attempt/);
 
+    await db.exec("reset role");
+    await db.exec(pricingMigration);
+    await db.exec("set role service_role");
+
     const finished = await call('finish', id, null, secret);
+    assert.equal(finished.attempt.prize.price, 30);
+    assert.equal(finished.attempt.prize.sale, 19);
     assert.equal(finished.attempt.prizeDoor, secret);
     assert.equal(finished.attempt.won, true);
     assert.equal((await call('finish', id, null, secret)).balance, 85);
@@ -64,8 +71,20 @@ test('three doors keeps the prize private and charges and awards once across ret
 
     await db.query("update rewards_three_doors_attempts set started_at = now() - interval '3 hours' where id=$1", [id]);
     assert.equal((await call('state')).attempt.finalDoor, secret);
-    assert.equal((await call('start', randomUUID(), 15)).balance, 70);
+    await db.exec("reset role; insert into rewards_shop_item_variants select id, 'normal', 'FN', 15, true from rewards_shop_items; set role service_role");
+    await assert.rejects(call('start_v2', randomUUID(), 15), /invalid_request/);
+    const nextId = randomUUID();
+    const next = await call('start_v2', nextId, 10);
+    assert.equal(next.balance, 75);
+    assert.equal(next.attempt.prize.price, 15);
+    assert.equal(next.attempt.prize.sale, 15);
+    assert.equal((await call('start_v2', nextId, 10)).balance, 75);
     await assert.rejects(call('start', id, 15), /invalid_attempt/);
+    const nextSecret = (await db.query('select prize_door from rewards_three_doors_attempts where id=$1', [nextId])).rows[0].prize_door;
+    await call('pick', nextId, null, 1);
+    await call('finish', nextId, null, nextSecret);
+    const sales = (await db.query('select sell_price_coins from rewards_prizes order by sell_price_coins')).rows;
+    assert.deepEqual(sales.map(row => row.sell_price_coins), [15, 19]);
     for (const role of ['anon', 'authenticated']) {
       await db.exec('reset role; set role ' + role);
       await assert.rejects(call('state'), /permission denied/);
