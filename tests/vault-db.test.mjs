@@ -13,7 +13,7 @@ async function dbFixture(){const db=new PGlite();await db.exec(`create role anon
  // The migration reserves the initial pool while it runs.
  const liveClock='as $$select clock_timestamp()$$;';
  assert(sql.includes(liveClock),'Vault migration clock hook changed');
- await db.exec(sql.replace(liveClock,`as $$select '${fixtureStart}'::timestamptz$$;`));await db.exec(await readFile(new URL('../supabase/migrations/20261108210151_vault_configurable_key_goal.sql',import.meta.url),'utf8'));return db}
+ await db.exec(sql.replace(liveClock,()=>`as $$select '${fixtureStart}'::timestamptz$$;`));await db.exec(await readFile(new URL('../supabase/migrations/20261108210151_vault_configurable_key_goal.sql',import.meta.url),'utf8'));return db}
 async function now(db,iso){await db.exec('reset role');await db.exec("create or replace function public.rewards_vault_now() returns timestamptz language sql volatile security invoker set search_path='' as $$select '"+iso+"'::timestamptz$$");await db.exec('set role service_role')}
 const call=async(db,name,args=[])=>(await db.query('select rewards_vault_'+name+'('+args.map((_,i)=>'$'+(i+1)).join(',')+') r',args)).rows[0].r;
 async function user(db,name='viewer'){const id=uuid();await db.query('insert into rewards_users values($1,false,$2,$2)',[id,name]);return id}
