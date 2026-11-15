@@ -1,3 +1,4 @@
+import {installCheckers} from './checkers.js';
 import {installPick} from './pick.js';
 import {installThreeDoors} from './three-doors.js';
 import {installAdminRoleControls} from './admin-role-controls.js';
@@ -52,6 +53,7 @@ installDropsoConnect(app,requireAdmin,db);
 installBlackBox(app,db,requireUser,requireAdmin,new URL(APP_URL).origin);
 installActivityFeed(app,db,requireUser);
 installLiveChat(app,db,requireUser,new URL(APP_URL).origin,requireAdmin);
+installCheckers(app,db,requireUser,new URL(APP_URL).origin,SESSION_SECRET);
 installSavings(app,db,requireUser,requireAdmin,new URL(APP_URL).origin);
 function validTradeUrl(v:string){try{const u=new URL(v);return u.protocol==='https:'&&u.hostname==='steamcommunity.com'&&u.pathname==='/tradeoffer/new/'&&!!u.searchParams.get('partner')&&!!u.searchParams.get('token')}catch{return false}}
 function randomIndex(count:number){if(count<=0)throw new Error('invalid_count');return crypto.randomInt(count)}
