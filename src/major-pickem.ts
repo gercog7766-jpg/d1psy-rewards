@@ -40,6 +40,9 @@ export function installMajorPickem(app:Express,db:SupabaseClient,user:RequestHan
   app.get('/predict/major-pickem',noStore,user,(_req,res) => res.send(majorPickemPage));
   app.get('/predict/major-pickem.js',noStore,(_req,res) => res.type('application/javascript').send(majorPickemScript));
   app.get('/predict/major-profile-medal.js',noStore,(_req,res) => res.type('application/javascript').send(majorProfileMedalScript));
+  app.get('/predict/major-token.webp', (_req,res) => {
+    res.sendFile(resolve(process.cwd(),'assets/major-pickem/token.webp'),{maxAge:'1d'});
+  });
   app.get('/predict/major-medals/:file', (req,res) => {
     const medal=majorMedals.find(item=>item?.image===req.path);
     if(!medal){res.sendStatus(404);return;}
