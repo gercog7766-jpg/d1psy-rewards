@@ -41,7 +41,7 @@ export function blackBoxPage(admin: boolean) {
   return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Чёрный ящик · Dropso</title><style>${styles}</style></head>
   <body data-admin="${admin}"><main><a href="${admin ? '/admin' : '/account'}">← ${admin ? 'Админка' : 'На главную'}</a>
   <h1>Чёрный ящик</h1>${admin ? `
-  <section class="panel admin"><h2>Запустить торги на 6 часов</h2>
+  <section class="panel admin"><h2>Запустить торги на 90 минут</h2>
   <form id="create"><label>Стартовая цена<input id="start" type="number" min="1" required></label>
   <label>Минимальный шаг<input id="step" type="number" min="1" required></label>
   <label>Тип приза<select id="kind"><option value="skin">Скин из каталога призов</option><option value="coins">Монеты</option></select></label>
