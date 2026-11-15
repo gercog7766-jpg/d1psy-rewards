@@ -1,4 +1,5 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';import {PGlite} from '@electric-sql/pglite';import {readFile} from 'node:fs/promises';import {randomUUID as uuid} from 'node:crypto';
+const fixtureStart='2026-11-09T00:00:00+03:00';
 const migration=new URL('../supabase/migrations/20261108203402_vault_reserved_keys_weekly_event.sql',import.meta.url),week='2026-11-09',digest='a'.repeat(64);
 async function dbFixture(){const db=new PGlite();await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;
  create table rewards_users(id uuid primary key,banned boolean default false,twitch_login text,twitch_display_name text);create table rewards_admins(twitch_user_id text primary key);insert into rewards_admins values('owner');
@@ -7,7 +8,12 @@ async function dbFixture(){const db=new PGlite();await db.exec(`create role anon
  create table rewards_season_task_progress(user_id uuid,season_id text,task_key text,period_key text,completed_at timestamptz,sp_awarded int);create table rewards_season_daily_schedule(day date,task_key text);
  create table rewards_promo_codes(id uuid primary key,code text);create table rewards_promo_redemptions(id uuid primary key,user_id uuid,promo_id uuid,created_at timestamptz);
  create table rewards_streamers(id uuid primary key,twitch_broadcaster_id text,is_primary boolean);create table rewards_rounds(id uuid primary key,streamer_id uuid);create table rewards_wins(id uuid primary key,user_id uuid,round_id uuid,won_at timestamptz);create table rewards_streamer_live_awards(user_id uuid,win_id uuid,created_at timestamptz,broadcaster_id text,round_id uuid);
- grant select,insert,update on all tables in schema public to service_role;`);await db.exec(await readFile(migration,'utf8'));await db.exec(await readFile(new URL('../supabase/migrations/20261108210151_vault_configurable_key_goal.sql',import.meta.url),'utf8'));return db}
+ grant select,insert,update on all tables in schema public to service_role;`);const sql=await readFile(migration,'utf8');
+ // Seed the test treasury with the same fixed clock that the tests use.
+ // The migration reserves the initial pool while it runs.
+ const liveClock='as $$select clock_timestamp()$$;';
+ assert(sql.includes(liveClock),'Vault migration clock hook changed');
+ await db.exec(sql.replace(liveClock,`as $$select '${fixtureStart}'::timestamptz$$;`));await db.exec(await readFile(new URL('../supabase/migrations/20261108210151_vault_configurable_key_goal.sql',import.meta.url),'utf8'));return db}
 async function now(db,iso){await db.exec('reset role');await db.exec("create or replace function public.rewards_vault_now() returns timestamptz language sql volatile security invoker set search_path='' as $$select '"+iso+"'::timestamptz$$");await db.exec('set role service_role')}
 const call=async(db,name,args=[])=>(await db.query('select rewards_vault_'+name+'('+args.map((_,i)=>'$'+(i+1)).join(',')+') r',args)).rows[0].r;
 async function user(db,name='viewer'){const id=uuid();await db.query('insert into rewards_users values($1,false,$2,$2)',[id,name]);return id}
