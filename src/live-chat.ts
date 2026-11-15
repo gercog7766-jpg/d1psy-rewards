@@ -64,6 +64,7 @@ const chatScript=String.raw`
  const game=panel.dataset.chatPanel==='room', time=new Intl.DateTimeFormat('ru-RU',{hour:'2-digit',minute:'2-digit'});
  let moderator=false;
  const spectator=()=>game&&panel.dataset.chatParticipant!=='true';
+ const canWrite=()=>!spectator()||(moderator&&panel.dataset.chatModeratorWrite==='true');
  const room=()=>game&&(!spectator()||moderator)?(panel.dataset.room||null):null;
  let version=0,shownRoom=null,reading=false,sending=false,signature='';
  function endpoint(id){return '/api/me/live-chat'+(id?'?room='+encodeURIComponent(id):'')}
@@ -100,7 +101,7 @@ const chatScript=String.raw`
  }
  async function read(){
   const id=room();
-  form.hidden=spectator();
+  form.hidden=!canWrite();
   if(game&&shownRoom!==id){shownRoom=id;version++;signature='';list.replaceChildren();input.value='';status.textContent='';panel.hidden=!id;}
   if(panel.hidden||document.hidden||reading||sending)return;
   const check=version;reading=true;
@@ -119,7 +120,7 @@ const chatScript=String.raw`
  form.addEventListener('submit',async event=>{
   event.preventDefault();
   const message=input.value.trim(),id=room();
-  if(!message||sending||panel.hidden||(game&&(!id||spectator())))return;
+  if(!message||sending||panel.hidden||(game&&(!id||!canWrite())))return;
   const check=++version;
   sending=true;form.querySelector('button').disabled=true;
   try{

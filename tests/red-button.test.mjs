@@ -15,6 +15,8 @@ test('red button charges once per day, hides holds and settles the sum of holds 
       create table rewards_prizes(id uuid primary key default gen_random_uuid(), name text, image_url text, status text, unlimited boolean, draw_weight integer, sell_price_coins integer);
       create table rewards_wins(id uuid primary key default gen_random_uuid(), user_id uuid, prize_id uuid, delivery_status text, choice_status text, item_wear text, item_variant_kind text, source_type text);
       create table rewards_coin_transactions(user_id uuid,amount integer,transaction_type text,note text);
+      create table rewards_admins(twitch_user_id text primary key);
+      grant select on rewards_admins to service_role;
       create table rewards_ttt_rooms(id uuid primary key,host_id uuid,guest_id uuid);
       create table rewards_checkers_rooms(id uuid primary key,host_id uuid,guest_id uuid);
       create table rewards_live_chat(id bigint generated always as identity primary key,room_id uuid,sender_id uuid,nick text,message text,created_at timestamptz default clock_timestamp());
@@ -24,12 +26,14 @@ test('red button charges once per day, hides holds and settles the sum of holds 
       grant select,insert,delete on rewards_live_chat to service_role;
       grant usage on sequence rewards_live_chat_id_seq to service_role;
       insert into rewards_users(twitch_user_id,twitch_login) values('a','Alice'),('b','Bob'),('c','Carol');
+      insert into rewards_admins values('c');
       insert into rewards_coin_transactions select id,100,'adjustment','fixture' from rewards_users;
       insert into rewards_shop_items(name,image_url,status) values('Skin A','https://example.com/a.png','available'),('Skin B','https://example.com/b.png','available');
       insert into rewards_shop_item_variants select id,'normal','FT',100,true from rewards_shop_items;
     `);
     await db.exec(await readFile(new URL('../supabase/migrations/20261115133000_red_button.sql',import.meta.url),'utf8'));
     await db.exec(await readFile(new URL('../supabase/migrations/20261115141000_red_button_total_hold.sql',import.meta.url),'utf8'));
+    await db.exec(await readFile(new URL('../supabase/migrations/20261115142000_red_button_admin_chat.sql',import.meta.url),'utf8'));
     await db.exec('set role service_role');
     const call = async (actor,round=null,request=null) => (await db.query('select rewards_red_button($1,$2,$3) as data',[actor,round,request])).rows[0].data;
     const first=(await call('a')).round, token=randomUUID();
@@ -40,7 +44,10 @@ test('red button charges once per day, hides holds and settles the sum of holds 
     assert.equal((await call('a')).round.holding,true);
     assert.equal((await call('b')).round.readyAt,null);
     assert.equal(Object.hasOwn((await call('b')).round,'heldSince'),false);
-    await assert.rejects(db.query("select rewards_live_chat_feed('c',$1,'hi')",[first.id]),/chat_unavailable/);
+    await assert.rejects(db.query("select rewards_live_chat_feed('b',$1,'hi')",[first.id]),/chat_unavailable/);
+    await db.query("select rewards_live_chat_feed('c',$1,'admin message')",[first.id]);
+    assert.equal((await call('c')).round.joined,false);
+    assert.equal((await db.query('select count(*)::int as n from rewards_coin_transactions where amount=-10')).rows[0].n,1);
     await call('b',first.id,randomUUID());
     await assert.rejects(call('a',first.id,randomUUID()),/cooldown/);
     await db.query("update rewards_red_button_members set last_press=now()-interval '21 minutes' where round_id=$1",[first.id]);

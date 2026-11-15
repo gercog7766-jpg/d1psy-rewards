@@ -29,7 +29,7 @@ main{max-width:1020px;margin:auto;padding:22px 14px 52px}a{color:#e9c6ff}h1{font
 </section>
 <section class="panel"><h2>Как играть</h2><p>Вход в раунд стоит 10 монет. Первое нажатие оплачивает вход и передаёт кнопку тебе. После каждого успешного нажатия нужно подождать 20 минут. Если кнопку ещё никто не перехватил, ты продолжаешь держать её.</p><p>Время всех твоих удержаний за раунд складывается. Побеждает игрок с наибольшей суммой. При равенстве побеждает тот, кто раньше впервые перехватил кнопку. Время победителя появится в истории после раунда. Раунды заканчиваются в полночь по Москве.</p></section>
 </div><div>
-<section class="dropso-live-chat" data-chat-panel="room" data-chat-participant="false" data-room="" hidden>
+<section class="dropso-live-chat" data-chat-panel="room" data-chat-moderator-write="true" data-chat-participant="false" data-room="" hidden>
   <h2>Чат раунда</h2><ol aria-label="Сообщения"></ol><form><input name="message" maxlength="140" aria-label="Сообщение" required><button type="submit">Отправить</button></form><p role="status"></p>
 </section>
 <section class="panel"><h2>Прошлые игры</h2><table><thead><tr><th>Ник</th><th>Скин</th><th>Время удержания кнопки</th></tr></thead><tbody id="history"></tbody></table><p id="noHistory" class="muted">Пока нет завершённых раундов с победителем.</p></section>
