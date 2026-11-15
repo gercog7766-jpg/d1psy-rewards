@@ -16,8 +16,11 @@ export function installGamesHotfix() {
   // both Promo and Upgrader have inserted their navigation buttons.
   const response:any=(express as any).response, send=response.send;
   response.send=function(body:any) {
-    if(typeof body==='string' && body.includes('id="promoOpen"') && !body.includes('id="gamesLink"')) {
-      body=body.replace(/(<button\b[^>]*id="promoOpen"[^>]*>[\s\S]*?<\/button>)/,'$1<a id="gamesLink" class="shoplink" href="/games">Игры</a><a id="skinBattlesLink" class="shoplink" href="/games/battles">Сражения</a><a id="threeDoorsLink" class="shoplink" href="/games/three-doors">Три двери</a><a id="pickLink" class="shoplink" href="/games/pick">Pick</a>');
+    if(typeof body==='string' && !body.includes('id="gamesLink"')) {
+      const links='<a id="gamesLink" class="shoplink" href="/games">Игры</a><a id="skinBattlesLink" class="shoplink" href="/games/battles">Сражения</a><a id="threeDoorsLink" class="shoplink" href="/games/three-doors">Три двери</a><a id="pickLink" class="shoplink" href="/games/pick">Pick</a>';
+      const promo=/(<button\b[^>]*id="promoOpen"[^>]*>[\s\S]*?<\/button>)/;
+      if(promo.test(body))body=body.replace(promo,'$1'+links);
+      else if(this.req?.path==='/account')body=body.replace('<div class="economybar">','<div class="economybar">'+links);
     }
     return send.call(this,body);
   };
