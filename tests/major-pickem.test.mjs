@@ -128,6 +128,12 @@ test('Pick’em shows the awarded artwork as soon as purchase succeeds', async (
     assert.equal(medal.textContent,'Медаль: Бронза');
     assert.equal(image.hidden,false);
     assert.equal(image.getAttribute('src'),'/predict/major-medals/bronze.webp');
+    const token=window.document.getElementById('tokenIcon');
+    assert.equal(token.width,image.width);
+    assert.equal(token.height,image.height);
+    assert.equal(window.getComputedStyle(token.closest('.tracker-item')).minHeight,
+      window.getComputedStyle(image.closest('.tracker-item')).minHeight);
+
   } finally {
     window.close();
   }
