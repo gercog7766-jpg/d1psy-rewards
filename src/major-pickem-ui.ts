@@ -1,4 +1,5 @@
 import { majorMedals } from './major-medals.js';
+import { majorPickemShop, majorPickemShopCss } from './major-pickem-shop.js';
 
 export const majorPickemPage = `<!doctype html><html lang="ru"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -21,8 +22,8 @@ button:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid whit
 #notice{min-height:1.5em;margin:6px 0;color:#ead4ff}
 @media(max-width:760px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.matches{grid-template-columns:1fr}.panel,.slot{padding:10px}}
 @media(max-width:390px){.selection{grid-template-columns:22px minmax(0,1fr);gap:4px}.selection .logo{width:20px;height:20px}.selection select{font-size:13px}}
-</style></head><body><main>
-<nav><a href="/predict">← Предикты</a><a href="/account">Главная</a></nav>
+${majorPickemShopCss}</style></head><body><main>
+<nav><a href="/predict">← Предикты</a><a href="/account">Главная</a><a href="#majorShop">Магазин Pick’em</a></nav>
 <header class="heading"><h1>Major Pick’em</h1><p class="muted">PGL Major Singapore 2026 · три стадии швейцарки и плей-офф</p></header>
 <div class="tracker"><span class="tracker-item"><img id="tokenIcon" src="/predict/major-token.webp" width="26" height="26" alt=""><span id="tokens">Жетоны Major Dropso: —</span></span><span id="medal" class="tracker-item"><img alt="" hidden><span id="medalName">Медаль: —</span></span></div>
 <section class="panel" aria-label="Участие"><div class="actions"><button class="primary" type="button" id="enter" disabled>Войти за 250 монет</button><span id="entryStatus" class="muted"></span></div><p id="notice" role="status"></p></section>
@@ -35,6 +36,7 @@ button:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid whit
 <p>Бронза появляется в профиле сразу после покупки пропуска. Шесть верных прогнозов за стадию швейцарки повышают медаль на одну ступень. В плей-офф для следующей ступени нужны минимум два верных четвертьфинала, один полуфинал и верный победитель финала.</p>
 <p>Бронза → Серебро → Золото → Бриллиант → Бриллиант внутри.</p>
 </section>
+${majorPickemShop}
 </main><script defer src="/predict/major-pickem.js"></script></body></html>`;
 
 export const majorPickemScript = String.raw`(() => {
