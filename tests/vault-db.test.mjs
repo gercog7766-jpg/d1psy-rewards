@@ -64,3 +64,97 @@ test('next vault saves the pool, cap and proportional goal together before launc
   await assert.rejects(call(db,'prepare_next',['owner',{...upcoming,requestId:uuid()}]),/season_locked/);
  } finally { await db.close(); }
 });
+
+test('owner promo rewards are atomic and restricted to their intended products',{timeout:30000},async()=>{
+ const db=await dbFixture();
+ try{
+  await db.exec(`
+   alter table rewards_users add column twitch_user_id text unique, add column created_at timestamptz default now(),
+     add column participation_restricted boolean default false;
+   alter table rewards_promo_codes alter column id set default gen_random_uuid(), add column reward_type text not null,
+     add column coin_amount integer, add column prize_id uuid, add column max_activations integer default 5,
+     add column activation_count integer default 0, add column active boolean default true,
+     add column archived_at timestamptz, add column expires_at timestamptz, add column created_at timestamptz default now(),
+     add column new_users_only boolean default false,
+     add constraint rewards_promo_codes_reward_type_check check(reward_type in ('coins','prize')),
+     add constraint rewards_promo_reward_valid check(true);
+   alter table rewards_promo_redemptions add column reward_type text, add column coin_amount integer,
+     add column prize_id uuid, add column win_id uuid, alter column created_at set default now(),
+     add unique(promo_id,user_id);
+   alter table rewards_wins alter column id set default gen_random_uuid(), add column prize_id uuid,
+     add column delivery_status text, add column choice_status text, add column choice_at timestamptz,
+     add column item_wear text, add column item_variant_kind text, add column source_type text;
+   create table rewards_prizes(id uuid primary key default gen_random_uuid(), name text, image_url text,
+     status text, unlimited boolean, draw_weight integer, sell_price_coins integer);
+   create table rewards_shop_items(id uuid primary key default gen_random_uuid(),name text,image_url text,status text,stock int,price_coins int);
+   create table rewards_shop_item_variants(id uuid primary key default gen_random_uuid(),shop_item_id uuid,
+     variant_kind text,wear text,price_coins int,available boolean);
+   grant select,insert,update on rewards_prizes,rewards_shop_items,rewards_shop_item_variants to service_role;
+   create unique index fixture_owner_promo_active on rewards_promo_codes(lower(code)) where active;
+   insert into rewards_users(id,twitch_user_id) values(gen_random_uuid(),'alice'),(gen_random_uuid(),'bob');
+   insert into rewards_shop_items(name,image_url,status,price_coins)
+     select 'Skin '||price,'https://test/skin','available',price from unnest(array[7,15,25,50,100]) price;
+   insert into rewards_shop_item_variants(shop_item_id,variant_kind,wear,price_coins,available)
+     select id,'normal','FT',price_coins,true from rewards_shop_items where price_coins<>7;
+   insert into rewards_prizes(name,image_url,status,unlimited,draw_weight,sell_price_coins)
+     values('Promo skin','https://test/skin','available',true,1,50);
+   insert into rewards_promo_codes(code,reward_type,coin_amount) values('COINS','coins',30);
+   insert into rewards_promo_codes(code,reward_type,prize_id) select 'SKIN','prize',id from rewards_prizes;
+  `);
+  for(const file of [
+   '20261115150000_major_pickem.sql','20261115160000_major_pickem_medals.sql',
+   '20261115092000_three_doors.sql','20261115100000_three_doors_prize_pricing.sql',
+   '20261115103000_pick.sql','20261115113500_pick_prize_preview.sql','20261115190717_promo_reward_types.sql',
+  ])await db.exec(await readFile(new URL('../supabase/migrations/'+file,import.meta.url),'utf8'));
+  await db.exec(`
+   update rewards_major_pickem_stages set open_at=now()-interval '1 hour',lock_at=now()+interval '1 hour',
+     first_match_at=now()+interval '2 hours' where stage=1;
+   insert into rewards_promo_codes(code,reward_type,reward_amount) values
+     ('MAJOR','major_pass',null),('MAJOR2','major_pass',null),('KEYS','vault_keys',4),
+     ('OVER','vault_keys',50),('DOORS','three_doors_pass',50),('PICK','pick_credit',70);
+   insert into rewards_promo_codes(code,reward_type,prize_id) select 'UPGRADE','upgrade_skin',id from rewards_prizes;
+  `);
+  await now(db,'2026-11-09T12:00:00+03:00');
+  const fn=async(name,...args)=>(await db.query('select public.'+name+'('+args.map((_,i)=>'$'+(i+1)).join(',')+') result',args)).rows[0].result;
+  const redeem=(code,actor='alice')=>fn('rewards_redeem_owner_promo',actor,code);
+  const stats=async()=> (await db.query("select code,activation_count from rewards_promo_codes where code in ('MAJOR2','OVER','COINS') order by code")).rows;
+  assert.equal((await redeem('MAJOR')).rewardType,'major_pass');
+  const major=await fn('rewards_major_pickem','alice','state',null,null);
+  assert.equal(major.entered,true);assert.equal(major.medal,1);assert.equal(major.balance,0);
+  await assert.rejects(redeem('MAJOR2'),/major_already_active/);
+  assert.equal((await redeem('KEYS')).amount,4);
+  await assert.rejects(redeem('OVER'),/vault_key_limit/);
+  const direct=(await db.query("select kind,amount from rewards_vault_key_ledger order by id")).rows;
+  assert.deepEqual(direct,[{kind:'promo_grant',amount:4}]);
+  assert.equal((await db.query("select reason from rewards_vault_sources")).rows[0].reason,'direct_grant');
+  assert.equal((await fn('rewards_vault_state',(await db.query("select id from rewards_users where twitch_user_id='alice'")).rows[0].id)).balance,4);
+  assert.equal((await redeem('UPGRADE')).rewardType,'upgrade_skin');
+  await assert.rejects(db.exec("update rewards_wins set choice_status='sold' where source_type='promo_upgrade'"),/upgrade_only/);
+  await assert.rejects(db.exec("update rewards_wins set delivery_status='received' where source_type='promo_upgrade'"),/upgrade_only/);
+  await db.exec("update rewards_wins set choice_status='upgraded',choice_at=now() where source_type='promo_upgrade'");
+  await redeem('DOORS');
+  const doors=uuid();
+  const enterDoors=(id,stake=50)=>fn('rewards_three_doors','alice','start_v2',id,stake,null);
+  await assert.rejects(enterDoors(uuid(),100),/insufficient_coins/);
+  assert.equal((await enterDoors(doors)).balance,0);
+  assert.deepEqual((await enterDoors(doors)).promoStakes,{});
+  await redeem('PICK');
+  const firstPick=uuid();
+  const pick=(action,id,value)=>fn('rewards_pick','alice',action,id,value);
+  assert.equal((await pick('start',firstPick,7)).promoBalance,20);
+  assert.equal((await pick('start',firstPick,7)).balance,0);
+  await pick('reveal',firstPick,1);
+  await assert.rejects(pick('start',uuid(),7),/insufficient_coins/);
+  assert.equal((await pick('state',null,null)).promoBalance,20);
+  const coins=await Promise.allSettled([redeem('coins'),redeem('COINS')]);
+  assert.equal(coins.filter(result=>result.status==='fulfilled').length,1);
+  assert.match(coins.find(result=>result.status==='rejected').reason.message,/already_used/);
+  assert.equal((await pick('start',uuid(),7)).balance,0);
+  assert.equal((await pick('state',null,null)).promoBalance,0);
+  assert.equal((await redeem('SKIN')).rewardType,'prize');
+  assert.deepEqual(await stats(),[{code:'COINS',activation_count:1},{code:'MAJOR2',activation_count:0},{code:'OVER',activation_count:0}]);
+  await db.exec('reset role; set role authenticated');
+  await assert.rejects(redeem('COINS','bob'),/permission denied/);
+  await assert.rejects(db.exec('select * from rewards_promo_game_credits'),/permission denied/);
+ }finally{await db.close()}
+});

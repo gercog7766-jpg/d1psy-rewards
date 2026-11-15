@@ -74,6 +74,12 @@ export const threeDoorsScript = String.raw`(() => {
     const active = a && !finished;
     const rest = a ? Math.max(0, Math.ceil((Date.parse(a.nextAt) - Date.now() - clockOffset) / 1000)) : 0;
     const cost = Number(stake.value);
+    const pass = state?.promoStakes?.[cost] > 0;
+    for (const option of stake.options) {
+      const count = state?.promoStakes?.[option.value] || 0;
+      option.textContent = option.value + ' монет' + (count ? ' · пропуск: '+count : '');
+    }
+    start.textContent = pass ? 'Играть по пропуску' : 'Начать попытку';
     const target = cost * 13 / 10;
     terms.textContent = a && (!finished || rest)
       ? 'Скин за ' + a.prize.price + ' монет · продажа из инвентаря за ' + a.prize.sale + ' монет'

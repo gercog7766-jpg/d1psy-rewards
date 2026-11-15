@@ -64,7 +64,7 @@ export function installMajorPickem(app:Express,db:SupabaseClient,user:RequestHan
     }
     const page=Number(requestedPage), pageSize=50, from=(page-1)*pageSize;
     const {data,error}=await db.from('rewards_major_pickem_entries')
-      .select('tokens,player:rewards_users!rewards_major_pickem_entries_user_id_fkey(twitch_login,twitch_display_name),picks:rewards_major_pickem_picks!rewards_major_pickem_picks_user_id_fkey(stage)')
+      .select('paid,tokens,player:rewards_users!rewards_major_pickem_entries_user_id_fkey(twitch_login,twitch_display_name),picks:rewards_major_pickem_picks!rewards_major_pickem_picks_user_id_fkey(stage)')
       .order('entered_at',{ascending:false}).order('user_id')
       .range(from,from+pageSize).returns<MajorPickemEntrant[]>();
     if(error){

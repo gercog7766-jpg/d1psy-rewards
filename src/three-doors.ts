@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Express, RequestHandler } from 'express';
 import { threeDoorsPage, threeDoorsScript } from './three-doors-ui.js';
 
-const stakes = [10, 20, 50, 100, 200, 500];
+export const threeDoorsStakes = [10, 20, 50, 100, 200, 500];
 const errors = new Set([
   'invalid_request', 'invalid_attempt', 'attempt_in_progress', 'cooldown',
   'insufficient_coins', 'prize_unavailable', 'user_unavailable',
@@ -13,7 +13,7 @@ export function installThreeDoors(app: Express, db: SupabaseClient, user: Reques
     res.set('Cache-Control', 'private, no-store');
     next();
   };
-  app.get('/games/three-doors', noStore, user, (_req, res) => res.send(threeDoorsPage(stakes)));
+  app.get('/games/three-doors', noStore, user, (_req, res) => res.send(threeDoorsPage(threeDoorsStakes)));
   app.get('/games/three-doors.js', noStore, (_req, res) => res.type('application/javascript').send(threeDoorsScript));
 
   const call = (action: 'state' | 'start' | 'pick' | 'finish'): RequestHandler => async (req, res) => {
@@ -24,7 +24,7 @@ export function installThreeDoors(app: Express, db: SupabaseClient, user: Reques
         return;
       }
       const validId = typeof body?.id === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(body.id);
-      const validChoice = action === 'start' ? stakes.includes(body?.stake) : [1, 2, 3].includes(body?.door);
+      const validChoice = action === 'start' ? threeDoorsStakes.includes(body?.stake) : [1, 2, 3].includes(body?.door);
       if (!req.is('application/json') || !validId || !validChoice) {
         res.status(400).json({ error: 'invalid_request' });
         return;
