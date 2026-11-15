@@ -1,4 +1,5 @@
 import { resolve } from 'node:path';
+import { majorPickemAdminPage, majorPickemAdminPath, type MajorPickemEntrant } from './major-pickem-admin.js';
 import { majorMedals } from './major-medals.js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Express, RequestHandler } from 'express';
@@ -54,6 +55,24 @@ export function installMajorPickem(app:Express,db:SupabaseClient,user:RequestHan
     const {data:entry,error:entryError}=await db.from('rewards_major_pickem_entries').select('medal').eq('user_id',player.id).maybeSingle();
     if(entryError){res.sendStatus(503);return;}
     res.json({medal:majorMedals[entry?.medal ?? 0] ?? null});
+  });
+  app.get(majorPickemAdminPath,noStore,admin,async(req,res) => {
+    const requestedPage=req.query.page ?? '1';
+    if(typeof requestedPage!=='string' || !/^[1-9]\d{0,5}$/.test(requestedPage)){
+      res.status(400).send('Неверная страница.');
+      return;
+    }
+    const page=Number(requestedPage), pageSize=50, from=(page-1)*pageSize;
+    const {data,error}=await db.from('rewards_major_pickem_entries')
+      .select('tokens,player:rewards_users!rewards_major_pickem_entries_user_id_fkey(twitch_login,twitch_display_name),picks:rewards_major_pickem_picks!rewards_major_pickem_picks_user_id_fkey(stage)')
+      .order('entered_at',{ascending:false}).order('user_id')
+      .range(from,from+pageSize).returns<MajorPickemEntrant[]>();
+    if(error){
+      console.error('major_pickem_admin_entries',error.code);
+      res.status(503).send('Не удалось загрузить участников Major Pick’em.');
+      return;
+    }
+    res.send(majorPickemAdminPage(data.slice(0,pageSize),page,data.length>pageSize));
   });
   app.post('/api/admin/major-pickem/settle',noStore,admin,async(req,res) => {
     if(req.get('origin')!==origin || !req.is('application/json')){res.sendStatus(403);return;}
