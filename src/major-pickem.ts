@@ -34,7 +34,7 @@ export function installMajorPickem(app:Express,db:SupabaseClient,user:RequestHan
         .json({error:known.has(error.message) ? error.message : 'pickem_unavailable'});
       return;
     }
-    res.json(data);
+    res.json({...data,draftKey:res.locals.session.twitchUserId});
   };
 
   app.get('/predict/major-pickem',noStore,user,(_req,res) => res.send(majorPickemPage));
