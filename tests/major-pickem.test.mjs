@@ -105,7 +105,6 @@ test('Pick’em shows the awarded artwork as soon as purchase succeeds', async (
   const {majorPickemPage,majorPickemScript}=await import('../src/major-pickem-ui.ts');
   const {window}=new JSDOM(majorPickemPage,{runScripts:'outside-only'});
   try {
-    window.dropsoConfirm=async()=>true;
     window.fetch=async url=>({ok:true,json:async()=>({
       now:new Date().toISOString(),balance:250,eligible:true,canEnter:true,
       entered:url.endsWith('/enter'),medal:url.endsWith('/enter')?1:0,tokens:0,stages:[]
@@ -118,6 +117,12 @@ test('Pick’em shows the awarded artwork as soon as purchase succeeds', async (
     assert.equal(image.hidden,true);
     assert.equal(enter.disabled,false);
     enter.click();
+    const dialog=window.document.getElementById('pickemConfirm');
+    assert.equal(dialog.open,true);
+    window.document.getElementById('cancelPass').click();
+    assert.equal(dialog.open,false);
+    enter.click();
+    window.document.getElementById('buyPass').click();
     await new Promise(resolve=>setImmediate(resolve));
     assert.equal(enter.hidden,true);
     assert.equal(medal.textContent,'Медаль: Бронза');
@@ -126,4 +131,97 @@ test('Pick’em shows the awarded artwork as soon as purchase succeeds', async (
   } finally {
     window.close();
   }
+});
+
+const scheduledPairs = [
+  ['heroic','imperial'],['9z','lynn-vision'],['nip','m80'],['100t','chinggis'],
+  ['liquid','bcgame'],['parivision','dendele'],['faze','wildcard'],['eternal-fire','flyquest'],
+].map(([a,b])=>({a,b,at:'2026-11-24T04:00:00Z'}));
+
+test('Swiss bracket pairs the same record with Buchholz seeding and finishes with 16 scored teams', async () => {
+  const {swissBracketScript,stageOneSeeds}=await import('../src/major-pickem-swiss.ts');
+  const buildSwiss=new Function(swissBracketScript+'\nreturn buildSwiss;')();
+  const selected={};
+  let bracket=buildSwiss(scheduledPairs,stageOneSeeds,selected);
+  assert.equal(bracket.rounds.length,1);
+  for(const match of bracket.rounds[0])selected[match.id]=match.a;
+  bracket=buildSwiss(scheduledPairs,stageOneSeeds,selected);
+  assert.deepEqual(bracket.rounds[1].slice(0,4).map(({a,b})=>[a,b]),
+    [['nip','9z'],['parivision','eternal-fire'],['heroic','100t'],['faze','liquid']]);
+
+  for(let run=1;run<=128;run++){
+    let random=run;
+    const picks={},seen=new Set();
+    for(let round=0;round<5;round++){
+      bracket=buildSwiss(scheduledPairs,stageOneSeeds,picks);
+      const matches=bracket.rounds[round];
+      assert.equal(matches.length,[8,8,8,6,3][round]);
+      assert.equal(new Set(matches.flatMap(({a,b})=>[a,b])).size,matches.length*2);
+      for(const match of matches){
+        const pair=[match.a,match.b].sort().join('/');
+        assert(!seen.has(pair),'unexpected rematch in simulation '+run);
+        seen.add(pair);
+        random=(Math.imul(1664525,random)+1013904223)>>>0;
+        picks[match.id]=random<2**31?match.a:match.b;
+      }
+    }
+    const {terminal}=buildSwiss(scheduledPairs,stageOneSeeds,picks);
+    const counts=Object.values(terminal).reduce((all,record)=>{
+      all[record]=(all[record]||0)+1;
+      return all;
+    },{});
+    assert.deepEqual(counts,{'3:0':2,'3:1':3,'3:2':3,'1:3':3,'2:3':3,'0:3':2});
+  }
+});
+
+test('teams can be selected before purchase, and the completed bracket submits Swiss results', async () => {
+  const {JSDOM}=await import('jsdom');
+  const {majorPickemPage,majorPickemScript}=await import('../src/major-pickem-ui.ts');
+  const {stageOneSeeds}=await import('../src/major-pickem-swiss.ts');
+  const {window}=new JSDOM(majorPickemPage,{runScripts:'outside-only',url:'https://dropso.test/predict/major-pickem'});
+  try {
+    const docs=window.document;
+    const query=selector=>docs.querySelector(selector);
+    const wait=()=>new Promise(resolve=>setImmediate(resolve));
+    const stage={
+      id:1,label:'Stage 1',status:'open',lockAt:new Date(Date.now()+3600000).toISOString(),
+      teams:stageOneSeeds.map(id=>({id,name:id})),pairs:scheduledPairs,
+    };
+    const request=[];
+    let entered=false;
+    window.fetch=async(url,opts)=>{
+      if(url.endsWith('/enter'))entered=true;
+      if(url.endsWith('/save')){request.push(JSON.parse(opts.body));stage.picks=request[0].selections;}
+      return {ok:true,json:async()=>({now:new Date().toISOString(),balance:500,eligible:true,
+        canEnter:true,entered,medal:entered?1:0,tokens:0,stages:[stage],draftKey:'test'})};
+    };
+    window.eval(majorPickemScript);
+    await wait();
+    assert(query('#save').hidden);
+    assert.equal(query('[data-round="1"] button'),null);
+    function chooseAll(round){
+      const buttons=[...docs.querySelectorAll('[data-round="'+round+'"] .match button:first-child')];
+      assert(buttons.length>0);
+      for(const {dataset:{match,team}} of buttons)query('[data-match="'+match+'"][data-team="'+team+'"]').click();
+    }
+    chooseAll(0);
+    assert.equal(docs.querySelectorAll('[data-round="1"] .match button').length,16);
+    assert.equal(Object.keys(JSON.parse(window.localStorage.getItem('major-pickem-swiss-v1:test:1'))).length,8);
+    chooseAll(1);
+    const earlier=query('[data-round="0"] .team.lost');
+    earlier.click();
+    assert.equal(docs.querySelectorAll('[data-round="1"] [aria-pressed="true"]').length,0);
+    assert.equal(query('[data-round="2"] button'),null);
+    query('#enter').click();
+    query('#buyPass').click();
+    await wait();
+    for(let i=1;i<5;i++)chooseAll(i);
+    assert.equal(query('#save').disabled,false);
+    query('#save').click();
+    await wait();
+    assert.equal(request.length,1);
+    assert.equal(Object.keys(request[0].selections).length,16);
+    assert.equal(query('#saved').textContent,'Прогноз сохранён');
+    assert.equal(docs.querySelectorAll('#results .result-team').length,16);
+  } finally {window.close();}
 });
