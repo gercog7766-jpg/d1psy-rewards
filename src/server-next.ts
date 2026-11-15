@@ -3,9 +3,7 @@ import {installThreeDoors} from './three-doors.js';
 import {installAdminRoleControls} from './admin-role-controls.js';
 import {installLiveChat} from './live-chat.js';
 import {installActivityFeed} from './activity-feed.js';
-import {installPiggyBank} from './piggy-bank.js';
 import {installSavings} from './savings.js';
-import {installBlindFinal} from './blind-final.js';
 import {installBlackBox} from './black-box.js';
 import {installDropsoConnect} from './dropso-connect.js';
 import {installGuessWord} from './guess-word.js';
@@ -55,8 +53,6 @@ installBlackBox(app,db,requireUser,requireAdmin,new URL(APP_URL).origin);
 installActivityFeed(app,db,requireUser);
 installLiveChat(app,db,requireUser,new URL(APP_URL).origin,requireAdmin);
 installSavings(app,db,requireUser,requireAdmin,new URL(APP_URL).origin);
-installPiggyBank(app,db,requireUser,requireAdmin,new URL(APP_URL).origin);
-installBlindFinal(app,db,requireUser,requireAdmin,new URL(APP_URL).origin);
 function validTradeUrl(v:string){try{const u=new URL(v);return u.protocol==='https:'&&u.hostname==='steamcommunity.com'&&u.pathname==='/tradeoffer/new/'&&!!u.searchParams.get('partner')&&!!u.searchParams.get('token')}catch{return false}}
 function randomIndex(count:number){if(count<=0)throw new Error('invalid_count');return crypto.randomInt(count)}
 

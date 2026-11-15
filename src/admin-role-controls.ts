@@ -16,7 +16,7 @@ export async function isDropsoOwner(db: SupabaseClient, actor: string) {
 }
 
 export function installAdminRoleControls(app: Express, db: SupabaseClient, user: RequestHandler, admin: RequestHandler, origin: string) {
-  for(const path of ['/api/black-box/bid','/api/blind-final/:action','/api/me/guess-word/guess']){
+  for(const path of ['/api/black-box/bid','/api/me/guess-word/guess']){
     app.post(path,user,async(q,r,next)=>{
       if(q.params.action&&!['enter','pick'].includes(String(q.params.action)))return next();
       r.set('Cache-Control','no-store');
