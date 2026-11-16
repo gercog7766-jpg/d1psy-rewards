@@ -43,7 +43,7 @@ button:focus-visible,a:focus-visible{outline:2px solid white;outline-offset:3px}
 #pickemConfirm{background:#231731;color:#f7efff;border:1px solid #976ac0;border-radius:16px;padding:18px;width:min(420px,calc(100% - 28px));max-height:calc(100% - 32px)}
 #pickemConfirm::backdrop{background:#0d0717b8}#pickemConfirm .actions{justify-content:flex-end}
 @media(max-width:1020px){.round-nav{display:flex}}
-@media(max-width:600px){.bracket{grid-template-columns:repeat(5,clamp(185px,65vw,270px));min-width:max-content;gap:12px}.round-flow{justify-content:flex-start}.bracket-head{gap:4px}}
+@media(max-width:600px){.bracket{grid-template-columns:repeat(5,clamp(185px,65vw,270px));min-width:max-content;gap:12px}.round-flow{justify-content:flex-start}.bracket-head{gap:4px}.tabs button,.round-nav button,.actions button,.team{min-height:44px}.actions{gap:8px}.actions button{flex:1 1 auto}}
 ${majorPickemShopCss}</style></head><body><main>
 <nav><a href="/predict">← Предикты</a><a href="/account">Главная</a><a href="#majorShop">Магазин Pick’em</a></nav>
 <header class="heading"><h1>Major Pick’em</h1><p class="muted">PGL Major Singapore 2026 · три стадии швейцарки и плей-офф</p></header>

@@ -21,7 +21,7 @@ function fixUser(b:string){
   if(b.includes('<a class="shoplink" href="/shop">Магазин</a>')) b=b.replace('<a class="shoplink" href="/shop">Магазин</a>','<a class="shoplink" href="/shop">Магазин</a>'+button);
   else if(b.includes('<a class="shoplink" href="#shop">Магазин</a>')) b=b.replace('<a class="shoplink" href="#shop">Магазин</a>','<a class="shoplink" href="#shop">Магазин</a>'+button);
   else return b;
-  b=b.replace('</body>',modal+'<script>(function(){'+promoRewardBrowserScript+'var m=document.getElementById("promoModal"),o=document.getElementById("promoOpen"),c=document.getElementById("promoClose"),r=document.getElementById("promoRedeem"),i=document.getElementById("promoInput"),x=document.getElementById("promoMsg");if(!m||!o)return;o.onclick=function(){m.style.display="flex";if(i)i.focus()};if(c)c.onclick=function(){m.style.display="none"};m.onclick=function(e){if(e.target===m)m.style.display="none"};if(i)i.onkeydown=function(e){if(e.key==="Enter"&&r)r.click()};if(r)r.onclick=async function(){r.disabled=true;x.textContent="Проверяем…";try{var q=await fetch("/api/me/promo/redeem",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code:i.value})}),j=await q.json().catch(function(){return{}});if(q.ok){x.textContent=promoRewardMessage(j);setTimeout(function(){location.reload()},900)}else{x.textContent=promoErrorMessage(j.error);r.disabled=false}}catch(e){x.textContent="Не удалось проверить промокод";r.disabled=false}}})();</script></body>');
+  b=b.replace('</body>',modal+'<script>(function(){'+promoRewardBrowserScript+'var m=document.getElementById("promoModal"),o=document.getElementById("promoOpen"),c=document.getElementById("promoClose"),r=document.getElementById("promoRedeem"),i=document.getElementById("promoInput"),x=document.getElementById("promoMsg");if(!m||!o)return;o.onclick=function(){m.style.display="flex";if(i)i.focus()};if(c)c.onclick=function(){m.style.display="none"};m.onclick=function(e){if(e.target===m)m.style.display="none"};if(i)i.onkeydown=function(e){if(e.key==="Enter"&&r)r.click()};if(r)r.onclick=async function(){r.disabled=true;x.textContent="Проверяем…";try{var q=await fetch("/api/me/promo/redeem",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code:i.value})}),j=await q.json().catch(function(){return{}});if(q.ok){x.textContent=promoRewardMessage(j);i.value="";r.disabled=false;document.dispatchEvent(new CustomEvent("dropso:promo-redeemed",{detail:j}))}else{x.textContent=promoErrorMessage(j.error);r.disabled=false}}catch(e){x.textContent="Не удалось проверить промокод";r.disabled=false}}})();</script></body>');
   return b;
 }
 function fixAdmin(b:string){
@@ -33,9 +33,9 @@ function ensureControls(){var btn=el('paCreate');if(!btn)return;if(!el('paExpire
 function sync(){
  var t=el('paType'),co=el('paCoins'),pr=el('paPrize'),stake=el('paStake');
  if(!t||!co||!pr||!stake)return;
- var type=t.value,skin=type==='prize'||type==='upgrade_skin',hasAmount=['coins','vault_keys','pick_credit'].includes(type);
+ var type=t.value,skin=type==='prize'||type==='upgrade_skin',hasAmount=['coins','vault_keys','pick_credit','major_tokens'].includes(type);
  co.style.display=hasAmount?'':'none';pr.style.display=skin?'':'none';stake.style.display=type==='three_doors_pass'?'':'none';
- co.placeholder=type==='vault_keys'?'Количество ключей':type==='pick_credit'?'Баланс для Pick':'Количество монет';
+ co.placeholder=type==='vault_keys'?'Количество ключей':type==='pick_credit'?'Баланс для Pick':type==='major_tokens'?'Количество жетонов Major Pick’em':'Количество монет';
  co.setAttribute('aria-label',co.placeholder);
  co.max=type==='vault_keys'?'10000':'100000';
 }
