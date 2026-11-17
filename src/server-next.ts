@@ -46,7 +46,8 @@ app.use(deviceLogin.middleware);
 function requireUser(req:express.Request,res:express.Response,next:express.NextFunction){
  const session=readSession(req);
  if(!session){
-  if(req.route?.path==='/vault')return res.set('Cache-Control','no-store').redirect('/auth/twitch');
+  const path=req.route?.path;
+  if(path==='/vault'||path==='/predict/major-pickem')return res.set('Cache-Control','no-store').redirect('/auth/twitch');
   return res.status(401).json({error:'authentication_required'});
  }
  res.locals.session=session;
