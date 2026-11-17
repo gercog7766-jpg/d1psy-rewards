@@ -6,7 +6,7 @@ test('Users: server privacy, safe inventory projection, tab/device presence expi
  create table rewards_users(id uuid primary key,twitch_login text,twitch_display_name text,twitch_avatar_url text,banned boolean default false,steam_trade_url text);
  create table rewards_device_sessions(token_hash text primary key,user_id uuid references rewards_users(id),expires_at timestamptz default now()+interval '180 days',hard_expires_at timestamptz default now()+interval '365 days');
  create table rewards_prizes(id uuid primary key,name text,image_url text,sell_price_coins integer);
- create table rewards_wins(id uuid primary key default gen_random_uuid(),user_id uuid,prize_id uuid,won_at timestamptz default now(),delivery_status text default 'pending',delivered_at timestamptz,choice_status text,item_wear text,item_variant_kind text);
+ create table rewards_wins(id uuid primary key default gen_random_uuid(),user_id uuid,prize_id uuid,won_at timestamptz default now(),delivery_status text default 'pending',delivered_at timestamptz,choice_status text,item_wear text,item_variant_kind text,source_type text);
  create table rewards_orders(id uuid primary key default gen_random_uuid(),user_id uuid,source_type text,win_id uuid,item_name text,image_url text,item_wear text,item_variant_kind text,status text,created_at timestamptz default now(),price_coins integer);
  grant select,update on rewards_users to service_role;grant select on rewards_wins,rewards_prizes,rewards_orders,rewards_device_sessions to service_role;`);
  await db.query("insert into rewards_users values($1,'alpha','Alpha','https://test/a.png',false,'SECRET-TRADE'),($2,'bravo','Bravo',null,false,'SECRET-B'),($3,'banned','Banned',null,true,'SECRET-C')",[a,b,c]);
@@ -18,6 +18,17 @@ test('Users: server privacy, safe inventory projection, tab/device presence expi
  await db.query("insert into rewards_orders(user_id,source_type,item_name,status,price_coins) values($1,'shop','Already sent','sent',70)",[a]);
  const call=async(name,args)=> (await rows('select rewards_'+name+'('+args.map((_,i)=>'$'+(i+1)).join(',')+') r',args))[0].r;
  const profile=(viewer=b)=>call('user_profile',[viewer,'alpha',1]);let p=await profile();assert.equal(p.items.length,2);assert.deepEqual(p.items.map(i=>i.name).sort(),['AK Test','Legacy Skin']);assert(!JSON.stringify(p).includes('SECRET'));assert(p.items.every(i=>i.priceCoins===99999));assert(!JSON.stringify(p).includes('user_id'));assert(!JSON.stringify(p).includes('acquired'));
+ await db.exec("create function public.rewards_public_goal(uuid) returns jsonb language sql as $$ select null::jsonb $$");
+ await db.exec(await readFile(new URL('../supabase/migrations/20261117141000_hide_gifted_profile_inventory.sql',import.meta.url),'utf8'));
+ await db.query("update rewards_wins set choice_status='gifted' where id=$1",[win]);
+ await db.query("insert into rewards_wins(user_id,prize_id,choice_status,source_type) values($1,$2,'awaiting_choice','skin_gift')",[b,prize]);
+ const senderProfile=await profile();
+ assert.equal(senderProfile.total,1);
+ assert.deepEqual(senderProfile.items.map(i=>i.name),['Legacy Skin']);
+ const recipientProfile=await call('user_profile',[a,'bravo',1]);
+ assert.equal(recipientProfile.total,1);
+ assert.deepEqual(recipientProfile.items.map(i=>i.name),['AK Test']);
+ await db.query("update rewards_wins set choice_status='awaiting_choice' where id=$1",[win]);
  await call('site_heartbeat',[a,ha,tab,true]);await call('site_heartbeat',[a,ha,tab2,true]);assert.equal(await call('user_online',[a]),true);await assert.rejects(call('site_heartbeat',[b,ha,randomUUID(),true]),/device_required/);
  await call('site_heartbeat',[a,ha,tab,false]);assert.equal(await call('user_online',[a]),true);await db.query("update rewards_site_presence set last_seen_at=now()-interval '121 seconds' where user_id=$1",[a]);assert.equal(await call('user_online',[a]),false);
  await call('site_heartbeat',[b,hb,randomUUID(),true]);const list=await call('users_directory',[b,'',1]);assert.equal(list.total,2);assert.equal(list.users[0].login,'bravo');assert.equal(list.onlineCount,1);assert(!JSON.stringify(list).includes('SECRET'));assert.equal((await call('users_directory',[b,'ALP',99])).users[0].login,'alpha');assert.equal((await call('users_directory',[b,'%',1])).total,0);
