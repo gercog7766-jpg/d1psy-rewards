@@ -336,6 +336,8 @@ export const majorPickemScript = String.raw`(() => {
   const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   async function spinBronze(result){
     const roulette=el('bronzeRoulette'),strip=el('bronzeStrip');
+    const art=document.querySelector('.bronze-case-art');
+    if(art){art.classList.remove('bronze-case-opening');void art.offsetWidth;art.classList.add('bronze-case-opening');}
     roulette.hidden=false;
     strip.style.transition='none';strip.style.transform='translateX(0)';
     const winner=caseNames.findIndex(name=>name===result.name);
@@ -355,6 +357,7 @@ export const majorPickemScript = String.raw`(() => {
     strip.style.transition='transform 5800ms cubic-bezier(.09,.65,.12,1)';
     strip.style.transform='translateX('+(-target+jitter)+'px)';
     await sleep(5900);
+    if(art)art.classList.remove('bronze-case-opening');
   }
   el('openBronzeCase').onclick=async()=>{
     if(caseBusy||shopBusy||busy||!state?.entered||state.tokens<1)return;
