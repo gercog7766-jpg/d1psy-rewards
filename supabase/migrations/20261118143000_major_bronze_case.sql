@@ -101,7 +101,7 @@ revoke all on public.rewards_major_shop_purchases from public,anon,authenticated
 grant select,insert on public.rewards_major_shop_purchases to service_role;
 
 create function public.rewards_major_shop_buy(p_actor text,p_request uuid,p_item integer)
-returns jsonb language plpgsql set search_path='' as $
+returns jsonb language plpgsql set search_path='' as $$
 declare
  player public.rewards_users%rowtype;
  entry public.rewards_major_pickem_entries%rowtype;
@@ -143,7 +143,7 @@ begin
  values(player.id,p_request,p_item,win);
  return jsonb_build_object('ok',true,'winId',win,'name',skin.name,'tokens',entry.tokens-costs[p_item+1]);
 end;
-$;
+$$;
 revoke all on function public.rewards_major_shop_buy(text,uuid,integer) from public,anon,authenticated;
 grant execute on function public.rewards_major_shop_buy(text,uuid,integer) to service_role;
 
