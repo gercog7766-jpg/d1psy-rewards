@@ -54,7 +54,7 @@ export function installMajorPickem(app:Express,db:SupabaseClient,user:RequestHan
       ? [name+' '+(i===6?'BS':'FT'),name]
       : [name,name+' FT',name+' BS']);
     const {data,error}=await db.from('rewards_prizes').select('name,image_url')
-      .eq('status','available').in('name',candidates);
+      .in('name',candidates);
     if(error){res.status(503).json({error:'case_unavailable'});return;}
     const images=names.map((name,i)=>{
       const exactWear=i===6?'BS':'FT';
