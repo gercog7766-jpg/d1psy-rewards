@@ -56,11 +56,15 @@ export function installMajorPickem(app:Express,db:SupabaseClient,user:RequestHan
     const {data,error}=await db.from('rewards_prizes').select('name,image_url')
       .in('name',candidates);
     if(error){res.status(503).json({error:'case_unavailable'});return;}
+    // Some rewards are sourced from shop variants rather than the drop prize catalog.
+    const {data:shopImages,error:shopError}=await db.from('rewards_shop_items')
+      .select('name,image_url').in('name',names);
+    if(shopError){res.status(503).json({error:'case_unavailable'});return;}
     const images=names.map((name,i)=>{
       const exactWear=i===6?'BS':'FT';
       const matches=(data??[]).filter(p=>p.image_url && (p.name===name || p.name===name+' FT' || p.name===name+' BS'));
       const preferred=matches.find(p=>p.name===name+' '+exactWear)??matches.find(p=>p.name===name)??matches[0];
-      return {name,image:preferred?.image_url??null};
+      return {name,image:preferred?.image_url??shopImages?.find(p=>p.name===name)?.image_url??null};
     });
     res.json({items:images});
   });
