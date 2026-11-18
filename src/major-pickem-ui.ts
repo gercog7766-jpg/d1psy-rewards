@@ -377,6 +377,7 @@ export const majorPickemScript = String.raw`(() => {
         insufficient_tokens:'Недостаточно жетонов.',
         entry_required:'Для открытия нужен пропуск Major Pick’em.',
         case_prize_unavailable:'Открытие временно недоступно: проверь наличие скинов.',
+        case_catalog_incomplete:'Открытие временно недоступно: каталог призов ещё не заполнен.',
       })[error.message]||'Не удалось открыть кейс. Если жетон списан, не повторяй запрос — обратись в поддержку.';
     }finally{caseBusy=false;render();}
   };
