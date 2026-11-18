@@ -31,6 +31,8 @@ test('bronze case atomically debits tokens, grants a win and replays request IDs
   const count=await db.query('select count(*)::int as n from rewards_wins');
   assert.equal(count.rows[0].n,1);
   await assert.rejects(open('bob','00000000-0000-4000-8000-000000000002'),/entry_required/);
+  await db.exec("update rewards_shop_item_variants set available=false");
+  await assert.rejects(open('alice','00000000-0000-4000-8000-000000000003'),/case_prize_unavailable/);
   await db.exec(`insert into rewards_prizes(name,image_url,status,unlimited,draw_weight,sell_price_coins)
     values('SG 553 | Киберсила','https://example.com/sg.png','available',true,1,1)`);
   const buy=async(who,id,item)=>(await db.query('select rewards_major_shop_buy($1,$2,$3) as result',[who,id,item])).rows[0].result;
@@ -41,8 +43,7 @@ test('bronze case atomically debits tokens, grants a win and replays request IDs
   assert.equal(replay.winId,purchased.winId);assert.equal(replay.tokens,0);
   await assert.rejects(buy('alice',shopId,1),/invalid_request/);
   await assert.rejects(buy('alice','00000000-0000-4000-8000-000000000005',0),/insufficient_tokens/);
-  await db.exec("update rewards_shop_item_variants set available=false");
-  await assert.rejects(open('alice','00000000-0000-4000-8000-000000000003'),/case_prize_unavailable/);
+
   const {rows:[entry]}=await db.query("select tokens from rewards_major_pickem_entries where user_id=(select id from rewards_users where twitch_user_id='alice')");
   assert.equal(entry.tokens,0);
  }finally{await db.close();}
