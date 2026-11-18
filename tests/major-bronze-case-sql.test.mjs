@@ -17,9 +17,16 @@ test('bronze case atomically debits tokens, grants a win and replays request IDs
    create function rewards_crypto_index(n integer) returns integer language sql as 'select 0';
    insert into rewards_users(twitch_user_id) values('alice'),('bob');
    insert into rewards_major_pickem_entries(user_id,tokens) select id,2 from rewards_users where twitch_user_id='alice';
-   insert into rewards_shop_items(name,image_url,status) values('AK-47 | Оливковый поликамуфляж','https://example.com/ak.png','available');
+   insert into rewards_shop_items(name,image_url,status)
+   select name,'https://example.com/skin.png','available' from unnest(array[
+     'AK-47 | Оливковый поликамуфляж','Five-SeveN | Небесная голубизна',
+     'P250 | Ледяная корка','SG 553 | Корзинные полутона',
+     'SCAR-20 | Песчаная сетка','M249 | Ледяная корка',
+     'Негев | Кислый виноград','XM1014 | Ирэдзуми',
+     'ПП-19 «Бизон» | Карамельное яблоко','MAC-10 | Световой короб',
+     'Five-SeveN | Капилляры','CZ75-Auto | Эко']) as name;
    insert into rewards_shop_item_variants(shop_item_id,available,wear,variant_kind,price_coins)
-    select id,true,'FT','wear',7 from rewards_shop_items;
+    select id,true,case when name in ('Негев | Кислый виноград','XM1014 | Ирэдзуми') then 'BS' else 'FT' end,'wear',7 from rewards_shop_items;
   `);
   await db.exec(await readFile(new URL('../supabase/migrations/20261118143000_major_bronze_case.sql',import.meta.url),'utf8'));
   const request='00000000-0000-4000-8000-000000000001';
@@ -32,7 +39,7 @@ test('bronze case atomically debits tokens, grants a win and replays request IDs
   assert.equal(count.rows[0].n,1);
   await assert.rejects(open('bob','00000000-0000-4000-8000-000000000002'),/entry_required/);
   await db.exec("update rewards_shop_item_variants set available=false");
-  await assert.rejects(open('alice','00000000-0000-4000-8000-000000000003'),/case_prize_unavailable/);
+  await assert.rejects(open('alice','00000000-0000-4000-8000-000000000003'),/case_catalog_incomplete/);
   await db.exec(`insert into rewards_prizes(name,image_url,status,unlimited,draw_weight,sell_price_coins)
     values('SG 553 | Киберсила','https://example.com/sg.png','available',true,1,1)`);
   const buy=async(who,id,item)=>(await db.query('select rewards_major_shop_buy($1,$2,$3) as result',[who,id,item])).rows[0].result;
