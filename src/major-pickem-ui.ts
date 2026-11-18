@@ -375,12 +375,15 @@ export const majorPickemScript = String.raw`(() => {
     el('bronzeCaseStatus').textContent='Открываем кейс…';
     const requestId=crypto.randomUUID();
     try{
+      const catalogResponse=await fetch('/api/me/major-pickem/cases/bronze/catalog',{cache:'no-store'});
+      const catalog=catalogResponse.ok?await catalogResponse.json().catch(()=>({})):{};
       const response=await fetch('/api/me/major-pickem/cases/bronze/open',{
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({requestId})
       });
       const result=await response.json().catch(()=>({}));
       if(!response.ok)throw Error(result.error||'case_unavailable');
+      result.catalog=catalog.items;
       state.tokens=result.tokens;
       el('bronzeCaseStatus').textContent='Выигрыш подтверждён: '+result.name+(result.wear?' ('+result.wear+')':'')+'. Предмет доступен в апгрейдере.';
       try{await spinBronze(result);}catch(animationError){console.warn('major_bronze_animation',animationError);}
