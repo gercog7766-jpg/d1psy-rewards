@@ -336,6 +336,11 @@ export const majorPickemScript = String.raw`(() => {
   const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   async function spinBronze(result){
     const roulette=el('bronzeRoulette'),strip=el('bronzeStrip');
+    const catalogResponse=await fetch('/api/me/major-pickem/cases/bronze/catalog',{cache:'no-store'});
+    if(!catalogResponse.ok)throw Error('case_unavailable');
+    const catalog=await catalogResponse.json();
+    const prizes=catalog.items;
+    if(!Array.isArray(prizes)||prizes.length!==caseNames.length||prizes.some(p=>!p.image))throw Error('case_unavailable');
     const art=document.querySelector('.bronze-case-art');
     if(art){art.classList.remove('bronze-case-opening');void art.offsetWidth;art.classList.add('bronze-case-opening');}
     roulette.hidden=false;
@@ -345,11 +350,18 @@ export const majorPickemScript = String.raw`(() => {
     const total=56,winningSlot=49;
     strip.replaceChildren();
     for(let i=0;i<total;i++){
+      const prize=prizes[i===winningSlot?winner:Math.floor(Math.random()*prizes.length)];
       const slot=document.createElement('div');
       slot.className='bronze-slot';
-      slot.textContent=caseNames[i===winningSlot?winner:Math.floor(Math.random()*caseNames.length)];
+      const img=document.createElement('img');
+      img.src=prize.image;img.alt='';img.loading='eager';img.decoding='async';
+      const caption=document.createElement('span');
+      caption.textContent=prize.name;
+      slot.append(img,caption);
       strip.append(slot);
     }
+    await Promise.all(Array.from(strip.querySelectorAll('img')).map(img=>
+      img.decode().catch(()=>{})));
     await sleep(60);
     const slotWidth=148;
     const target=winningSlot*slotWidth+70-roulette.clientWidth/2;
