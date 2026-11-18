@@ -2,7 +2,7 @@ import {brandLogoUrl} from './site-branding.js';
 import {accountFooterHtml,accountFooterStyles} from './account-footer-hotfix.js';
 
 const destinations = [
-  ['/account','Главная'], ['/shop','Магазин'], ['/upgrader','Апгрейдер'],
+  ['/account','Главная'], ['/bonuses','Бонусы'], ['/shop','Магазин'], ['/upgrader','Апгрейдер'],
   ['/games','Игры'], ['/games/battles','Сражения'], ['/games/three-doors','Три двери'],
   ['/games/pick','Pick'], ['/black-box','Чёрный ящик'], ['/games/red-button','Красная кнопка'],
   ['/predict','Предикты'], ['/predict/major-pickem','Major Pick’em'],
@@ -75,6 +75,7 @@ export function withSiteNavigation(html:string,path:string){
  const header=`<header class="dropso-site-header">${brand}<nav class="dropso-site-shortcuts" aria-label="Переходы">${shortcut}</nav></header>${menu}`;
  // Process static markup without touching script templates, selectors or strings.
  html=html.split(/(<script\b[^>]*>[\s\S]*?<\/script>|<style\b[^>]*>[\s\S]*?<\/style>)/gi).map((part,index)=>index%2?part:part
+   .replace(/<(?:button|a)\b[^>]*\bid=["']promoOpen["'][^>]*>[\s\S]*?<\/(?:button|a)>/gi,'<a id="bonusesLink" class="shoplink" href="/bonuses">Бонусы</a>')
    .replace(/<footer\b[^>]*>[\s\S]*?<\/footer>/gi,'')
    .replace(/<a\b[^>]*href=["'](?:\/account|\/)["'][^>]*>\s*(?:←\s*)?(?:На главную|На главный экран|Главная|Домой)\s*<\/a>/gi,'')
  ).join('');
