@@ -47,6 +47,17 @@ begin
  select * into entry from public.rewards_major_pickem_entries where user_id=player.id for update;
  if not found then raise exception 'entry_required'; end if;
  if entry.tokens<1 then raise exception 'insufficient_tokens'; end if;
+ -- Fail closed if ANY configured prize is missing; never charge for an unfulfillable draw.
+ for idx in 1..12 loop
+  if not exists (
+    select 1 from public.rewards_shop_item_variants v
+    join public.rewards_shop_items i on i.id=v.shop_item_id
+    where i.name=names[idx] and v.available and i.status='available'
+      and (i.stock is null or i.stock>0)
+      and (v.wear=wears[idx] or (wears[idx]='FT' and v.wear in ('Field-Tested','После полевых испытаний'))
+        or (wears[idx]='BS' and v.wear in ('Battle-Scarred','Закалённое в боях')))
+  ) then raise exception 'case_catalog_incomplete'; end if;
+ end loop;
  slot:=public.rewards_crypto_index(100);
  for idx in 1..12 loop
   running:=running+weights[idx];
