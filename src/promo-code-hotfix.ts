@@ -18,7 +18,7 @@ p.listen=function(...args:any[]){const app:any=this;if(!app.locals.__promo&&user
   if(!error)return res.json(data);
   const statuses:Record<string,number>={promo_not_found:404,user_not_found:404,user_unavailable:403,
     expired:409,limit_reached:409,new_users_only:409,already_used:409,major_already_active:409,
-    major_closed:409,vault_closed:409,vault_key_limit:409,invalid_prize:409};
+    major_closed:409,major_pass_required:409,vault_closed:409,vault_key_limit:409,invalid_prize:409};
   const status=statuses[error.message];
   if(!status)console.error('owner_promo_redeem',error.code);
   return res.status(status||503).json({error:status?error.message:'reward_failed'});
@@ -37,7 +37,7 @@ p.listen=function(...args:any[]){const app:any=this;if(!app.locals.__promo&&user
    expiresAt=date.toISOString();
   }
   const skin=type==='prize'||type==='upgrade_skin';
-  const hasAmount=type==='vault_keys'||type==='three_doors_pass'||type==='pick_credit';
+  const hasAmount=type==='major_tokens'||type==='vault_keys'||type==='three_doors_pass'||type==='pick_credit';
   if(type==='coins'&&(!Number.isInteger(coins)||coins<1||coins>100000))return res.status(400).json({error:'invalid_coins'});
   if(hasAmount&&(!Number.isInteger(amount)||amount<1||amount>(type==='vault_keys'?10000:100000)
     ||(type==='three_doors_pass'&&!threeDoorsStakes.includes(amount))))return res.status(400).json({error:'invalid_reward_amount'});
