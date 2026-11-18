@@ -35,7 +35,7 @@ function boot(){
   layout.append(sidebar);
 
   const sections=[
-    ['.logo-menu-balance','#promoOpen','#accountStatisticsLink','a[href="/profile/customize"]','a[href="/referrals"]','a[href="/savings"]','#d1PwaOpen'],
+    ['.logo-menu-balance','#promoOpen,#bonusesLink','#accountStatisticsLink','a[href="/profile/customize"]','a[href="/referrals"]','a[href="/savings"]','#d1PwaOpen'],
     ['a[href="/users"]','#messagesTopLink','a[href="/community"]','#notificationsLink'],
     ['a[href="/shop"],a[href="#shop"]','a[href="/upgrader"],a[href="/upgrade"]','#skinBattlesLink','#threeDoorsLink','#pickLink','#gamesLink','#predictLink','#streamersLink','#suggestionsLink']
   ];

@@ -1,3 +1,4 @@
+import {installBonuses} from './bonuses.js';
 import {installAdminStatistics} from './admin-statistics.js';
 import {installMajorPickem} from './major-pickem.js';
 import {installRedButton} from './red-button.js';
@@ -48,13 +49,14 @@ function requireUser(req:express.Request,res:express.Response,next:express.NextF
  const session=readSession(req);
  if(!session){
   const path=req.route?.path;
-  if(path==='/vault'||path==='/predict/major-pickem')return res.set('Cache-Control','no-store').redirect('/auth/twitch');
+  if(path==='/vault'||path==='/predict/major-pickem'||path==='/bonuses')return res.set('Cache-Control','no-store').redirect('/auth/twitch');
   return res.status(401).json({error:'authentication_required'});
  }
  res.locals.session=session;
  next();
 }
 async function requireAdmin(req:express.Request,res:express.Response,next:express.NextFunction){const s=readSession(req);if(!s)return res.status(401).json({error:'authentication_required'});const {data,error}=await db.from('rewards_admins').select('twitch_user_id').eq('twitch_user_id',s.twitchUserId).maybeSingle();if(error)return res.status(500).json({error:'admin_lookup_failed'});if(!data)return res.status(403).json({error:'admin_required'});res.locals.session=s;next()}
+installBonuses(app,db,requireUser,new URL(APP_URL).origin);
 installAdminStatistics(app,db,requireAdmin);
 installStreamerPilot(app,requireUser,requireAdmin,subscribeToPartnerChat,partnerChatReady);
 installProfileCustomization(app,requireUser,requireAdmin);
