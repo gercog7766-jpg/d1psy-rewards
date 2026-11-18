@@ -338,6 +338,8 @@ export const majorPickemScript = String.raw`(() => {
     const roulette=el('bronzeRoulette'),strip=el('bronzeStrip');
     const prizes=Array.isArray(result.catalog)?result.catalog:[];
     const artwork=caseNames.map((name,i)=>({name,image:prizes[i]?.image||null}));
+    const winningArtwork=artwork.find(p=>p.name===result.name);
+    if(winningArtwork && result.image)winningArtwork.image=result.image;
     const art=document.querySelector('.bronze-case-art');
     if(art){art.classList.remove('bronze-case-opening');void art.offsetWidth;art.classList.add('bronze-case-opening');}
     roulette.hidden=false;
@@ -353,6 +355,7 @@ export const majorPickemScript = String.raw`(() => {
       const img=document.createElement('img');
       if(prize.image)img.src=prize.image;
       img.alt='';img.loading='eager';img.decoding='async';
+      img.onerror=()=>{img.removeAttribute('src');};
       const caption=document.createElement('span');
       caption.textContent=prize.name;
       slot.append(img,caption);
@@ -385,7 +388,7 @@ export const majorPickemScript = String.raw`(() => {
       if(!response.ok)throw Error(result.error||'case_unavailable');
       result.catalog=catalog.items;
       state.tokens=result.tokens;
-      el('bronzeCaseStatus').textContent='Выигрыш подтверждён: '+result.name+(result.wear?' ('+result.wear+')':'')+'. Предмет доступен в апгрейдере.';
+      el('bronzeCaseStatus').textContent='Кейс открывается…';
       try{await spinBronze(result);}catch(animationError){console.warn('major_bronze_animation',animationError);}
       el('bronzeCaseStatus').textContent='Выпало: '+result.name+(result.wear?' ('+result.wear+')':'')+'. Предмет доступен в апгрейдере.';
       el('tokens').textContent='Жетоны Major Dropso: '+state.tokens;
