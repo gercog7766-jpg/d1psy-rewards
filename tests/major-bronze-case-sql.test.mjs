@@ -15,7 +15,7 @@ test('bronze case atomically debits tokens, grants a win and replays request IDs
    create table rewards_prizes(id uuid primary key default gen_random_uuid(),name text,image_url text,status text,unlimited boolean,draw_weight int,sell_price_coins int);
    create table rewards_wins(id uuid primary key default gen_random_uuid(),user_id uuid,prize_id uuid,won_at timestamptz,delivery_status text,choice_status text,source_type text,item_wear text,item_variant_kind text);
    insert into rewards_prizes(name,image_url,status,unlimited,draw_weight,sell_price_coins)
-   select name,'https://example.com/drop.png','available',true,1,1 from unnest(array[
+   select name||case when name='XM1014 | Ирэдзуми' then ' BS' else ' FT' end,'https://example.com/drop.png','available',true,1,1 from unnest(array[
     'AK-47 | Оливковый поликамуфляж','P250 | Ледяная корка',
     'SCAR-20 | Песчаная сетка','M249 | Ледяная корка',
     'XM1014 | Ирэдзуми','MAC-10 | Световой короб']) as name;
