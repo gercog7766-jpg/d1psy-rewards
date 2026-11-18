@@ -31,6 +31,7 @@ declare
  slot integer;
  running integer:=0;
  idx integer;
+ selected_idx integer;
  skin record;
  prize uuid;
  win uuid;
@@ -61,16 +62,16 @@ begin
  slot:=public.rewards_crypto_index(100);
  for idx in 1..12 loop
   running:=running+weights[idx];
-  if slot<running then exit; end if;
+  if slot<running then selected_idx:=idx; exit; end if;
  end loop;
  -- Resolve an exact available catalog variant, not a similarly named wear.
  select i.name,i.image_url,v.wear,v.variant_kind,v.price_coins
  into skin from public.rewards_shop_item_variants v
  join public.rewards_shop_items i on i.id=v.shop_item_id
- where i.name=names[idx] and v.available and i.status='available'
+ where i.name=names[selected_idx] and v.available and i.status='available'
    and (i.stock is null or i.stock>0)
-   and (v.wear=wears[idx] or (wears[idx]='FT' and v.wear in ('Field-Tested','После полевых испытаний'))
-     or (wears[idx]='BS' and v.wear in ('Battle-Scarred','Закалённое в боях')))
+   and (v.wear=wears[selected_idx] or (wears[selected_idx]='FT' and v.wear in ('Field-Tested','После полевых испытаний'))
+     or (wears[selected_idx]='BS' and v.wear in ('Battle-Scarred','Закалённое в боях')))
  order by v.price_coins asc limit 1;
  if not found then raise exception 'case_prize_unavailable'; end if;
  update public.rewards_major_pickem_entries set tokens=tokens-1 where user_id=player.id;
