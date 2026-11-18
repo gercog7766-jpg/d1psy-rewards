@@ -14,6 +14,11 @@ test('bronze case atomically debits tokens, grants a win and replays request IDs
    create table rewards_shop_item_variants(shop_item_id uuid references rewards_shop_items(id),available boolean,wear text,variant_kind text default 'normal',price_coins int);
    create table rewards_prizes(id uuid primary key default gen_random_uuid(),name text,image_url text,status text,unlimited boolean,draw_weight int,sell_price_coins int);
    create table rewards_wins(id uuid primary key default gen_random_uuid(),user_id uuid,prize_id uuid,won_at timestamptz,delivery_status text,choice_status text,source_type text,item_wear text,item_variant_kind text);
+   insert into rewards_prizes(name,image_url,status,unlimited,draw_weight,sell_price_coins)
+   select name,'https://example.com/drop.png','available',true,1,1 from unnest(array[
+    'AK-47 | Оливковый поликамуфляж','P250 | Ледяная корка',
+    'SCAR-20 | Песчаная сетка','M249 | Ледяная корка',
+    'XM1014 | Ирэдзуми','MAC-10 | Световой короб']) as name;
    create function rewards_crypto_index(n integer) returns integer language sql as 'select 0';
    insert into rewards_users(twitch_user_id) values('alice'),('bob');
    insert into rewards_major_pickem_entries(user_id,tokens) select id,2 from rewards_users where twitch_user_id='alice';
@@ -29,10 +34,11 @@ test('bronze case atomically debits tokens, grants a win and replays request IDs
     select id,true,case when name in ('Негев | Кислый виноград','XM1014 | Ирэдзуми') then 'BS' else 'FT' end,'wear',7 from rewards_shop_items;
   `);
   await db.exec(await readFile(new URL('../supabase/migrations/20261118143000_major_bronze_case.sql',import.meta.url),'utf8'));
+  await db.exec(await readFile(new URL('../supabase/migrations/20261118151000_major_bronze_drop_prizes.sql',import.meta.url),'utf8'));
   const request='00000000-0000-4000-8000-000000000001';
   const open=async(who,id)=>(await db.query('select rewards_major_bronze_open($1,$2) as result',[who,id])).rows[0].result;
   const first=await open('alice',request);
-  assert.equal(first.tokens,1);assert.equal(first.name,'AK-47 | Оливковый поликамуфляж');
+  assert.equal(first.tokens,1);assert.equal(first.name,'AK-47 | Оливковый поликамуфляж');assert.equal(first.wear,null);
   const second=await open('alice',request);
   assert.equal(second.replayed,true);assert.equal(second.winId,first.winId);assert.equal(second.tokens,1);
   const count=await db.query('select count(*)::int as n from rewards_wins');
