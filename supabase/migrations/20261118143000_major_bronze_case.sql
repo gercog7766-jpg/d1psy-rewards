@@ -113,11 +113,11 @@ begin
  select * into entry from public.rewards_major_pickem_entries where user_id=player.id for update;
  if not found then raise exception 'entry_required'; end if;
  if entry.tokens<costs[p_item+1] then raise exception 'insufficient_tokens'; end if;
- select p.name,p.image_url,p.sell_price_coins into skin from public.rewards_prizes p
+ select p.name,p.image_url,p.sell_price_coins as price into skin from public.rewards_prizes p
  where p.name=names[p_item+1] and p.status='available' and p.unlimited
  order by p.id limit 1;
  if not found then
-  select i.name,i.image_url,v.price_coins into skin
+  select i.name,i.image_url,v.price_coins as price into skin
   from public.rewards_shop_items i join public.rewards_shop_item_variants v on v.shop_item_id=i.id
   where i.name=names[p_item+1] and i.status='available' and v.available and (i.stock is null or i.stock>0)
   order by v.price_coins asc limit 1;
@@ -125,7 +125,7 @@ begin
  if not found then raise exception 'shop_item_unavailable'; end if;
  update public.rewards_major_pickem_entries set tokens=tokens-costs[p_item+1] where user_id=player.id;
  insert into public.rewards_prizes(name,image_url,status,unlimited,draw_weight,sell_price_coins)
- values(skin.name,skin.image_url,'disabled',true,1,coalesce(skin.sell_price_coins,skin.price_coins,0)) returning id into prize;
+ values(skin.name,skin.image_url,'disabled',true,1,coalesce(skin.price,0)) returning id into prize;
  insert into public.rewards_wins(user_id,prize_id,won_at,delivery_status,choice_status,source_type)
  values(player.id,prize,clock_timestamp(),'awaiting_choice','awaiting_choice','promo_upgrade') returning id into win;
  insert into public.rewards_major_shop_purchases(user_id,request_id,item_index,win_id)
