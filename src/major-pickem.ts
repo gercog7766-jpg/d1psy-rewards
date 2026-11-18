@@ -119,7 +119,7 @@ export function installMajorPickem(app:Express,db:SupabaseClient,user:RequestHan
       p_actor:res.locals.session.twitchUserId,p_request:requestId
     });
     if(error){
-      const reason=['invalid_request','user_unavailable','entry_required','insufficient_tokens','case_prize_unavailable'].find(x=>error.message.includes(x));
+      const reason=['invalid_request','user_unavailable','entry_required','insufficient_tokens','case_prize_unavailable','case_catalog_incomplete'].find(x=>error.message.includes(x));
       if(!reason)console.error('major_bronze_open_failed',error.code);
       res.status(reason?409:503).json({error:reason||'case_unavailable'});return;
     }
