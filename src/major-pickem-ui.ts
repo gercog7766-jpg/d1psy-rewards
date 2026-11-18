@@ -256,7 +256,11 @@ export const majorPickemScript = String.raw`(() => {
   function render(){
     if(!state)return;
     el('tokens').textContent='Жетоны Major Dropso: '+state.tokens;
-    el('openBronzeCase').disabled=busy || caseBusy || !state.entered || state.tokens<1;
+    el('openBronzeCase').disabled=busy || caseBusy || shopBusy || !state.entered || state.tokens<1;
+    document.querySelectorAll('.major-shop-buy').forEach(button=>{
+      const cost=[1,2,3,4,5,10,15,25,40][Number(button.dataset.itemIndex)];
+      button.disabled=busy || caseBusy || shopBusy || !state.entered || state.tokens<cost;
+    });
     const medal=medals[state.medal],image=el('medal').querySelector('img');
     image.hidden=!medal;
     if(medal && image.getAttribute('src')!==medal.image)image.src=medal.image;
@@ -303,7 +307,24 @@ export const majorPickemScript = String.raw`(() => {
       if(!state)el('retryPickem').hidden=false;
     }finally{busy=false;render();}
   }
-  let caseBusy=false;
+  let caseBusy=false,shopBusy=false;
+  document.querySelectorAll('.major-shop-buy').forEach(button=>button.addEventListener('click',async()=>{
+    const itemIndex=Number(button.dataset.itemIndex),cost=[1,2,3,4,5,10,15,25,40][itemIndex];
+    if(shopBusy||caseBusy||busy||!state?.entered||state.tokens<cost)return;
+    shopBusy=true;render();el('majorShopStatus').textContent='Покупаем предмет…';
+    try{
+      const response=await fetch('/api/me/major-pickem/shop/buy',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({requestId:crypto.randomUUID(),itemIndex})
+      });
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok)throw Error(result.error||'shop_unavailable');
+      state.tokens=result.tokens;
+      el('majorShopStatus').textContent='Куплено: '+result.name+'. Предмет добавлен в инвентарь.';
+    }catch(error){
+      el('majorShopStatus').textContent=({insufficient_tokens:'Недостаточно жетонов.',shop_item_unavailable:'Товар временно недоступен.'})[error.message]||'Не удалось подтвердить покупку. Если жетоны списались, обратись в поддержку.';
+    }finally{shopBusy=false;render();}
+  }));
   const caseNames=[
     'AK-47 | Оливковый поликамуфляж','Five-SeveN | Небесная голубизна',
     'P250 | Ледяная корка','SG 553 | Корзинные полутона',
@@ -336,7 +357,7 @@ export const majorPickemScript = String.raw`(() => {
     await sleep(5900);
   }
   el('openBronzeCase').onclick=async()=>{
-    if(caseBusy||busy||!state?.entered||state.tokens<1)return;
+    if(caseBusy||shopBusy||busy||!state?.entered||state.tokens<1)return;
     caseBusy=true;el('openBronzeCase').disabled=true;
     el('bronzeCaseStatus').textContent='Открываем кейс…';
     const requestId=crypto.randomUUID();
