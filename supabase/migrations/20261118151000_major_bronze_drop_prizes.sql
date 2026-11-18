@@ -38,7 +38,7 @@ begin
  for idx in 1..12 loop
   if wears[idx] is null then
    if not exists (select 1 from public.rewards_prizes p
-      where p.name=names[idx] and p.image_url is not null and p.status='available')
+      where (p.name=names[idx] or p.name=names[idx]||' FT' or p.name=names[idx]||' BS') and p.image_url is not null and p.status='available')
    then raise exception 'case_catalog_incomplete'; end if;
   else
    if not exists (
@@ -56,9 +56,9 @@ begin
  end loop;
  -- Resolve an exact available catalog variant, not a similarly named wear.
  if wears[selected_idx] is null then
-  select p.name,p.image_url,null::text as wear,'normal'::text as variant_kind,p.sell_price_coins as price_coins
+  select names[selected_idx] as name,p.image_url,null::text as wear,'normal'::text as variant_kind,p.sell_price_coins as price_coins
   into skin from public.rewards_prizes p
-  where p.name=names[selected_idx] and p.status='available' and p.image_url is not null
+  where (p.name=names[selected_idx] or p.name=names[selected_idx]||' FT' or p.name=names[selected_idx]||' BS') and p.status='available' and p.image_url is not null
   order by p.id limit 1;
  else
   select i.name,i.image_url,v.wear,v.variant_kind,coalesce(v.price_coins,i.price_coins) as price_coins
