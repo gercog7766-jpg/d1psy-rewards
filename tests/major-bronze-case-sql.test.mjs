@@ -10,8 +10,8 @@ test('bronze case atomically debits tokens, grants a win and replays request IDs
    create role anon;create role authenticated;create role service_role bypassrls;
    create table rewards_users(id uuid primary key default gen_random_uuid(),twitch_user_id text unique,banned boolean default false,participation_restricted boolean default false);
    create table rewards_major_pickem_entries(user_id uuid primary key references rewards_users(id),tokens int not null check(tokens>=0));
-   create table rewards_shop_items(id uuid primary key default gen_random_uuid(),name text,image_url text,status text,stock int);
-   create table rewards_shop_item_variants(shop_item_id uuid references rewards_shop_items(id),available boolean,wear text,variant_kind text,price_coins int);
+   create table rewards_shop_items(id uuid primary key default gen_random_uuid(),name text,image_url text,price_coins int not null default 1,status text,stock int);
+   create table rewards_shop_item_variants(shop_item_id uuid references rewards_shop_items(id),available boolean,wear text,variant_kind text default 'normal',price_coins int);
    create table rewards_prizes(id uuid primary key default gen_random_uuid(),name text,image_url text,status text,unlimited boolean,draw_weight int,sell_price_coins int);
    create table rewards_wins(id uuid primary key default gen_random_uuid(),user_id uuid,prize_id uuid,won_at timestamptz,delivery_status text,choice_status text,source_type text,item_wear text,item_variant_kind text);
    create function rewards_crypto_index(n integer) returns integer language sql as 'select 0';
