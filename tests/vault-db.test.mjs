@@ -104,7 +104,7 @@ test('owner promo rewards are atomic and restricted to their intended products',
   for(const file of [
    '20261115150000_major_pickem.sql','20261115160000_major_pickem_medals.sql',
    '20261115092000_three_doors.sql','20261115100000_three_doors_prize_pricing.sql',
-   '20261115103000_pick.sql','20261115113500_pick_prize_preview.sql','20261115190717_promo_reward_types.sql',
+   '20261115103000_pick.sql','20261115113500_pick_prize_preview.sql','20261115190717_promo_reward_types.sql','20261118133000_promo_major_tokens.sql',
   ])await db.exec(await readFile(new URL('../supabase/migrations/'+file,import.meta.url),'utf8'));
   await db.exec(`
    update rewards_major_pickem_stages set open_at=now()-interval '1 hour',lock_at=now()+interval '1 hour',
@@ -122,6 +122,24 @@ test('owner promo rewards are atomic and restricted to their intended products',
   const major=await fn('rewards_major_pickem','alice','state',null,null);
   assert.equal(major.entered,true);assert.equal(major.medal,1);assert.equal(major.balance,0);
   await assert.rejects(redeem('MAJOR2'),/major_already_active/);
+  await db.exec("insert into rewards_promo_codes(code,reward_type,reward_amount) values('MAJORTOKENS','major_tokens',7)");
+  await assert.rejects(redeem('MAJORTOKENS','bob'),/major_pass_required/);
+  const tokenResults=await Promise.allSettled([redeem('MAJORTOKENS'),redeem('MAJORTOKENS')]);
+  assert.equal(tokenResults.filter(result=>result.status==='fulfilled').length,1);
+  assert.match(tokenResults.find(result=>result.status==='rejected').reason.message,/already_used/);
+  const tokenState=await fn('rewards_major_pickem','alice','state',null,null);
+  assert.equal(tokenState.tokens,7);
+  assert.equal(tokenState.balance,0);
+  assert.equal(tokenState.entered,true);
+  assert.equal((await db.query("select activation_count from rewards_promo_codes where code='MAJORTOKENS'")).rows[0].activation_count,1);
+  assert.equal((await db.query("select reward_amount from rewards_promo_redemptions where reward_type='major_tokens'")).rows[0].reward_amount,7);
+
+  for(const amount of [null,0,-1,100001])await assert.rejects(db.query("insert into rewards_promo_codes(code,reward_type,reward_amount) values('BADTOKENS','major_tokens',$1)",[amount]),/check constraint/);
+  await db.exec("insert into rewards_promo_codes(code,reward_type,reward_amount) values('ROLLBACKTOKENS','major_tokens',9);reset role;revoke insert on rewards_promo_redemptions from service_role;set role service_role");
+  await assert.rejects(redeem('ROLLBACKTOKENS'),/permission denied/);
+  assert.equal((await db.query("select tokens from rewards_major_pickem_entries e join rewards_users u on u.id=e.user_id where u.twitch_user_id='alice'")).rows[0].tokens,7);
+  assert.equal((await db.query("select activation_count from rewards_promo_codes where code='ROLLBACKTOKENS'")).rows[0].activation_count,0);
+  await db.exec('reset role;grant insert on rewards_promo_redemptions to service_role;set role service_role');
   assert.equal((await redeem('KEYS')).amount,4);
   await assert.rejects(redeem('OVER'),/vault_key_limit/);
   const direct=(await db.query("select kind,amount from rewards_vault_key_ledger order by id")).rows;
