@@ -19,6 +19,10 @@ test('bronze case atomically debits tokens, grants a win and replays request IDs
     'AK-47 | Оливковый поликамуфляж','P250 | Ледяная корка',
     'SCAR-20 | Песчаная сетка','M249 | Ледяная корка',
     'XM1014 | Ирэдзуми','MAC-10 | Световой короб']) as name;
+   insert into rewards_prizes(name,image_url,status,unlimited,draw_weight,sell_price_coins)
+   select name,'https://example.com/drop.png','available',true,1,1 from unnest(array[
+    'Five-SeveN | Небесная голубизна FT','SG 553 | Корзинные полутона FT',
+    'Негев | Кислый виноград BS','ПП-19 «Бизон» | Карамельное яблоко FT']) as name;
    create function rewards_crypto_index(n integer) returns integer language sql as 'select 0';
    insert into rewards_users(twitch_user_id) values('alice'),('bob');
    insert into rewards_major_pickem_entries(user_id,tokens) select id,2 from rewards_users where twitch_user_id='alice';
@@ -31,10 +35,11 @@ test('bronze case atomically debits tokens, grants a win and replays request IDs
      'ПП-19 «Бизон» | Карамельное яблоко','MAC-10 | Световой короб',
      'Five-SeveN | Капилляры','CZ75-Auto | Эко']) as name;
    insert into rewards_shop_item_variants(shop_item_id,available,wear,variant_kind,price_coins)
-    select id,true,case when name in ('Негев | Кислый виноград','XM1014 | Ирэдзуми') then 'BS' else 'FT' end,'wear',7 from rewards_shop_items;
+    select id,true,'FT','normal',7 from rewards_shop_items where name in ('Five-SeveN | Капилляры','CZ75-Auto | Эко');
   `);
   await db.exec(await readFile(new URL('../supabase/migrations/20261118143000_major_bronze_case.sql',import.meta.url),'utf8'));
   await db.exec(await readFile(new URL('../supabase/migrations/20261118151000_major_bronze_drop_prizes.sql',import.meta.url),'utf8'));
+  await db.exec(await readFile(new URL('../supabase/migrations/20261118154500_major_bronze_drop_remaining.sql',import.meta.url),'utf8'));
   const request='00000000-0000-4000-8000-000000000001';
   const open=async(who,id)=>(await db.query('select rewards_major_bronze_open($1,$2) as result',[who,id])).rows[0].result;
   const first=await open('alice',request);
