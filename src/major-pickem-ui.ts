@@ -369,7 +369,7 @@ export const majorPickemScript = String.raw`(() => {
       const result=await response.json().catch(()=>({}));
       if(!response.ok)throw Error(result.error||'case_unavailable');
       await spinBronze(result);
-      el('bronzeCaseStatus').textContent='Выпало: '+result.name+' ('+result.wear+'). Предмет добавлен в инвентарь.';
+      el('bronzeCaseStatus').textContent='Выпало: '+result.name+(result.wear?' ('+result.wear+')':'')+'. Предмет добавлен в инвентарь.';
       state.tokens=result.tokens;
       el('tokens').textContent='Жетоны Major Dropso: '+state.tokens;
     }catch(error){
