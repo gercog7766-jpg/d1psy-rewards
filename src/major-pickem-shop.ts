@@ -26,15 +26,15 @@ const plural = new Intl.PluralRules('ru');
 
 export const majorPickemShop = `<section id="majorShop" class="panel" aria-labelledby="majorShopTitle">
 <h2 id="majorShopTitle">Магазин Pick’em</h2>
-<p class="muted">Обмен жетонов пока закрыт.</p>
-<ul class="major-shop-grid">${majorPickemShopItems.map(({name,cost,image}) => {
+<p class="muted">Обменивай жетоны на награды Major Dropso.</p>
+<ul class="major-shop-grid">${majorPickemShopItems.map(({name,cost,image},index) => {
   const unit = plural.select(cost) === 'one' ? 'жетон' : plural.select(cost) === 'few' ? 'жетона' : 'жетонов';
   return `<li>
     <img class="major-shop-art" src="${steamEconomyImage}${image}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">
     <h3>${name}</h3>
-    <span class="major-shop-cost"><img src="/predict/major-token.webp" width="19" height="19" alt="">${cost} ${unit}</span>
+    <span class="major-shop-cost"><img src="/predict/major-token.webp" width="19" height="19" alt="">${cost} ${unit}</span><button class="major-shop-buy" data-item-index="${index}" type="button" disabled>Купить</button>
   </li>`;
-}).join('')}</ul></section>`;
+}).join('')}</ul><p id="majorShopStatus" role="status"></p></section>`;
 
 export const majorPickemShopCss = `
 #majorShop{scroll-margin-top:24px}
@@ -44,4 +44,23 @@ export const majorPickemShopCss = `
 .major-shop-grid h3{margin:0;font-size:15px;overflow-wrap:anywhere}
 .major-shop-cost{display:inline-flex;align-items:center;gap:6px;margin-top:auto;padding:4px 8px;border-radius:8px;background:#493059;color:#ffe2a6;font-size:13px;font-weight:700}
 .major-shop-cost img{flex:none;object-fit:contain}
+`;
+
+export const majorBronzeCaseSection = `<section id="majorCases" class="panel" aria-labelledby="majorCasesTitle">
+<h2 id="majorCasesTitle">Кейсы</h2>
+<div class="bronze-case-card">
+<div class="bronze-case-art" aria-hidden="true">✦</div>
+<div><h3>Бронзовый кейс</h3><p class="muted">Один случайный скин CS2 в инвентарь.</p>
+<p class="major-shop-cost"><img src="/predict/major-token.webp" width="19" height="19" alt="">1 жетон</p>
+<p><button id="openBronzeCase" class="primary" type="button" disabled>Открыть кейс</button></p></div></div>
+<div id="bronzeRoulette" class="bronze-roulette" hidden aria-label="Открытие кейса"><div id="bronzeStrip" class="bronze-strip"></div><div class="bronze-marker"></div></div>
+<p id="bronzeCaseStatus" role="status"></p>
+</section>`;
+export const majorBronzeCaseCss = `
+#majorCases{scroll-margin-top:24px}.bronze-case-card{display:flex;align-items:center;gap:22px;flex-wrap:wrap}
+.bronze-case-art{width:170px;height:130px;display:grid;place-items:center;font-size:82px;color:#e6a05b;border-radius:16px;background:linear-gradient(145deg,#8a512e,#38201c);border:3px solid #c58b54}
+.bronze-roulette{position:relative;overflow:hidden;border:2px solid #bd8957;border-radius:12px;margin:20px 0;background:#130d1a;height:116px}
+.bronze-strip{display:flex;gap:8px;align-items:center;height:100%;width:max-content;transform:translateX(0)}
+.bronze-slot{flex:none;width:140px;height:94px;display:grid;place-items:center;text-align:center;padding:8px;font-size:13px;line-height:1.3;background:#34243d;border-bottom:3px solid #b68c58;border-radius:7px}
+.bronze-marker{position:absolute;left:50%;top:0;bottom:0;width:3px;background:#ffe7aa;box-shadow:0 0 10px #ffcb73;transform:translateX(-50%);pointer-events:none}
 `;

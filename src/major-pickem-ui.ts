@@ -1,6 +1,6 @@
 import { swissBracketScript } from './major-pickem-swiss.js';
 import { majorMedals } from './major-medals.js';
-import { majorPickemShop, majorPickemShopCss } from './major-pickem-shop.js';
+import { majorPickemShop, majorPickemShopCss, majorBronzeCaseSection, majorBronzeCaseCss } from './major-pickem-shop.js';
 
 export const majorPickemPage = `<!doctype html><html lang="ru"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -44,7 +44,7 @@ button:focus-visible,a:focus-visible{outline:2px solid white;outline-offset:3px}
 #pickemConfirm::backdrop{background:#0d0717b8}#pickemConfirm .actions{justify-content:flex-end}
 @media(max-width:1020px){.round-nav{display:flex}}
 @media(max-width:600px){.bracket{grid-template-columns:repeat(5,clamp(185px,65vw,270px));min-width:max-content;gap:12px}.round-flow{justify-content:flex-start}.bracket-head{gap:4px}}
-${majorPickemShopCss}</style></head><body><main>
+${majorPickemShopCss}${majorBronzeCaseCss}</style></head><body><main>
 <nav><a href="/predict">← Предикты</a><a href="/account">Главная</a><a href="#majorShop">Магазин Pick’em</a></nav>
 <header class="heading"><h1>Major Pick’em</h1><p class="muted">PGL Major Singapore 2026 · три стадии швейцарки и плей-офф</p></header>
 <div class="tracker"><span class="tracker-item"><img id="tokenIcon" src="/predict/major-token.webp" width="42" height="42" alt=""><span id="tokens">Жетоны Major Dropso: —</span></span><span id="medal" class="tracker-item"><img width="42" height="42" alt="" hidden><span id="medalName">Медаль: —</span></span></div>
@@ -65,6 +65,7 @@ ${majorPickemShopCss}</style></head><body><main>
 <p>Бронза → Серебро → Золото → Бриллиант → Бриллиант внутри.</p>
 </section>
 ${majorPickemShop}
+${majorBronzeCaseSection}
 </main><script defer src="/predict/major-pickem.js"></script></body></html>`;
 
 export const majorPickemScript = String.raw`(() => {
@@ -255,6 +256,11 @@ export const majorPickemScript = String.raw`(() => {
   function render(){
     if(!state)return;
     el('tokens').textContent='Жетоны Major Dropso: '+state.tokens;
+    el('openBronzeCase').disabled=busy || caseBusy || shopBusy || !state.entered || state.tokens<1;
+    document.querySelectorAll('.major-shop-buy').forEach(button=>{
+      const cost=[1,2,3,4,5,10,15,25,40][Number(button.dataset.itemIndex)];
+      button.disabled=busy || caseBusy || shopBusy || !state.entered || state.tokens<cost;
+    });
     const medal=medals[state.medal],image=el('medal').querySelector('img');
     image.hidden=!medal;
     if(medal && image.getAttribute('src')!==medal.image)image.src=medal.image;
@@ -301,6 +307,80 @@ export const majorPickemScript = String.raw`(() => {
       if(!state)el('retryPickem').hidden=false;
     }finally{busy=false;render();}
   }
+  let caseBusy=false,shopBusy=false;
+  document.querySelectorAll('.major-shop-buy').forEach(button=>button.addEventListener('click',async()=>{
+    const itemIndex=Number(button.dataset.itemIndex),cost=[1,2,3,4,5,10,15,25,40][itemIndex];
+    if(shopBusy||caseBusy||busy||!state?.entered||state.tokens<cost)return;
+    shopBusy=true;render();el('majorShopStatus').textContent='Покупаем предмет…';
+    try{
+      const response=await fetch('/api/me/major-pickem/shop/buy',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({requestId:crypto.randomUUID(),itemIndex})
+      });
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok)throw Error(result.error||'shop_unavailable');
+      state.tokens=result.tokens;
+      el('majorShopStatus').textContent='Куплено: '+result.name+'. Предмет добавлен в инвентарь.';
+    }catch(error){
+      el('majorShopStatus').textContent=({insufficient_tokens:'Недостаточно жетонов.',shop_item_unavailable:'Товар временно недоступен.'})[error.message]||'Не удалось подтвердить покупку. Если жетоны списались, обратись в поддержку.';
+    }finally{shopBusy=false;render();}
+  }));
+  const caseNames=[
+    'AK-47 | Оливковый поликамуфляж','Five-SeveN | Небесная голубизна',
+    'P250 | Ледяная корка','SG 553 | Корзинные полутона',
+    'SCAR-20 | Песчаная сетка','M249 | Ледяная корка',
+    'Негев | Кислый виноград','XM1014 | Ирэдзуми',
+    'ПП-19 «Бизон» | Карамельное яблоко','MAC-10 | Световой короб',
+    'Five-SeveN | Капилляры','CZ75-Auto | Эко'
+  ];
+  const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+  async function spinBronze(result){
+    const roulette=el('bronzeRoulette'),strip=el('bronzeStrip');
+    roulette.hidden=false;
+    strip.style.transition='none';strip.style.transform='translateX(0)';
+    const winner=caseNames.findIndex(name=>name===result.name);
+    if(winner<0)throw Error('case_unavailable');
+    const total=56,winningSlot=49;
+    strip.replaceChildren();
+    for(let i=0;i<total;i++){
+      const slot=document.createElement('div');
+      slot.className='bronze-slot';
+      slot.textContent=caseNames[i===winningSlot?winner:Math.floor(Math.random()*caseNames.length)];
+      strip.append(slot);
+    }
+    await sleep(60);
+    const slotWidth=148;
+    const target=winningSlot*slotWidth+70-roulette.clientWidth/2;
+    const jitter=Math.floor(Math.random()*32)-16;
+    strip.style.transition='transform 5800ms cubic-bezier(.09,.65,.12,1)';
+    strip.style.transform='translateX('+(-target+jitter)+'px)';
+    await sleep(5900);
+  }
+  el('openBronzeCase').onclick=async()=>{
+    if(caseBusy||shopBusy||busy||!state?.entered||state.tokens<1)return;
+    caseBusy=true;el('openBronzeCase').disabled=true;
+    el('bronzeCaseStatus').textContent='Открываем кейс…';
+    const requestId=crypto.randomUUID();
+    try{
+      const response=await fetch('/api/me/major-pickem/cases/bronze/open',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({requestId})
+      });
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok)throw Error(result.error||'case_unavailable');
+      await spinBronze(result);
+      el('bronzeCaseStatus').textContent='Выпало: '+result.name+(result.wear?' ('+result.wear+')':'')+'. Предмет добавлен в инвентарь.';
+      state.tokens=result.tokens;
+      el('tokens').textContent='Жетоны Major Dropso: '+state.tokens;
+    }catch(error){
+      el('bronzeCaseStatus').textContent=({
+        insufficient_tokens:'Недостаточно жетонов.',
+        entry_required:'Для открытия нужен пропуск Major Pick’em.',
+        case_prize_unavailable:'Открытие временно недоступно: проверь наличие скинов.',
+        case_catalog_incomplete:'Открытие временно недоступно: каталог призов ещё не заполнен.',
+      })[error.message]||'Не удалось открыть кейс. Если жетон списан, не повторяй запрос — обратись в поддержку.';
+    }finally{caseBusy=false;render();}
+  };
   const dialog=el('pickemConfirm');
   function closePass(){
     if(typeof dialog.close==='function')dialog.close();
