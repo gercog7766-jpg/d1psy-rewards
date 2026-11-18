@@ -34,6 +34,7 @@ li{padding:8px 0;border-bottom:1px solid #453251}ol{padding-left:23px;max-height
 [hidden]{display:none!important}.admin{max-width:560px;margin:auto}
 @media(min-width:761px){.grid>.stage,.grid>.auction-side{align-self:stretch}.auction-side{grid-template-rows:auto 1fr}.chat-panel{display:flex;flex-direction:column}.chat-log{flex-grow:1}}
 @media(max-width:760px){.grid{grid-template-columns:minmax(0,1fr)}.stage{order:-2}.auction-side{order:-1}}
+@media(max-width:520px){main{padding:18px 12px 36px}.panel{padding:14px}.case{width:min(74%,260px);margin:12px auto 4px}.clock-unit b{font-size:24px}.stage input,.stage button{min-height:44px}.chat-controls button{min-height:44px}}
 @media(prefers-reduced-motion:reduce){.case.open .case-lid,.case.open .case-glow{animation-duration:1ms}}
 `;
 
@@ -56,7 +57,7 @@ export function blackBoxPage(admin: boolean) {
     <span class="clock-unit"><b id="clockSeconds">00</b><small>секунды</small></span>
   </div><p id="timerStatus" role="status" hidden>Подводим итоги…</p><p id="hint" hidden></p>
   <div class="case" id="case" aria-hidden="true"><div class="case-body"></div><div class="case-glow"></div><div class="case-lid"></div></div>
-  <p id="reveal" role="status"></p><form id="bid" hidden><label>Твоя ставка в монетах<input id="amount" type="number" required></label>
+  <p id="reveal" role="status"></p><form id="bid" hidden><label>Твоя ставка в монетах<input id="amount" type="number" inputmode="numeric" aria-describedby="bidMinimum" required></label><small id="bidMinimum"></small><small id="bidBalance" hidden></small>
   <button id="submit">Сделать ставку</button></form><p id="notice" role="status"></p></section>
   <div class="auction-side"><aside class="panel"><h2>Участники</h2><ol id="participants"></ol><p id="empty">Ставок пока нет</p></aside>
   <section class="panel chat-panel" aria-labelledby="chatHeading"><h2 id="chatHeading">Чат торгов</h2>
@@ -136,7 +137,8 @@ export const blackBoxScript = String.raw`
     return;
   }
 
-  let current, offset = 0, loading = false, submitting = false, revealing = false;
+  let current, offset = 0, stateRequest = null, submitting = false, revealing = false;
+  let amountEdited = false;
   const chatLifetime = 60 * 60 * 1000;
   const chatTime = new Intl.DateTimeFormat('ru-RU', {hour: '2-digit', minute: '2-digit', second: '2-digit'});
   const chatLog = el('chatLog'), chatMessages = el('chatMessages'), chatInput = el('chatInput');
@@ -237,8 +239,9 @@ export const blackBoxScript = String.raw`
     if (nearBottom) chatLog.scrollTop = chatLog.scrollHeight;
   }
   async function loadChat() {
+    if (document.hidden) return;
     renderChat();
-    if (!chatId || chatRequest || document.hidden) return;
+    if (!chatId || chatRequest) return;
     const controller = new AbortController();
     const deadline = setTimeout(() => controller.abort(), 6000);
     chatRequest = controller;
@@ -287,8 +290,6 @@ export const blackBoxScript = String.raw`
       updateChatForm();
     }
   };
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) loadChat(); });
-  setInterval(loadChat, 2000);
 
   function minimum(auction) { return auction.highBid == null ? auction.startPrice : auction.highBid + auction.step; }
   function timer() {
@@ -306,6 +307,9 @@ export const blackBoxScript = String.raw`
     el('submit').disabled = submitting || !seconds || minimum(current) > 1000000000;
   }
   function previous(result) {
+    const key = JSON.stringify(result);
+    if (key === lastPrevious) return;
+    lastPrevious = key;
     const panel = el('previous');
     panel.textContent = result ? result.winner + ' · ' + result.amount + ' мон. · ' + result.prize : 'Пока нет победителей';
     if (result && typeof result.image === 'string' && /^https:\/\//i.test(result.image)) {
@@ -315,11 +319,18 @@ export const blackBoxScript = String.raw`
       panel.append(document.createElement('br'), img);
     }
   }
-  async function refresh() {
-    if (loading || revealing) return;
-    loading = true;
+  function refresh() {
+    if (document.hidden || revealing) return Promise.resolve();
+    if (stateRequest) return stateRequest;
+    stateRequest = loadState().finally(() => { stateRequest = null; });
+    return stateRequest;
+  }
+  let lastParticipants, lastPrevious;
+  async function loadState() {
+    const controller = new AbortController();
+    const deadline = setTimeout(() => controller.abort(), 6000);
     try {
-      const state = await request('/api/black-box');
+      const state = await request('/api/black-box', null, controller.signal);
       const old = current;
       current = state.current;
       offset = Date.parse(state.serverNow) - Date.now();
@@ -327,19 +338,25 @@ export const blackBoxScript = String.raw`
       el('hint').hidden = !current?.hint;
       el('hint').textContent = current?.hint || '';
       el('bid').hidden = !current;
-      const list = document.createDocumentFragment();
-      for (const entry of state.participants) {
-        const item = document.createElement('li');
-        item.textContent = entry.name + ' · ' + entry.amount + ' мон.';
-        list.append(item);
+      const participantKey = JSON.stringify(state.participants);
+      if (participantKey !== lastParticipants) {
+        lastParticipants = participantKey;
+        const list = document.createDocumentFragment();
+        for (const entry of state.participants) {
+          const item = document.createElement('li');
+          item.textContent = entry.name + ' · ' + entry.amount + ' мон.';
+          list.append(item);
+        }
+        el('participants').replaceChildren(list);
+        el('empty').hidden = state.participants.length > 0;
       }
-      el('participants').replaceChildren(list);
-      el('empty').hidden = state.participants.length > 0;
       if (current) {
         const amount = el('amount');
         const next = minimum(current);
-        if (old?.id !== current.id || !amount.value || Number(amount.value) === Number(amount.min)) amount.value = next;
+        if (old?.id !== current.id) amountEdited = false;
+        if (!amountEdited) amount.value = next;
         amount.min = next;
+        el('bidMinimum').textContent = 'Минимальная ставка — ' + next + ' мон.';
         el('case').classList.remove('open');
         el('reveal').textContent = '';
         el('price').textContent = (current.highBid == null ? 'Стартовая цена ' : 'Текущая ставка ') + (current.highBid ?? current.startPrice) + ' мон.';
@@ -364,30 +381,52 @@ export const blackBoxScript = String.raw`
       } else {
         previous(state.previous);
       }
-    } catch (error) {
-      el('notice').textContent = errorMessage(error);
+    } catch {
+      if (!current && !lastParticipants) el('price').textContent = 'Не удалось обновить торги. Повторяем…';
     } finally {
-      loading = false;
+      clearTimeout(deadline);
     }
+  }
+  el('amount').addEventListener('input', () => { amountEdited = true; });
+  async function updateBalance() {
+    try {
+      const data = await request('/api/me/economy', null, AbortSignal.timeout(5000));
+      if (typeof data.balance !== 'number') return;
+      el('bidBalance').textContent = 'Баланс — ' + data.balance + ' мон.';
+      el('bidBalance').hidden = false;
+    } catch { el('bidBalance').hidden = true; }
   }
   el('bid').onsubmit = async event => {
     event.preventDefault();
     if (!current || submitting) return;
     submitting = true;
+    el('notice').textContent = 'Отправляем ставку…';
     timer();
     try {
       await request('/api/black-box/bid', {id: current.id, amount: Number(el('amount').value)});
+      amountEdited = false;
       el('notice').textContent = 'Ставка принята.';
+      void updateBalance();
     } catch (error) {
       el('notice').textContent = errorMessage(error);
     } finally {
-      submitting = false;
+      if (stateRequest) await stateRequest;
       await refresh();
+      submitting = false;
       timer();
     }
   };
-  refresh();
-  setInterval(refresh, 2000);
-  setInterval(timer, 250);
+  let pollTimer;
+  function poll() {
+    clearTimeout(pollTimer);
+    if (document.hidden) return;
+    timer();
+    void refresh();
+    void loadChat();
+    pollTimer = setTimeout(poll, current ? 2000 : 5000);
+  }
+  document.addEventListener('visibilitychange', poll);
+  poll();
+  setInterval(() => { if (!document.hidden) timer(); }, 250);
 })();
 `;

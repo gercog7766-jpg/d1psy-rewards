@@ -26,10 +26,10 @@ export function installSeasonAccountBannerHotfix(){
         <div class="seasonAccountOpen">ОТКРЫТЬ BATTLE PASS →</div>
       </section>
       <a href="/black-box" class="blackBoxBanner">
-        <span class="blackBoxBannerCopy"><strong>Чёрный ящик</strong><span class="seasonAccountOpen">К ТОРГАМ →</span></span>
+        <span class="blackBoxBannerCopy"><strong>Чёрный ящик</strong><span id="blackBoxSummary" hidden></span><span class="seasonAccountOpen">К ТОРГАМ →</span></span>
         <span class="blackBoxBannerArt" aria-hidden="true">
-          <img class="blackBoxBannerKnife" src="https://community.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL6kJ_m-B1Q7uCvZaZkNM-bF1iWzvxzo_VWTSahkBwrjDGMnYftbyifZgQlA8EhRrRfuhm7lIa2MerjtlaKi4NGnius3SMc6Slv574AUPA7uvqA0RoB8ZE" alt="" decoding="async">
-          <img class="blackBoxBannerCase" src="/black-box/case.jpg" alt="" decoding="async">
+          <img class="blackBoxBannerKnife" src="https://community.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL6kJ_m-B1Q7uCvZaZkNM-bF1iWzvxzo_VWTSahkBwrjDGMnYftbyifZgQlA8EhRrRfuhm7lIa2MerjtlaKi4NGnius3SMc6Slv574AUPA7uvqA0RoB8ZE" alt="" loading="lazy" decoding="async">
+          <img class="blackBoxBannerCase" src="/black-box/case.jpg" alt="" loading="lazy" decoding="async">
         </span>
       </a>`;
       const css=`<style>
@@ -49,6 +49,36 @@ export function installSeasonAccountBannerHotfix(){
       .majorPickemBannerArrow{font-size:24px;color:#edd6ff;flex:none}
       @media(max-width:520px){.blackBoxBanner,.majorPickemBanner{padding-inline:16px}.blackBoxBannerArt{width:47%;right:3px}.blackBoxBannerCase{width:82%}.blackBoxBannerKnife{width:64%;left:-9%;opacity:.34}.majorPickemBanner{gap:12px}.majorPickemBanner img{width:48px;height:48px}}
       </style>`;
+      const blackBoxSummary = `<script>(() => {
+        const status = document.getElementById('blackBoxSummary');
+        if (!status) return;
+        let current, offset = 0, loading = false;
+        function render() {
+          if (document.hidden || current === undefined) return;
+          const minutes = current && Math.ceil((Date.parse(current.ends_at) - Date.now() - offset) / 60000);
+          status.textContent = minutes > 0
+            ? (current.high_bid == null ? 'Стартовая цена ' : 'Ставка ') +
+              (current.high_bid ?? current.start_price).toLocaleString('ru-RU') + ' мон. · осталось ' + minutes + ' мин.'
+            : 'Сейчас нет открытых торгов';
+          status.hidden = false;
+        }
+        async function refresh() {
+          if (document.hidden || loading) return;
+          loading = true;
+          try {
+            const response = await fetch('/api/black-box/summary', {signal: AbortSignal.timeout(5000)});
+            if (!response.ok) return;
+            const data = await response.json();
+            current = data.current;
+            offset = Date.parse(data.serverNow) - Date.now();
+            render();
+          } catch {} finally { loading = false; }
+        }
+        document.addEventListener('visibilitychange', refresh);
+        setInterval(refresh, 30000);
+        setInterval(render, 1000);
+        refresh();
+      })();</script>`;
       const js=`<script>(function(){var s=${START},e=${END};function t(){var n=Date.now(),el=document.getElementById('seasonAccountTimer'),st=document.getElementById('seasonAccountState');if(!el||!st)return;var fill=document.querySelector('.seasonAccountProgress i');if(fill)fill.style.width=Math.max(0,Math.min(100,(n-s)/(e-s)*100))+'%';var d;if(n<s){d=s-n;st.textContent='Старт 02.11.2026 · 00:00 МСК';el.textContent='через '+Math.floor(d/86400000)+'д '+Math.floor(d%86400000/3600000)+'ч'}else if(n>=e){st.textContent='SEASON 1 завершён';el.textContent=''}else{d=e-n;st.textContent='Сезон активен';el.textContent='до конца '+Math.floor(d/86400000)+'д '+Math.floor(d%86400000/3600000)+'ч'}}t();setInterval(t,60000)})();</script>`;
       // Insert BEFORE the complete current-drop card, not inside it.
       const markerRe=/(ТЕКУЩИЙ РОЗЫГРЫШ|Текущий розыгрыш)/i;
@@ -69,7 +99,7 @@ export function installSeasonAccountBannerHotfix(){
         if(start>=0) body=body.slice(0,start)+banner+body.slice(start);
         else body=body.replace(/<body([^>]*)>/i,'<body$1>'+banner);
       }else body=body.replace(/<body([^>]*)>/i,'<body$1>'+banner);
-      body=body.replace('</head>',css+'</head>').replace('</body>',js+'</body>');
+      body=body.replace('</head>',css+'</head>').replace('</body>',js+blackBoxSummary+'</body>');
     }
     return os.call(this,body)
   };

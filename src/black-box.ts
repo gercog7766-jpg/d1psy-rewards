@@ -35,6 +35,14 @@ export function installBlackBox(app: Express, db: SupabaseClient, user: RequestH
   });
   app.get('/black-box.js', noStore, (_req, res) => res.type('application/javascript').send(blackBoxScript));
 
+  app.get('/api/black-box/summary', noStore, async (_req, res) => {
+    const serverNow = new Date().toISOString();
+    const { data, error } = await db.from('rewards_black_boxes')
+      .select('ends_at,start_price,high_bid')
+      .is('closed_at', null).gt('ends_at', serverNow).maybeSingle();
+    if (error) return res.status(503).json({ error: 'unavailable' });
+    return res.json({ current: data, serverNow });
+  });
   app.get('/api/black-box', noStore, async (_req, res) => {
     const { data, error } = await db.rpc('rewards_black_box_state');
     if (error) return res.status(503).json({ error: failure(error) });
