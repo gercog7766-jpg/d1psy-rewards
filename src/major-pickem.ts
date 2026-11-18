@@ -90,6 +90,23 @@ export function installMajorPickem(app:Express,db:SupabaseClient,user:RequestHan
     }
     res.json({settled:data});
   });
+  app.post('/api/me/major-pickem/cases/bronze/open',noStore,user,async(req,res) => {
+    if(req.get('origin')!==origin || !req.is('application/json')){res.sendStatus(403);return;}
+    const requestId=req.body?.requestId;
+    if(!req.body || Object.keys(req.body).length!==1 ||
+       typeof requestId!=='string' || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(requestId)){
+      res.status(400).json({error:'invalid_request'});return;
+    }
+    const {data,error}=await db.rpc('rewards_major_bronze_open',{
+      p_actor:res.locals.session.twitchUserId,p_request:requestId
+    });
+    if(error){
+      const reason=['invalid_request','user_unavailable','entry_required','insufficient_tokens','case_prize_unavailable'].find(x=>error.message.includes(x));
+      if(!reason)console.error('major_bronze_open_failed',error.code);
+      res.status(reason?409:503).json({error:reason||'case_unavailable'});return;
+    }
+    res.json(data);
+  });
   app.get('/api/me/major-pickem',noStore,user,rpc('state'));
   app.post('/api/me/major-pickem/enter',noStore,user,rpc('enter'));
   app.post('/api/me/major-pickem/save',noStore,user,rpc('save'));
