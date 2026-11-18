@@ -27,14 +27,14 @@ const plural = new Intl.PluralRules('ru');
 export const majorPickemShop = `<section id="majorShop" class="panel" aria-labelledby="majorShopTitle">
 <h2 id="majorShopTitle">Магазин Pick’em</h2>
 <p class="muted">Обменивай жетоны на награды Major Dropso.</p>
-<ul class="major-shop-grid">${majorPickemShopItems.map(({name,cost,image}) => {
+<ul class="major-shop-grid">${majorPickemShopItems.map(({name,cost,image},index) => {
   const unit = plural.select(cost) === 'one' ? 'жетон' : plural.select(cost) === 'few' ? 'жетона' : 'жетонов';
   return `<li>
     <img class="major-shop-art" src="${steamEconomyImage}${image}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">
     <h3>${name}</h3>
-    <span class="major-shop-cost"><img src="/predict/major-token.webp" width="19" height="19" alt="">${cost} ${unit}</span>
+    <span class="major-shop-cost"><img src="/predict/major-token.webp" width="19" height="19" alt="">${cost} ${unit}</span><button class="major-shop-buy" data-item-index="${index}" type="button" disabled>Купить</button>
   </li>`;
-}).join('')}</ul><p class="muted">Покупка товаров магазина появится после подключения выдачи. Кейсы доступны ниже.</p></section>`;
+}).join('')}</ul><p id="majorShopStatus" role="status"></p></section>`;
 
 export const majorPickemShopCss = `
 #majorShop{scroll-margin-top:24px}
