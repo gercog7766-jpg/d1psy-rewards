@@ -73,5 +73,8 @@ export const majorBronzeCaseCss = `
 .bronze-roulette{position:relative;overflow:hidden;border:2px solid #bd8957;border-radius:12px;margin:20px 0;background:#130d1a;height:116px}
 .bronze-strip{display:flex;gap:8px;align-items:center;height:100%;width:max-content;transform:translateX(0)}
 .bronze-slot{flex:none;width:140px;height:94px;display:grid;place-items:center;text-align:center;padding:8px;font-size:13px;line-height:1.3;background:#34243d;border-bottom:3px solid #b68c58;border-radius:7px}
+.bronze-slot{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:4px 6px}
+.bronze-slot img{display:block;width:120px;height:62px;object-fit:contain;filter:drop-shadow(0 3px 5px #0009)}
+.bronze-slot span{display:block;width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:10px;color:#ead8f1}
 .bronze-marker{position:absolute;left:50%;top:0;bottom:0;width:3px;background:#ffe7aa;box-shadow:0 0 10px #ffcb73;transform:translateX(-50%);pointer-events:none}
 `;
