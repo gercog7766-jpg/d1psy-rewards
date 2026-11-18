@@ -41,6 +41,7 @@ begin
  select * into previous from public.rewards_major_case_opens where user_id=player.id and request_id=p_request;
  if found then
   return jsonb_build_object('ok',true,'replayed',true,'winId',previous.win_id,'name',previous.prize_name,'wear',previous.prize_wear,
+    'image',(select p.image_url from public.rewards_wins w join public.rewards_prizes p on p.id=w.prize_id where w.id=previous.win_id),
     'tokens',(select tokens from public.rewards_major_pickem_entries where user_id=player.id));
  end if;
  select * into entry from public.rewards_major_pickem_entries where user_id=player.id for update;
