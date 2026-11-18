@@ -40,6 +40,33 @@ export function installMajorPickem(app:Express,db:SupabaseClient,user:RequestHan
 
   app.get('/predict/major-pickem',noStore,user,(_req,res) => res.send(majorPickemPage));
   app.get('/predict/major-pickem.js',noStore,(_req,res) => res.type('application/javascript').send(majorPickemScript));
+  // Public case artwork catalog: image URLs only; draw weights remain server-side.
+  app.get('/api/me/major-pickem/cases/bronze/catalog',noStore,user,async(_req,res) => {
+    const names=[
+      'AK-47 | Оливковый поликамуфляж','Five-SeveN | Небесная голубизна',
+      'P250 | Ледяная корка','SG 553 | Корзинные полутона',
+      'SCAR-20 | Песчаная сетка','M249 | Ледяная корка',
+      'Негев | Кислый виноград','XM1014 | Ирэдзуми',
+      'ПП-19 «Бизон» | Карамельное яблоко','MAC-10 | Световой короб',
+      'Five-SeveN | Капилляры','CZ75-Auto | Эко'
+    ];
+    const candidates=names.flatMap((name,i)=>i===1||i===3||i===6||i===8||i===10||i===11
+      ? [name+' '+(i===6?'BS':'FT'),name]
+      : [name,name+' FT',name+' BS']);
+    const {data,error}=await db.from('rewards_prizes').select('name,image_url')
+      .eq('status','available').in('name',candidates);
+    if(error){res.status(503).json({error:'case_unavailable'});return;}
+    const images=names.map((name,i)=>{
+      const exactWear=i===6?'BS':'FT';
+      const matches=(data??[]).filter(p=>p.image_url && (p.name===name || p.name===name+' FT' || p.name===name+' BS'));
+      const preferred=matches.find(p=>p.name===name+' '+exactWear)??matches.find(p=>p.name===name)??matches[0];
+      return {name,image:preferred?.image_url??null};
+    });
+    res.json({items:images});
+  });
+  app.get('/predict/major-bronze-case.webp', (_req,res) => {
+    res.sendFile(resolve(process.cwd(),'assets/major-pickem/bronze-case.webp'),{maxAge:'1d'});
+  });
   app.get('/predict/major-token.webp', (_req,res) => {
     res.sendFile(resolve(process.cwd(),'assets/major-pickem/token.webp'),{maxAge:'1d'});
   });
