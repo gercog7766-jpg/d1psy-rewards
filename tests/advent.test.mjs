@@ -4,6 +4,7 @@ import {ADVENT_REWARDS,ADVENT_START,ADVENT_SALE_END,ADVENT_CLAIM_END,ADVENT_NOMI
 import {adventHtml,adventAccountBanner,adventJs} from '../src/advent-ui.ts';
 import {JSDOM} from 'jsdom';
 import {withSiteNavigation} from '../src/site-navigation.ts';
+import {adventAdminList,adventAdminDetail,installAdventAdmin} from '../src/advent-admin.ts';
 test('calendar has exactly 31 fixed rewards and seven cosmetics in approved order',()=>{
  assert.equal(ADVENT_REWARDS.length,31);
  assert.deepEqual(ADVENT_REWARDS.flatMap(([kind],i)=>kind==='exclusive'?[i+1]:[]),[2,6,10,14,18,22,31]);
@@ -65,4 +66,13 @@ test('before December all windows are locked; reached dates show gifts without e
   day=1;await refresh();assert(tiles[0].querySelector('.advent-gift'));assert(!tiles[1].querySelector('.advent-gift'));assert(tiles[0].disabled);
   day=2;await refresh();assert.equal(tiles.filter(t=>t.querySelector('.advent-gift')).length,2);assert(tiles[2].querySelector('svg'));assert(tiles.every(t=>t.disabled));
  }finally{w.close()}
+});
+test('admin advent overview and detail render safely and enforce admin access',async()=>{
+ const id='00000000-0000-4000-8000-000000000001',buyer={userId:id,login:'alice',name:'<img src=x>',purchasedAt:'2026-11-19T12:00:00Z',price:299,claimed:1,completed:false};
+ const state={stats:{buyers:1,spent:299,claimed:1,completed:0,promosRedeemed:0,saleEnabled:true},buyers:[buyer],total:1,page:1,pages:1};
+ const d=new JSDOM(adventAdminList(state,'<script>'));try{assert.equal(d.window.document.querySelectorAll('img').length,0);assert.match(d.window.document.body.textContent,/<img src=x>/);assert(d.window.document.querySelector('a[href*="?user="]'));assert.equal(d.window.document.querySelector('input').value,'<script>')}finally{d.window.close()}
+ const detail={buyer,availableDay:1,days:[{day:1,name:'5 монет',kind:'coins',destination:'wallet',claimedAt:'2026-12-01T00:00:00+03:00'}, {day:2,claimedAt:null}]};assert.match(adventAdminDetail(detail),/Баланс монет/);assert.match(adventAdminDetail(detail),/Ещё закрыто/);
+ const {default:express}=await import('express');const app=express(),calls=[];installAdventAdmin(app,{rpc:async(name,args)=>{calls.push({name,args});return {data:args.p_action==='detail'?detail:state,error:null}}},(q,r,n)=>{if(q.get('x-admin')!=='yes')return r.sendStatus(403);r.locals.session={twitchUserId:'admin'};n()});app.get('/admin',(_q,r)=>r.send('<div class="tabs"></div>'));
+ const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));const base='http://127.0.0.1:'+server.address().port;
+ try{assert.equal((await fetch(base+'/admin/advent')).status,403);assert.equal(calls.length,0);assert.equal((await fetch(base+'/admin/advent?user=bad',{headers:{'x-admin':'yes'}})).status,400);const page=await fetch(base+'/admin/advent?user='+id,{headers:{'x-admin':'yes'}});assert.equal(page.status,200);assert.equal(calls[0].args.p_actor,'admin');assert.match(await page.text(),/Журнал наград/);assert.match(await(await fetch(base+'/admin')).text(),/id="adminAdventLink"/)}finally{server.closeAllConnections();await new Promise(r=>server.close(r))}
 });
