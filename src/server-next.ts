@@ -1,4 +1,5 @@
 import {installBonuses} from './bonuses.js';
+import {adventHtml} from './advent-ui.js';
 import {installAdminStatistics} from './admin-statistics.js';
 import {installMajorPickem} from './major-pickem.js';
 import {installRedButton} from './red-button.js';
@@ -57,6 +58,7 @@ function requireUser(req:express.Request,res:express.Response,next:express.NextF
 }
 async function requireAdmin(req:express.Request,res:express.Response,next:express.NextFunction){const s=readSession(req);if(!s)return res.status(401).json({error:'authentication_required'});const {data,error}=await db.from('rewards_admins').select('twitch_user_id').eq('twitch_user_id',s.twitchUserId).maybeSingle();if(error)return res.status(500).json({error:'admin_lookup_failed'});if(!data)return res.status(403).json({error:'admin_required'});res.locals.session=s;next()}
 installBonuses(app,db,requireUser,new URL(APP_URL).origin);
+app.get('/advent',(_req,res)=>res.set('Cache-Control','no-store').type('html').send(adventHtml));
 installAdminStatistics(app,db,requireAdmin);
 installStreamerPilot(app,requireUser,requireAdmin,subscribeToPartnerChat,partnerChatReady);
 installProfileCustomization(app,requireUser,requireAdmin);
