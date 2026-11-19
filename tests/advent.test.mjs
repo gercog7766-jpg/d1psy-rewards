@@ -50,8 +50,19 @@ test('calendar purchase uses the shared Dropso dialog, cancels safely and preven
   w.dropsoNotice=(text)=>notices.push(text);
   w.fetch=async(path)=>{if(path.endsWith('/buy')){posts++;purchased=true}return {ok:true,status:200,json:async()=>({purchased,availableDay:0,claimOpen:true,saleOpen:true,claimed:{},completed:false})}};
   w.eval(adventJs);await new Promise(r=>setTimeout(r,30));
-  const button=w.document.querySelector('.purchase');const preview=w.document.querySelector('.day.preview');assert(preview?.disabled);assert(preview.querySelector('.advent-gift'));button.click();button.click();assert.equal(confirmations,1);assert.equal(posts,0);assert(button.disabled);
+  const button=w.document.querySelector('.purchase');assert.equal(w.document.querySelectorAll('.day .advent-gift').length,0);assert.equal(w.document.querySelectorAll('.day svg').length,31);button.click();button.click();assert.equal(confirmations,1);assert.equal(posts,0);assert(button.disabled);
   resolveConfirm(false);await new Promise(r=>setTimeout(r,30));assert.equal(posts,0);assert(!button.disabled);
   button.click();resolveConfirm(true);await new Promise(r=>setTimeout(r,30));assert.equal(posts,1);assert(button.hidden);assert.equal(notices.length,1);
+ }finally{w.close()}
+});
+test('before December all windows are locked; reached dates show gifts without enabling unpaid claims',async()=>{
+ const dom=new JSDOM(adventHtml,{runScripts:'outside-only',url:'https://dropso.site/advent'}),w=dom.window;let day=0,refresh;
+ try{
+  w.setInterval=fn=>{refresh=fn;return 1};
+  w.fetch=async()=>({ok:true,status:200,json:async()=>({purchased:false,availableDay:day,claimOpen:true,saleOpen:true,claimed:{},completed:false})});
+  w.eval(adventJs);await new Promise(r=>setTimeout(r,25));
+  const tiles=[...w.document.querySelectorAll('button.day')];assert.equal(tiles.filter(t=>t.querySelector('.advent-gift')).length,0);
+  day=1;await refresh();assert(tiles[0].querySelector('.advent-gift'));assert(!tiles[1].querySelector('.advent-gift'));assert(tiles[0].disabled);
+  day=2;await refresh();assert.equal(tiles.filter(t=>t.querySelector('.advent-gift')).length,2);assert(tiles[2].querySelector('svg'));assert(tiles.every(t=>t.disabled));
  }finally{w.close()}
 });
