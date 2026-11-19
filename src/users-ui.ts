@@ -71,7 +71,7 @@ async function profile(){const version=++revision;$('profileLevel').hidden=true;
  medals.replaceChildren();
  $('profileAchievements').hidden=!data.majorMedal&&!data.adventPurchaseMedal&&!data.style?.advent?.includes('advent_drops_2026');
  if(data.adventPurchaseMedal===true){
-  const badge=node('div','major-profile-medal advent-purchase-medal'),img=node('img');img.src='/advent/medals/advent-pass-2026.webp';img.alt='';
+  const badge=node('div','major-profile-medal advent-purchase-medal'),img=node('img');img.src='/advent/medals/advent-pass-2026.webp?v=2';img.alt='';
   badge.title='За покупку адвент-календаря Dropso 2026';badge.append(img,'Advent Pass 2026');medals.append(badge);
  }
  if(data.style?.advent?.includes('advent_drops_2026'))medals.append(node('div','advent-profile-medal','❄ Advent Drops 2026'));
