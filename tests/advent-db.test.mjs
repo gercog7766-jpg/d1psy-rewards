@@ -1,0 +1,52 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {PGlite} from '@electric-sql/pglite';
+
+test('advent purchase, all claims, permanent collection, inventory routing and owner-only promos',async()=>{
+ const db=new PGlite();
+ try{
+  await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;
+  create table rewards_users(id uuid primary key default gen_random_uuid(),twitch_user_id text unique,twitch_login text,banned boolean default false,participation_restricted boolean default false);
+  create table rewards_coin_transactions(id uuid primary key default gen_random_uuid(),user_id uuid references rewards_users(id),amount integer,transaction_type text,note text);
+  create table rewards_shop_items(id uuid primary key default gen_random_uuid(),name text,image_url text,status text,stock int);
+  create table rewards_shop_item_variants(shop_item_id uuid references rewards_shop_items(id),available boolean,wear text,variant_kind text,price_coins integer);
+  create table rewards_prizes(id uuid primary key default gen_random_uuid(),name text,image_url text,status text,unlimited boolean,draw_weight int,sell_price_coins int);
+  create table rewards_wins(id uuid primary key default gen_random_uuid(),user_id uuid,prize_id uuid,won_at timestamptz,delivery_status text,choice_status text,source_type text,item_wear text,item_variant_kind text);
+  create table rewards_promo_game_credits(user_id uuid,game text,stake integer,balance integer,primary key(user_id,game,stake));
+  insert into rewards_users(twitch_user_id,twitch_login) values('alice','alice'),('bob','bob'),('poor','poor');
+  insert into rewards_coin_transactions(user_id,amount) select id,400 from rewards_users where twitch_user_id in('alice','bob');
+  insert into rewards_shop_items(name,image_url,status) select 'skin-'||x,'https://example.com/'||x,'available' from unnest(array[15,25,35,40]) x;
+  insert into rewards_shop_item_variants select id,true,'FT','normal',substring(name from 6)::int from rewards_shop_items;`);
+  // Shift the fixture's clock window only; production RPC uses the actual database clock.
+  const source=await readFile(new URL('../supabase/migrations/20261119120000_advent_2026.sql',import.meta.url),'utf8');
+  await db.exec(source.replaceAll('2026-12-01','2020-12-01').replaceAll('2026-12-11','2099-12-11').replaceAll('2027-01-06','2099-01-06'));
+  const rpc=async(who,action,day=null)=>(await db.query('select rewards_advent_2026($1,$2,$3) result',[who,action,day])).rows[0].result;
+  const redeem=async(who,code)=>(await db.query('select rewards_advent_redeem($1,$2) result',[who,code])).rows[0].result;
+  await assert.rejects(rpc('alice','buy'),/advent_unavailable/);
+  await db.exec('update rewards_advent_settings set enabled=true');
+  await assert.rejects(rpc('poor','buy'),/insufficient_coins/);
+  await assert.rejects(rpc('bob','claim',1),/purchase_required/);
+  assert.equal((await rpc('alice','buy')).balance,101);
+  assert.equal((await rpc('alice','buy')).balance,101);
+  assert.deepEqual((await rpc('alice','state')).claimed,{});
+  let state;
+  for(let i=1;i<=31;i++)state=await rpc('alice','claim',i);
+  assert.equal(state.completed,true);assert.equal(state.balance,233);assert.equal(Object.keys(state.claimed).length,31);
+  assert.equal((await rpc('alice','claim',1)).balance,233);
+  assert.equal((await rpc('alice','claim',31)).completed,true);
+  assert.equal((await db.query('select count(*)::int as n from rewards_wins where source_type is null')).rows[0].n,3);
+  assert.equal((await db.query("select count(*)::int as n from rewards_wins where source_type='promo_upgrade'")).rows[0].n,1);
+  const code=state.claimed[4].code;
+  await assert.rejects(redeem('bob',code),/promo_not_found/);
+  assert.equal((await redeem('alice',code)).rewardType,'three_doors_pass');
+  await assert.rejects(redeem('alice',code),/already_used/);
+  assert.equal((await redeem('alice',state.claimed[12].code)).amount,15);
+  const collection=async(item=null,on=null)=>(await db.query('select rewards_advent_collection($1,$2,$3) result',['alice',item,on])).rows[0].result;
+  assert.equal((await collection()).length,8);
+  await collection('sleep',false).then(()=>assert.fail('unexpected')).catch(e=>assert.match(e.message,/invalid_request/));
+  await collection('snowfall',false);
+  const styles=(await db.query("select rewards_advent_styles(array['alice','bob']) result")).rows[0].result;
+  assert.equal(styles.length,1);assert.ok(!styles[0].items.includes('snowfall'));assert.ok(styles[0].items.includes('advent_drops_2026'));
+ }finally{await db.close()}
+});

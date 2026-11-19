@@ -58,6 +58,7 @@ async function profile(){const version=++revision;$('profileLevel').hidden=true;
  }
  const face=avatar(data.name,data.avatar);
  applyStyle(head,face,data.style);
+ if(data.style?.advent?.includes('cold_blood'))info.append(node('div','advent-profile-title','COLD BLOOD'));
  if(data.style?.title)info.append(titleNode(data.style.title));
  if(data.style?.bio)info.append(node('p','profile-bio',data.style.bio));
  if(data.isSelf){
@@ -68,7 +69,8 @@ async function profile(){const version=++revision;$('profileLevel').hidden=true;
  head.replaceChildren(face,info);
  const medals=$('profileMedals');
  medals.replaceChildren();
- $('profileAchievements').hidden=!data.majorMedal;
+ $('profileAchievements').hidden=!data.majorMedal&&!data.style?.advent?.includes('advent_drops_2026');
+ if(data.style?.advent?.includes('advent_drops_2026'))medals.append(node('div','advent-profile-medal','❄ Advent Drops 2026'));
  if(data.majorMedal){
   const badge=node('div','major-profile-medal'),img=node('img');
   img.src=data.majorMedal.image;img.alt='';
