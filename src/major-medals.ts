@@ -10,4 +10,5 @@ export const majorMedals = [
 export const majorProfileMedalCss = `
 .major-profile-medal{display:inline-flex;align-items:center;gap:8px;max-width:100%;min-height:42px;padding:4px 10px 4px 6px;border:1px solid #966ac285;border-radius:9px;background:#342044;color:#f2dbff;font-size:13px;font-weight:700;line-height:1.25}
 .major-profile-medal img{width:30px;height:34px;object-fit:contain;flex:none}
+.advent-purchase-medal{border-color:#b58b3e;background:linear-gradient(135deg,#382049,#261437);color:#ffe7b2}.advent-purchase-medal img{width:48px;height:48px;border-radius:9px;object-fit:contain;flex:none}
 `;

@@ -46,3 +46,7 @@ test('partner profile groups its actions and shows its medal in Achievements wit
   assert.equal(achievements.querySelector('.major-profile-medal'),null);
  }finally{w.close()}
 });
+test('advent purchase medal is independent of full-calendar achievement',async()=>{
+ const dom=new JSDOM(profileHtml,{url:'https://test.local/users/viewer',runScripts:'outside-only'}),w=dom.window;
+ try{const data={login:'viewer',name:'Viewer',isSelf:true,items:[],total:0,adventPurchaseMedal:true,style:{advent:[]}};w.fetch=async()=>({ok:true,status:200,json:async()=>data});w.eval(usersJs);await new Promise(r=>setImmediate(r));const doc=w.document,ach=doc.getElementById('profileAchievements');assert(!ach.hidden);assert.equal(ach.querySelector('.advent-purchase-medal img').getAttribute('src'),'/advent/medals/advent-pass-2026.webp');assert(!ach.textContent.includes('Advent Drops 2026'));data.style.advent=['advent_drops_2026'];w.dispatchEvent(new w.Event('focus'));await new Promise(r=>setImmediate(r));assert(ach.textContent.includes('Advent Pass 2026'));assert(ach.textContent.includes('Advent Drops 2026'))}finally{w.close()}
+});

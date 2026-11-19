@@ -35,6 +35,9 @@ export function installUsers(){
    if(!data.isPrivate || data.isSelf){
     const {data:entry}=await db.from('rewards_major_pickem_entries').select('medal').eq('user_id',target.id).maybeSingle();
     if(entry?.medal && majorMedals[entry.medal])data.majorMedal=majorMedals[entry.medal];
+    // The permanent purchase receipt is the entitlement, including all previous buyers.
+    const {data:adventPurchase}=await db.from('rewards_advent_purchases').select('user_id').eq('user_id',target.id).maybeSingle();
+    if(adventPurchase?.user_id===target.id)data.adventPurchaseMedal=true;
    }
   }res.json(data)}
   function page(req:any,res:any){if(req.query.page!==undefined&&(!/^\d{1,6}$/.test(String(req.query.page))||Number(req.query.page)<1)){res.status(400).json({error:'invalid_page'});return null}return Number(req.query.page)||1}
