@@ -1,5 +1,6 @@
 import type {Express,RequestHandler} from 'express';
 import type {SupabaseClient} from '@supabase/supabase-js';
+import {resolve} from 'node:path';
 import {adventHtml,adventJs} from './advent-ui.js';
 
 export function installAdvent(app:Express,db:SupabaseClient,user:RequestHandler,origin:string){
@@ -14,6 +15,7 @@ export function installAdvent(app:Express,db:SupabaseClient,user:RequestHandler,
  };
  app.get('/advent',noStore,(_q,r)=>r.type('html').send(adventHtml.replace('</body>','<script src="/advent.js" defer></script></body>')));
  app.get('/advent.js',noStore,(_q,r)=>r.type('application/javascript').send(adventJs));
+ app.get('/advent/medals/advent-pass-2026.webp',(_q,r)=>r.sendFile(resolve('assets','advent','advent-pass-2026.webp'),{maxAge:'1d'}));
  app.get('/api/me/advent',noStore,user,handle('state'));
  app.post('/api/me/advent/buy',noStore,user,sameOrigin,handle('buy'));
  app.post('/api/me/advent/claim',noStore,user,sameOrigin,handle('claim'));
