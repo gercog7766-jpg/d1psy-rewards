@@ -30,6 +30,9 @@ test('festive layout keeps the left navigation, shared banner typography and dec
  const dom=new JSDOM(withSiteNavigation(adventHtml,'/advent'));
  try{const doc=dom.window.document;assert(doc.querySelector('#dropsoSiteSidebar'));assert.equal(doc.querySelector('#dropsoSiteSidebar [aria-current="page"]')?.getAttribute('href'),'/advent');assert(doc.querySelector('.advent-shell .advent-waves'));assert.equal(doc.querySelectorAll('.advent-decoration img').length,2);assert.equal(doc.querySelectorAll('.grid .day').length,31);assert(doc.querySelector('.purchase svg'));assert.match(adventHtml,/min-height:820px/);assert.match(adventAccountBanner,/class="seasonAccountTitle">АДВЕНТ/);assert.doesNotMatch(adventAccountBanner,/seasonAccountTitle\{font-size/)}finally{dom.window.close()}
 });
+test('calendar tiles have independent fixed height, shrink to their grid track and preserve horizontal spacing',()=>{
+ const dom=new JSDOM(adventHtml);try{const w=dom.window,grid=w.document.querySelector('.grid'),day=w.document.querySelector('.day');const g=w.getComputedStyle(grid),d=w.getComputedStyle(day);assert.equal(g.columnGap,'16px');assert.equal(g.rowGap,'12px');assert.equal(d.width,'100%');assert.equal(d.minWidth,'0');assert.equal(d.aspectRatio,'auto');assert.equal(d.height,'91px')}finally{dom.window.close()}
+});
 test('calendar UI only opens server-authorized days, reveals claimed reward and remains recoverable',async()=>{
  const dom=new JSDOM(adventHtml,{runScripts:'outside-only',url:'https://dropso.site/advent'}),w=dom.window;
  const state={purchased:true,availableDay:3,claimOpen:true,saleOpen:false,claimed:{},completed:false};
