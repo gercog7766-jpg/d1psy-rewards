@@ -7,7 +7,9 @@ test('advent purchase, all claims, permanent collection, inventory routing and o
  const db=new PGlite();
  try{
   await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;
-  create table rewards_users(id uuid primary key default gen_random_uuid(),twitch_user_id text unique,twitch_login text,banned boolean default false,participation_restricted boolean default false);
+  create table rewards_users(id uuid primary key default gen_random_uuid(),twitch_user_id text unique,twitch_login text,twitch_display_name text,banned boolean default false,participation_restricted boolean default false);
+  create table rewards_admins(twitch_user_id text primary key);
+  insert into rewards_admins values('admin');
   create table rewards_coin_transactions(id uuid primary key default gen_random_uuid(),user_id uuid references rewards_users(id),amount integer,transaction_type text,note text);
   create table rewards_shop_items(id uuid primary key default gen_random_uuid(),name text,image_url text,status text,stock int);
   create table rewards_shop_item_variants(shop_item_id uuid references rewards_shop_items(id),available boolean,wear text,variant_kind text,price_coins integer);
@@ -21,6 +23,8 @@ test('advent purchase, all claims, permanent collection, inventory routing and o
   // Shift the fixture's clock window only; production RPC uses the actual database clock.
   const source=await readFile(new URL('../supabase/migrations/20261119120000_advent_2026.sql',import.meta.url),'utf8');
   await db.exec(source.replaceAll('2026-12-01','2020-12-01').replaceAll('2026-12-11','2099-12-11').replaceAll('2027-01-06','2099-01-06'));
+  const adminSource=await readFile(new URL('../supabase/migrations/20261119143000_advent_admin.sql',import.meta.url),'utf8');
+  await db.exec(adminSource.replaceAll('2026-12-01','2020-12-01').replaceAll('2026-12-11','2099-12-11').replaceAll('2027-01-06','2099-01-06'));
   const rpc=async(who,action,day=null)=>(await db.query('select rewards_advent_2026($1,$2,$3) result',[who,action,day])).rows[0].result;
   const redeem=async(who,code)=>(await db.query('select rewards_advent_redeem($1,$2) result',[who,code])).rows[0].result;
   await assert.rejects(rpc('alice','buy'),/advent_unavailable/);
@@ -48,5 +52,10 @@ test('advent purchase, all claims, permanent collection, inventory routing and o
   await collection('snowfall',false);
   const styles=(await db.query("select rewards_advent_styles(array['alice','bob']) result")).rows[0].result;
   assert.equal(styles.length,1);assert.ok(!styles[0].items.includes('snowfall'));assert.ok(styles[0].items.includes('advent_drops_2026'));
+  const admin=async(actor,action,query='',user=null)=>(await db.query('select rewards_advent_admin($1,$2,$3,1,$4) result',[actor,action,query,user])).rows[0].result;
+  await assert.rejects(admin('alice','list'),/admin_required/);
+  const list=await admin('admin','list','ALI');assert.equal(list.total,1);assert.equal(list.stats.buyers,1);assert.equal(list.stats.spent,299);assert.equal(list.stats.claimed,31);assert.equal(list.stats.promosRedeemed,2);assert.equal(list.buyers[0].claimed,31);assert.equal(list.recentClaims.length,20);assert(!JSON.stringify(list.recentClaims).includes(code));
+  const detail=await admin('admin','detail','',list.buyers[0].userId);assert.equal(detail.days.length,31);assert.equal(detail.days[6].destination,'inventory');assert(detail.days[6].winId);assert.equal(detail.days[19].destination,'upgrader');assert(detail.days[19].winId);assert(detail.days[0].transactionId);assert(detail.days[3].redeemedAt);assert.equal(detail.days[17].cosmeticActive,false);assert(!JSON.stringify(detail).includes(code));
+  await db.query("update rewards_wins set choice_status='sold' where id=$1",[detail.days[6].winId]);assert.equal((await admin('admin','detail','',list.buyers[0].userId)).days[6].choiceStatus,'sold');
  }finally{await db.close()}
 });
