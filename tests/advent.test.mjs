@@ -25,9 +25,9 @@ test('public preview reveals no future rewards or monetary budget',()=>{
  assert.doesNotMatch(adventHtml,/snowflake|winter_background|gold_frame|272|МСК/);
  assert.match(adventAccountBanner,/class="seasonAccountHero adventAccountHero" href="\/advent"/);
 });
-test('festive layout keeps the full-width calendar, shared banner typography and decorative art',()=>{
+test('festive layout keeps the left navigation, shared banner typography and decorative art',()=>{
  const dom=new JSDOM(withSiteNavigation(adventHtml,'/advent'));
- try{const doc=dom.window.document;assert.equal(doc.querySelector('#dropsoSiteSidebar'),null);assert(doc.querySelector('.advent-shell .advent-waves'));assert.equal(doc.querySelectorAll('.advent-decoration img').length,2);assert.equal(doc.querySelectorAll('.grid .day').length,31);assert(doc.querySelector('.purchase svg'));assert.match(adventAccountBanner,/class="seasonAccountTitle">АДВЕНТ/);assert.doesNotMatch(adventAccountBanner,/seasonAccountTitle\{font-size/)}finally{dom.window.close()}
+ try{const doc=dom.window.document;assert(doc.querySelector('#dropsoSiteSidebar'));assert.equal(doc.querySelector('#dropsoSiteSidebar [aria-current="page"]')?.getAttribute('href'),'/advent');assert(doc.querySelector('.advent-shell .advent-waves'));assert.equal(doc.querySelectorAll('.advent-decoration img').length,2);assert.equal(doc.querySelectorAll('.grid .day').length,31);assert(doc.querySelector('.purchase svg'));assert.match(adventHtml,/min-height:820px/);assert.match(adventAccountBanner,/class="seasonAccountTitle">АДВЕНТ/);assert.doesNotMatch(adventAccountBanner,/seasonAccountTitle\{font-size/)}finally{dom.window.close()}
 });
 test('calendar UI only opens server-authorized days, reveals claimed reward and remains recoverable',async()=>{
  const dom=new JSDOM(adventHtml,{runScripts:'outside-only',url:'https://dropso.site/advent'}),w=dom.window;
