@@ -1,8 +1,26 @@
 -- Move Major Pick'em rewards to the standard inventory. No duplicate wins or token charges.
 -- The links to case opens and shop purchases identify only rewards from these features.
 BEGIN;
+-- Permit only the exact source_type correction for unspent Major rewards.
+-- Preserve the existing upgrade-only guard for every other modification.
+CREATE OR REPLACE FUNCTION public.rewards_guard_upgrade_promo_win()
+RETURNS trigger LANGUAGE plpgsql SET search_path='' AS $guard$
+BEGIN
+ IF NEW IS NOT DISTINCT FROM OLD THEN RETURN NEW; END IF;
+ IF OLD.choice_status='awaiting_choice' AND NEW.choice_status='upgraded'
+    AND (to_jsonb(OLD)-ARRAY['choice_status','choice_at'])=(to_jsonb(NEW)-ARRAY['choice_status','choice_at'])
+ THEN RETURN NEW; END IF;
+ IF OLD.source_type='promo_upgrade' AND NEW.source_type IS NULL
+    AND OLD.choice_status='awaiting_choice'
+    AND (to_jsonb(OLD)-'source_type')=(to_jsonb(NEW)-'source_type')
+    AND (EXISTS (SELECT 1 FROM public.rewards_major_case_opens c WHERE c.win_id=OLD.id)
+      OR EXISTS (SELECT 1 FROM public.rewards_major_shop_purchases s WHERE s.win_id=OLD.id))
+ THEN RETURN NEW; END IF;
+ RAISE EXCEPTION 'upgrade_only';
+END;
+$guard$;
 UPDATE public.rewards_wins w SET source_type=NULL
-WHERE w.source_type='promo_upgrade' AND (
+WHERE w.source_type='promo_upgrade' AND w.choice_status='awaiting_choice' AND (
  EXISTS (SELECT 1 FROM public.rewards_major_case_opens c WHERE c.win_id=w.id)
  OR EXISTS (SELECT 1 FROM public.rewards_major_shop_purchases s WHERE s.win_id=w.id)
 );
