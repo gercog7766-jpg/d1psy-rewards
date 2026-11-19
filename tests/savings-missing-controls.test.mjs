@@ -5,7 +5,7 @@ import { savingsScript } from '../src/savings-ui.ts';
 
 test('savings loads even when color controls are absent from the page', async () => {
   const elements = new Map();
-  const ids = ['savingsBalance','setup','active','start','goalAt','extendAt','notice'];
+  const ids = ['savingsBalance','setup','active','start','startForm','goalAt','extendAt','notice','deposit','extend','cancelExtend','confirmExtend','break','goalLabel','readyActions','extendForm','amountField','dateField','extendAmountField','extendDateField'];
   for (const id of ids) elements.set(id, {textContent:'',hidden:false,disabled:true,value:'',min:'',style:{setProperty(){}},classList:{toggle(){}}});
   const calls = [];
   const document = {
