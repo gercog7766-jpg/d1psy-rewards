@@ -1,5 +1,6 @@
 import express from 'express';
 import {vaultAccountBanner} from './vault-account-banner.js';
+import {adventAccountBanner} from './advent-ui.js';
 
 const START=Date.parse('2026-11-01T21:00:00.000Z');
 const END=Date.parse('2026-12-12T21:00:00.000Z');
@@ -10,7 +11,7 @@ export function installSeasonAccountBannerHotfix(){
   response.send=function(body:any){
     const req:any=(this as any).req;
     if(typeof body==='string'&&req?.path==='/account'&&!body.includes('seasonAccountHero')){
-      const banner=`<a id="majorPickemBanner" class="majorPickemBanner" href="/predict/major-pickem">
+      const banner=`${adventAccountBanner}<a id="majorPickemBanner" class="majorPickemBanner" href="/predict/major-pickem">
         <img src="/predict/major-token.webp" width="62" height="62" alt="" decoding="async">
         <span class="majorPickemBannerCopy"><strong>Major Pick’em</strong><span>PGL Major Singapore 2026</span></span>
         <span class="majorPickemBannerArrow" aria-hidden="true">→</span>

@@ -14,7 +14,7 @@ p.listen=function(...args:any[]){const app:any=this;if(!app.locals.__promo&&user
   if(req.get('sec-fetch-site')==='cross-site'||(req.get('origin')&&req.get('origin')!==origin))return res.sendStatus(403);
   const code=typeof req.body?.code==='string'?req.body.code.trim():'';
   if(!req.is('application/json')||!code||code.length>64)return res.status(400).json({error:'invalid_code'});
-  const {data,error}=await db.rpc('rewards_redeem_owner_promo',{p_actor:res.locals.session.twitchUserId,p_code:code});
+  const {data,error}=await db.rpc(code.toUpperCase().startsWith('ADV26-')?'rewards_advent_redeem':'rewards_redeem_owner_promo',{p_actor:res.locals.session.twitchUserId,p_code:code});
   if(!error)return res.json(data);
   const statuses:Record<string,number>={promo_not_found:404,user_not_found:404,user_unavailable:403,
     expired:409,limit_reached:409,new_users_only:409,already_used:409,major_already_active:409,
@@ -28,7 +28,7 @@ p.listen=function(...args:any[]){const app:any=this;if(!app.locals.__promo&&user
   const code=String(req.body?.code||'').trim().toUpperCase(),type=req.body?.rewardType,
    max=Number(req.body?.maxActivations),coins=Number(req.body?.coinAmount),amount=Number(req.body?.rewardAmount),
    prize=String(req.body?.prizeId||''),expiresRaw=String(req.body?.expiresAt||'').trim();
-  if(typeof type!=='string'||!Object.hasOwn(promoRewardTypes,type)||code.startsWith('STR-')||! /^[A-Z0-9_-]{3,32}$/.test(code)
+  if(typeof type!=='string'||!Object.hasOwn(promoRewardTypes,type)||code.startsWith('STR-')||code.startsWith('ADV26-')||! /^[A-Z0-9_-]{3,32}$/.test(code)
     || !Number.isInteger(max)||max<1||max>100000)return res.status(400).json({error:'invalid_input'});
   let expiresAt:string|null=null;
   if(expiresRaw){
