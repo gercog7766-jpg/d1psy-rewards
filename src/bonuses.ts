@@ -11,7 +11,10 @@ export function installBonuses(app:Express,db:SupabaseClient,user:RequestHandler
  const token=process.env.BONUS_TELEGRAM_BOT_TOKEN||'';
  const username=(process.env.BONUS_TELEGRAM_BOT_USERNAME||'').replace(/^@/,'');
  const secret=process.env.BONUS_TELEGRAM_WEBHOOK_SECRET||'';
- const configured=Boolean(token&&/^[a-zA-Z0-9_]{5,32}$/.test(username)&&secret.length>=32);
+ const relaySecret=process.env.BONUS_TELEGRAM_RELAY_SECRET||'';
+ const relay=relaySecret.length>=32&&/^[a-zA-Z0-9_]{5,32}$/.test(username);
+ const direct=Boolean(token&&/^[a-zA-Z0-9_]{5,32}$/.test(username)&&secret.length>=32);
+ const configured=relay||direct;
  const noStore:RequestHandler=(_q,r,next)=>{r.set('Cache-Control','private, no-store');next()};
  const originCheck:RequestHandler=(q,r,next)=>{
   if(q.get('sec-fetch-site')==='cross-site'||q.get('origin')&&q.get('origin')!==origin||!q.is('application/json')){r.sendStatus(403);return}next();
@@ -43,7 +46,7 @@ export function installBonuses(app:Express,db:SupabaseClient,user:RequestHandler
  app.get('/bonuses',noStore,user,(_q,r)=>r.send(bonusesHtml));
  app.get('/bonuses.js',noStore,(_q,r)=>r.type('application/javascript').send(bonusesJs));
  app.get('/api/me/bonuses',noStore,user,async(_q,r)=>{
-  try{r.json({...await rpc(r.locals.session.twitchUserId,'state'),telegramConfigured:configured})}catch(error){fail(r,error)}
+  try{r.json({...await rpc(r.locals.session.twitchUserId,'state'),telegramConfigured:configured,telegramRelay:relay})}catch(error){fail(r,error)}
  });
  app.post('/api/me/bonuses/claim',noStore,user,originCheck,throttle,async(q,r)=>{
   if(!q.body||Object.keys(q.body).length!==1||typeof q.body.requestId!=='string'||!uuid.test(q.body.requestId)){r.status(400).json({error:'invalid_request'});return}
@@ -61,6 +64,7 @@ export function installBonuses(app:Express,db:SupabaseClient,user:RequestHandler
    }
    const state=await rpc(actor,'state');
    if(state.telegramClaimed){r.json({ok:true,claimed:true,amount:10});return}
+   if(relay){r.status(409).json({error:'telegram_verify_pending'});return}
    const {data:player,error:playerError}=await db.from('rewards_users').select('id').eq('twitch_user_id',actor).single();
    if(playerError||!player)throw Error('bonuses_unavailable');
    const {data:link,error:linkError}=await db.from('rewards_bonus_telegram_links').select('telegram_id').eq('user_id',player.id).maybeSingle();
@@ -75,7 +79,7 @@ export function installBonuses(app:Express,db:SupabaseClient,user:RequestHandler
  });
  app.post('/api/bonuses/telegram/webhook',noStore,async(q,r)=>{
   const supplied=q.get('X-Telegram-Bot-Api-Secret-Token')||'';
-  if(!configured||Buffer.byteLength(supplied)!==Buffer.byteLength(secret)||!timingSafeEqual(Buffer.from(supplied),Buffer.from(secret))){r.sendStatus(403);return}
+  if(relay||!direct||Buffer.byteLength(supplied)!==Buffer.byteLength(secret)||!timingSafeEqual(Buffer.from(supplied),Buffer.from(secret))){r.sendStatus(403);return}
   const message=q.body?.message;
   const match=typeof message?.text==='string'&&/^\/start(?:@[A-Za-z0-9_]+)? ([A-Za-z0-9_-]{32})$/.exec(message.text);
   if(!match||message.chat?.type!=='private'||message.from?.is_bot||!Number.isSafeInteger(message.from?.id)||message.from.id<=0){r.sendStatus(200);return}
@@ -88,5 +92,16 @@ export function installBonuses(app:Express,db:SupabaseClient,user:RequestHandler
    if(reason==='link_expired'||(error as {code?:string})?.code==='23505'){r.sendStatus(200);return}
    r.sendStatus(503);
   }
+ });
+ app.post('/api/bonuses/telegram/relay',noStore,async(q,r)=>{
+  const supplied=q.get('X-Dropso-Relay-Secret')||'';
+  if(!relay||Buffer.byteLength(supplied)!==Buffer.byteLength(relaySecret)||!timingSafeEqual(Buffer.from(supplied),Buffer.from(relaySecret)))return void r.sendStatus(403);
+  const b=q.body;
+  if(!q.is('application/json')||!b||Object.keys(b).length!==2||typeof b.tokenHash!=='string'||!/^[a-f0-9]{64}$/.test(b.tokenHash)||typeof b.telegramId!=='string'||!/^[1-9][0-9]{0,19}$/.test(b.telegramId))return void r.status(400).json({error:'invalid_request'});
+  const {data,error}=await db.rpc('rewards_bonus_telegram_relay_claim',{p_token_hash:b.tokenHash,p_telegram_id:b.telegramId});
+  if(!error)return void r.json(data);
+  const reason=error.code==='23505'?'telegram_already_used':error.message;
+  if(['link_expired','telegram_already_used','user_unavailable'].includes(reason))return void r.status(409).json({error:reason});
+  console.error('telegram_relay_claim_failed',error.code);r.status(503).json({error:'bonuses_unavailable'});
  });
 }
