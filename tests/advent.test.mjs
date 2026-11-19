@@ -36,3 +36,17 @@ test('calendar UI only opens server-authorized days, reveals claimed reward and 
   assert(tiles[0].classList.contains('opened'));assert(w.document.querySelector('dialog').open);assert.equal(w.document.querySelector('dialog h2').textContent,'5 монет');
  }finally{w.close()}
 });
+test('calendar purchase uses the shared Dropso dialog, cancels safely and prevents duplicate requests',async()=>{
+ const dom=new JSDOM(adventHtml,{runScripts:'outside-only',url:'https://dropso.site/advent'}),w=dom.window;
+ let purchased=false,posts=0,confirmations=0,resolveConfirm;const notices=[];
+ try{
+  w.confirm=()=>{throw Error('native confirm must not be used')};
+  w.dropsoConfirm=()=>{confirmations++;return new Promise(resolve=>{resolveConfirm=resolve})};
+  w.dropsoNotice=(text)=>notices.push(text);
+  w.fetch=async(path)=>{if(path.endsWith('/buy')){posts++;purchased=true}return {ok:true,status:200,json:async()=>({purchased,availableDay:0,claimOpen:true,saleOpen:true,claimed:{},completed:false})}};
+  w.eval(adventJs);await new Promise(r=>setTimeout(r,30));
+  const button=w.document.querySelector('.purchase');button.click();button.click();assert.equal(confirmations,1);assert.equal(posts,0);assert(button.disabled);
+  resolveConfirm(false);await new Promise(r=>setTimeout(r,30));assert.equal(posts,0);assert(!button.disabled);
+  button.click();resolveConfirm(true);await new Promise(r=>setTimeout(r,30));assert.equal(posts,1);assert(button.hidden);assert.equal(notices.length,1);
+ }finally{w.close()}
+});
