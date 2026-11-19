@@ -6,6 +6,48 @@ import {randomUUID} from 'node:crypto';
 import {JSDOM} from 'jsdom';
 import {bonusesHtml,bonusesJs} from '../src/bonuses-ui.ts';
 const migration=await readFile(new URL('../supabase/migrations/20261118130000_bonus_center.sql',import.meta.url),'utf8');
+test('Telegram relay atomically awards 10 coins only once and rejects reused identities or expired links',async()=>{
+ const db=new PGlite();try{
+  await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;
+  create table rewards_users(id uuid primary key default gen_random_uuid(),twitch_user_id text,banned boolean default false,participation_restricted boolean default false);
+  create table rewards_coin_transactions(id uuid primary key default gen_random_uuid(),user_id uuid,amount integer,transaction_type text,note text);
+  create table rewards_bonus_telegram_links(user_id uuid primary key,token_hash text unique,expires_at timestamptz,telegram_id text unique);
+  create table rewards_bonus_telegram_claims(user_id uuid primary key,telegram_id text unique,transaction_id uuid unique);
+  insert into rewards_users(twitch_user_id) values('one'),('two'),('three');
+  insert into rewards_bonus_telegram_links select id,repeat(case twitch_user_id when 'one' then 'a' when 'two' then 'b' else 'c' end,64),now()+case when twitch_user_id='three' then interval '-1 minute' else interval '10 minutes' end,null from rewards_users;
+  grant all on all tables in schema public to service_role;`);
+  await db.exec(await readFile(new URL('../supabase/migrations/20261119131000_telegram_bonus_relay.sql',import.meta.url),'utf8'));
+  const claim=async(hash,id)=>(await db.query('select rewards_bonus_telegram_relay_claim($1,$2) result',[hash,id])).rows[0].result;
+  await db.exec('set role service_role');const a='a'.repeat(64),b='b'.repeat(64),c='c'.repeat(64);
+  assert.equal((await claim(a,'123')).amount,10);assert.equal((await claim(a,'123')).claimed,true);
+  await assert.rejects(claim(b,'123'),/telegram_already_used/);await assert.rejects(claim(c,'456'),/link_expired/);
+  assert.equal((await db.query('select sum(amount)::int total from rewards_coin_transactions')).rows[0].total,10);
+  await db.exec('reset role;set role anon');await assert.rejects(claim(b,'456'),/permission denied/);
+ }finally{await db.close()}
+});
+test('Telegram relay only forwards verified channel membership and refuses unrelated webhook replacement',async()=>{
+ const {createRelay}=await import('../scripts/telegram-relay.mjs');const calls=[];let subscribed=false;const nonce='a'.repeat(32),relaySecret='b'.repeat(40),webhookSecret='c'.repeat(40);
+ const relay=createRelay({token:'12345:test',webhookSecret,relaySecret,webhookUrl:'https://dropso-telegram.onrender.com/telegram-webhook',log:{info(){},warn(){}},fetcher:async(url,o)=>{const body=o.body?JSON.parse(o.body):null;calls.push({url,body,headers:o.headers});if(url.endsWith('getWebhookInfo'))return Response.json({ok:true,result:{url:'https://unrelated.example/webhook'}});if(url.endsWith('getChatMember'))return Response.json({ok:true,result:{status:subscribed?'member':'left'}});if(url.endsWith('/relay'))return Response.json({ok:true,claimed:true,amount:10});return Response.json({ok:true,result:true})}});
+ await relay.setup();assert(!calls.some(c=>c.url.endsWith('setWebhook')));
+ const update={message:{chat:{id:123,type:'private'},from:{id:123,is_bot:false},text:'/start '+nonce}};
+ await relay.process(update);assert(!calls.some(c=>c.url.endsWith('/relay')));assert(calls.at(-1).body.reply_markup.inline_keyboard[1][0].callback_data==='check:'+nonce);
+ subscribed=true;await relay.process({callback_query:{id:'1',from:{id:123},message:{chat:{id:123,type:'private'}},data:'check:'+nonce}});
+ const push=calls.find(c=>c.url.endsWith('/relay'));assert.equal(push.body.telegramId,'123');assert.match(push.body.tokenHash,/^[a-f0-9]{64}$/);assert.equal(push.headers['X-Dropso-Relay-Secret'],relaySecret);
+ assert(!JSON.stringify(push.body).includes(nonce));
+});
+test('Dropso relay endpoint authenticates service only, accepts exact signed-in link hash and never calls Telegram directly',async()=>{
+ const {default:express}=await import('express'),{installBonuses}=await import('../src/bonuses.ts');
+ const keys=['BONUS_TELEGRAM_BOT_USERNAME','BONUS_TELEGRAM_RELAY_SECRET'],old=keys.map(k=>process.env[k]);process.env[keys[0]]='dropso_test_bot';process.env[keys[1]]='s'.repeat(40);
+ const calls=[],app=express();app.use(express.json());const db={rpc:async(name,body)=>{calls.push({name,body});return {data:name==='rewards_bonus_telegram_relay_claim'?{ok:true,claimed:true,amount:10}:{telegramClaimed:false},error:null}}};
+ installBonuses(app,db,(_q,r,n)=>{r.locals.session={twitchUserId:'one'};n()},'https://dropso.test',async()=>{throw Error('direct Telegram access forbidden')});
+ const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));const base='http://127.0.0.1:'+server.address().port;
+ const post=(path,body,secret)=>fetch(base+path,{method:'POST',headers:{'Content-Type':'application/json',...(secret?{'X-Dropso-Relay-Secret':secret}:{})},body:JSON.stringify(body)});
+ try{const b={tokenHash:'a'.repeat(64),telegramId:'123'};assert.equal((await post('/api/bonuses/telegram/relay',b)).status,403);assert.equal(calls.length,0);
+ assert.equal((await post('/api/bonuses/telegram/relay',{...b,amount:999},'s'.repeat(40))).status,400);
+ assert.equal((await post('/api/bonuses/telegram/relay',b,'s'.repeat(40))).status,200);assert.equal(calls.at(-1).name,'rewards_bonus_telegram_relay_claim');
+ assert.equal((await post('/api/me/bonuses/telegram/claim',{})).status,409);assert.equal(calls.at(-1).body.p_action,'state');
+ }finally{server.closeAllConnections();await new Promise(r=>server.close(r));keys.forEach((k,i)=>old[i]===undefined?delete process.env[k]:process.env[k]=old[i])}
+});
 test('bonus receipts: every reward, atomic replay, 24h, individual accounts, Telegram and private grants',async()=>{
  const db=new PGlite();const q=async(s,p=[])=>(await db.query(s,p)).rows;
  const call=async(actor,action,body={})=>(await q('select rewards_bonus_center($1,$2,$3::jsonb) r',[actor,action,JSON.stringify(body)]))[0].r;
