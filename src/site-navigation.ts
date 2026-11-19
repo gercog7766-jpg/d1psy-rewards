@@ -65,7 +65,7 @@ export function withSiteNavigation(html:string,path:string){
  if(!/^\s*(?:<!doctype html|<html\b)/i.test(html)||!/<body\b/i.test(html)||!/<\/body>/i.test(html)
    ||/^\/(?:obs|streamer\/obs|auth|api|desktop)(?:\/|$)/.test(path)
    ||html.includes('id="dropsoSiteNavigationStyle"'))return html;
- const wide=path==='/shop'||path==='/upgrader';
+ const wide=path==='/shop'||path==='/upgrader'||path==='/advent';
  const sidebar=!wide&&path!=='/account'&&path!=='/'&&!/^\/(?:admin|privacy|rules|terms)(?:\/|$)/.test(path);
  const current=destinations.filter(([href])=>path===href||path.startsWith(href+'/')).sort((a,b)=>b[0].length-a[0].length)[0]?.[0];
  const links=destinations.map(([href,label])=>`<a href="${href}"${href===current?' aria-current="page"':''}>${label}</a>`).join('');

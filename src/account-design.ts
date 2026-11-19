@@ -9,7 +9,7 @@ const banners=`<aside class="account-art-rails" aria-label="Канал D1PSY н�
 const css=String.raw`
 body[data-account-design="neon"]{background:radial-gradient(ellipse at 50% 0,#35124a66,transparent 55%),#09070e}
 body[data-account-design="neon"] main{position:relative;max-width:1080px;min-height:100vh;margin:0 auto;padding:24px 28px 44px;background:linear-gradient(180deg,#171020f5,#100c18fa 60%,#0d0a13fa);border-inline:1px solid #6d3b913b;box-shadow:0 0 100px #000b}
-body[data-account-design="neon"] .top{padding:0 0 18px;border-bottom:1px solid #74419c55;gap:12px;align-items:center;margin-bottom:20px;flex-wrap:nowrap}
+body[data-account-design="neon"] .top{padding:0 0 18px;border-bottom:0;gap:12px;align-items:center;margin-bottom:20px;flex-wrap:nowrap}
 body[data-account-design="neon"] .top-right{display:flex;flex:1;min-width:0;align-items:center;justify-content:flex-start;flex-wrap:nowrap;gap:0}
 body[data-account-design="neon"] .brand{flex:0 0 auto;font-size:12px;letter-spacing:.13em;white-space:nowrap}
 body[data-account-design="neon"] .brand-mark{background:linear-gradient(140deg,#772dc9,#241133);border-color:#ad6aff;color:#f1dbff;box-shadow:0 0 22px #9a43ff30}
