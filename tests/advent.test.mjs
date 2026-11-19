@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {ADVENT_REWARDS,ADVENT_START,ADVENT_SALE_END,ADVENT_CLAIM_END,ADVENT_NOMINAL_BUDGET,adventAvailableDay,adventClaimOpen,adventSaleOpen} from '../src/advent-config.ts';
 import {adventHtml,adventAccountBanner,adventJs} from '../src/advent-ui.ts';
 import {JSDOM} from 'jsdom';
+import {withSiteNavigation} from '../src/site-navigation.ts';
 test('calendar has exactly 31 fixed rewards and seven cosmetics in approved order',()=>{
  assert.equal(ADVENT_REWARDS.length,31);
  assert.deepEqual(ADVENT_REWARDS.flatMap(([kind],i)=>kind==='exclusive'?[i+1]:[]),[2,6,10,14,18,22,31]);
@@ -23,6 +24,10 @@ test('public preview reveals no future rewards or monetary budget',()=>{
  assert.equal((adventHtml.match(/class="day"/g)||[]).length,31);
  assert.doesNotMatch(adventHtml,/snowflake|winter_background|gold_frame|272|МСК/);
  assert.match(adventAccountBanner,/class="seasonAccountHero adventAccountHero" href="\/advent"/);
+});
+test('festive layout keeps the full-width calendar, shared banner typography and decorative art',()=>{
+ const dom=new JSDOM(withSiteNavigation(adventHtml,'/advent'));
+ try{const doc=dom.window.document;assert.equal(doc.querySelector('#dropsoSiteSidebar'),null);assert(doc.querySelector('.advent-shell .advent-waves'));assert.equal(doc.querySelectorAll('.advent-decoration img').length,2);assert.equal(doc.querySelectorAll('.grid .day').length,31);assert(doc.querySelector('.purchase svg'));assert.match(adventAccountBanner,/class="seasonAccountTitle">АДВЕНТ/);assert.doesNotMatch(adventAccountBanner,/seasonAccountTitle\{font-size/)}finally{dom.window.close()}
 });
 test('calendar UI only opens server-authorized days, reveals claimed reward and remains recoverable',async()=>{
  const dom=new JSDOM(adventHtml,{runScripts:'outside-only',url:'https://dropso.site/advent'}),w=dom.window;
@@ -45,7 +50,7 @@ test('calendar purchase uses the shared Dropso dialog, cancels safely and preven
   w.dropsoNotice=(text)=>notices.push(text);
   w.fetch=async(path)=>{if(path.endsWith('/buy')){posts++;purchased=true}return {ok:true,status:200,json:async()=>({purchased,availableDay:0,claimOpen:true,saleOpen:true,claimed:{},completed:false})}};
   w.eval(adventJs);await new Promise(r=>setTimeout(r,30));
-  const button=w.document.querySelector('.purchase');button.click();button.click();assert.equal(confirmations,1);assert.equal(posts,0);assert(button.disabled);
+  const button=w.document.querySelector('.purchase');const preview=w.document.querySelector('.day.preview');assert(preview?.disabled);assert(preview.querySelector('.advent-gift'));button.click();button.click();assert.equal(confirmations,1);assert.equal(posts,0);assert(button.disabled);
   resolveConfirm(false);await new Promise(r=>setTimeout(r,30));assert.equal(posts,0);assert(!button.disabled);
   button.click();resolveConfirm(true);await new Promise(r=>setTimeout(r,30));assert.equal(posts,1);assert(button.hidden);assert.equal(notices.length,1);
  }finally{w.close()}
