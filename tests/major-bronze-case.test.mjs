@@ -37,7 +37,11 @@ test('roulette opens even if artwork fails, uses image-only slots and inventory 
   w.eval(majorPickemScript);const btn=w.document.getElementById('openBronzeCase'),status=w.document.getElementById('bronzeCaseStatus');
   await until(()=>!btn.disabled);
   btn.click();await until(()=>opens===1&&!btn.disabled&&status.textContent.includes('Доступен в инвентаре.'));
-  assert(w.document.getElementById('bronzeRoulette').hidden);
+  assert(!w.document.getElementById('bronzeRoulette').hidden);
+  assert.equal(w.document.querySelectorAll('.bronze-slot').length,56);
+  assert.equal(w.document.querySelectorAll('.bronze-slot-won').length,1);
+  assert(w.document.getElementById('bronzeStrip').style.transition.includes('5800ms'));
+  assert([...w.document.querySelectorAll('.bronze-slot:not(.bronze-slot-won) img')].every(img=>img.getAttribute('src')==='/predict/major-bronze-case.webp'));
   imageFailure=false;btn.click();await until(()=>opens===2&&status.textContent.includes('Доступен в инвентаре.')&&w.document.querySelectorAll('.bronze-slot').length===56);
   const slots=[...w.document.querySelectorAll('.bronze-slot')];assert.equal(slots.length,56);assert(slots.every(s=>s.children.length===1&&catalog.some(x=>x.image===s.firstChild.src)));
   assert.equal(slots[49].firstChild.src,catalog[5].image);

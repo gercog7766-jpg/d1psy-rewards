@@ -74,6 +74,7 @@ export const majorBronzeCaseCss = `
 .bronze-strip{display:flex;gap:8px;align-items:center;height:100%;width:max-content;transform:translateX(0)}
 .bronze-slot{flex:none;width:188px;height:144px;display:grid;place-items:center;padding:5px;background:#34243d;border-bottom:3px solid #b68c58;border-radius:7px}
 .bronze-slot img{display:block;width:100%;height:100%;min-width:0;min-height:0;object-fit:contain;filter:drop-shadow(0 4px 7px #0009)}
+.bronze-slot.bronze-slot-won{border-color:#ffe4a1;box-shadow:inset 0 0 19px #eec36c66;background:#50334a}
 @media(max-width:600px){.bronze-roulette{height:128px}.bronze-slot{width:148px;height:108px}}
 .bronze-marker{position:absolute;left:50%;top:0;bottom:0;width:3px;background:#ffe7aa;box-shadow:0 0 10px #ffcb73;transform:translateX(-50%);pointer-events:none}
 `;
