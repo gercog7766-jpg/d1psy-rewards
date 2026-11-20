@@ -1,6 +1,7 @@
 import {installBonuses} from './bonuses.js';
 import {installAdvent} from './advent.js';
 import {installClans} from './clans.js';
+import {installClanChatAuthorization,startClanPresencePoller} from './clan-chat-presence.js';
 import {attachClanProfiles} from './clan-profile.js';
 import {installAdventAdmin} from './advent-admin.js';
 import {installAdminStatistics} from './admin-statistics.js';
@@ -64,6 +65,8 @@ installBonuses(app,db,requireUser,new URL(APP_URL).origin);
 installAdvent(app,db,requireUser,new URL(APP_URL).origin);
 installAdventAdmin(app,db,requireAdmin);
 installClans(app,db,requireUser,requireAdmin,new URL(APP_URL).origin);
+installClanChatAuthorization(app,db,requireUser,APP_URL,TWITCH_REDIRECT_URI);
+startClanPresencePoller(db);
 installAdminStatistics(app,db,requireAdmin);
 installStreamerPilot(app,requireUser,requireAdmin,subscribeToPartnerChat,partnerChatReady);
 installProfileCustomization(app,requireUser,requireAdmin);
