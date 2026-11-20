@@ -29,14 +29,16 @@ test('roulette opens even if artwork fails, uses image-only slots and inventory 
  const {window:w}=new JSDOM(majorPickemPage,{runScripts:'outside-only',url:'https://dropso.site/predict/major-pickem'});
  const catalog=bronzeCasePrizes.map((p,i)=>({name:p.name,image:'https://example.com/skin-'+i+'.png'}));
  let imageFailure=true,opens=0;
- const wait=()=>new Promise(r=>setTimeout(r,30));
+ const until=async predicate=>{for(let i=0;i<500;i++){if(predicate())return;await new Promise(r=>setTimeout(r,20))}assert(predicate(),'roulette UI did not reach expected state')};
  try{
   const original=w.setTimeout.bind(w);w.setTimeout=(fn,ms,...args)=>original(fn,ms===5900||ms===60?1:ms,...args);
   w.Image=class{set src(value){this._src=value;queueMicrotask(()=>imageFailure?this.onerror?.():this.onload?.())}};
   w.fetch=async url=>({ok:true,json:async()=>url.endsWith('/open')?(opens++,{name:catalog[5].name,image:catalog[5].image,catalog,tokens:2-opens}):{now:new Date().toISOString(),balance:0,entered:true,medal:1,tokens:2,stages:[]}});
-  w.eval(majorPickemScript);await wait();const btn=w.document.getElementById('openBronzeCase');
-  btn.click();await wait();assert.equal(opens,1);assert(w.document.getElementById('bronzeRoulette').hidden);assert(w.document.getElementById('bronzeCaseStatus').textContent.includes('Доступен в инвентаре.'));
-  imageFailure=false;btn.click();await wait();assert.equal(opens,2);
+  w.eval(majorPickemScript);const btn=w.document.getElementById('openBronzeCase'),status=w.document.getElementById('bronzeCaseStatus');
+  await until(()=>!btn.disabled);
+  btn.click();await until(()=>opens===1&&!btn.disabled&&status.textContent.includes('Доступен в инвентаре.'));
+  assert(w.document.getElementById('bronzeRoulette').hidden);
+  imageFailure=false;btn.click();await until(()=>opens===2&&status.textContent.includes('Доступен в инвентаре.')&&w.document.querySelectorAll('.bronze-slot').length===56);
   const slots=[...w.document.querySelectorAll('.bronze-slot')];assert.equal(slots.length,56);assert(slots.every(s=>s.children.length===1&&catalog.some(x=>x.image===s.firstChild.src)));
   assert.equal(slots[49].firstChild.src,catalog[5].image);
   assert(w.document.getElementById('bronzeCaseStatus').textContent.includes('Доступен в инвентаре.'));

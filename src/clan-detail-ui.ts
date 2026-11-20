@@ -41,11 +41,19 @@ export const clanDetailStyle=String.raw`
 .clan-view .levels{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
 .clan-view .level{background:#21152d;min-height:84px;display:flex;flex-direction:column;gap:7px}
 .clan-view .level.unlocked{background:linear-gradient(145deg,#472565,#28163c)}
+.clan-section-switch{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 18px}
+.clan-section-switch button{flex:1;min-width:90px;white-space:nowrap;background:#241633;border-color:#69418c;color:#dcc5f3;font-size:13px;font-weight:750}
+.clan-section-switch button[aria-pressed=true]{background:linear-gradient(150deg,#8244be,#57268a);border-color:#c881f9;box-shadow:0 0 12px #9028da40;color:white}
+.clan-level-summary{display:flex;align-items:center;justify-content:space-between;gap:16px;border-radius:15px;padding:16px;background:linear-gradient(130deg,#3a1d54,#20152e);border:1px solid #8d4abb;margin-bottom:14px}
+.clan-level-summary b{display:block;color:#dda2ff;font-size:clamp(22px,3vw,34px)}.clan-level-summary span{color:#d3bfe7}
+.clan-level-summary .clan-level-icon{font-size:40px;color:#c67cff;text-shadow:0 0 15px #a331ea}
+.clan-view .level{min-height:126px;position:relative;padding:12px;border-radius:12px}.clan-view .level b{color:#edc3ff;font-size:15px}.clan-view .level small{margin-top:auto;font-size:12px;color:#bda7d7}.clan-view .level.locked{opacity:.76}.clan-view .level.current{border-color:#d88bff;box-shadow:inset 0 0 15px #b248ef35}.clan-level-status{font-size:11px;color:#dab4f7;font-weight:750}
+@media(max-width:650px){.clan-section-switch{gap:6px}.clan-section-switch button{min-width:0;flex:1 1 27%;font-size:12px;padding:8px 6px}.clan-view .level{min-height:112px}.clan-level-summary{padding:12px}}
 @media(max-width:650px){.syndicate-main .clan-detail-hero{padding:18px 15px}.clan-detail-hero .avatar{width:65px;height:65px;border-radius:14px}.clan-detail-hero .clan-heading{gap:12px}.clan-tab-nav{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.clan-tab-nav button{min-height:43px;font-size:12px}.clan-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.clan-stat{padding:12px}.clan-overview-links{gap:8px}.clan-overview-links button{font-size:13px;min-height:55px}.clan-task-card{padding:12px}.clan-deposit-form{gap:7px}.clan-deposit-form button{min-width:95px}.clan-settings-grid{grid-template-columns:1fr}.clan-view .levels{grid-template-columns:repeat(2,minmax(0,1fr))}.clan-chat-history{max-height:50vh}.clan-detail-toolbar button{font-size:12px}}
 `;
 
 export const clanDetailJs=String.raw`
-let clanTab='overview',clanViews=null;
+let clanTab='overview',clanViews=null,clanLevelRange=null,clanShopCategory='frame';
 function switchClanTab(key){
  if(!clanViews||!clanViews.has(key))return;
  clanTab=key;
@@ -67,7 +75,7 @@ function makeClanViews(d){
  return key=>views.get(key).pane;
 }
 async function detail(id){
- if(current!==id)clanTab='overview';current=id;
+ if(current!==id){clanTab='overview';clanLevelRange=null;clanShopCategory='frame'}current=id;
  const d=await api('detail',{clanId:id});document.querySelector('main').classList.add('clan-detail-mode');
  const toolbar=el('div',undefined,'clan-detail-toolbar');toolbar.append(button('← Все кланы',()=>run(list)));root.replaceChildren(toolbar);
  const h=panel(d.name),heading=el('div',undefined,'clan-heading'),emblem=avatar(d.avatar),info=el('div'),title=h.querySelector('h2');
@@ -98,6 +106,11 @@ async function detail(id){
  p.append(form,button('Сохранить',()=>run(async()=>{await api('settings',{clanId:id,name:name.value,minLevel:Number(lvl.value),minBp:Number(bp.value),...(file.files[0]?{avatar:await readAvatar(file.files[0])}:{})});await detail(id)})));pane('settings').append(p);const req=panel('Заявки на вступление · '+d.requests.length);for(const r of d.requests){const row=el('div',undefined,'card');row.append(el('span',r.login),...['approve','reject'].map(a=>button(a==='approve'?'Принять':'Отклонить',()=>run(async()=>{await api(a,{clanId:id,userId:r.id});await detail(id)}))));req.append(row)}if(!d.requests.length)req.append(el('p','Нет заявок','muted'));pane('settings').append(req)}
  const chat=panel('Чат клана'),history=el('div',undefined,'clan-chat-history'),msg=input('Сообщение'),send=el('div',undefined,'clan-deposit-form');
  for(const m of d.chat){const line=el('div',undefined,'clan-chat-line');line.append(el('b',m.login),el('span',m.message));history.append(line)}if(!d.chat.length)history.append(el('p','Сообщений пока нет','muted'));send.append(msg,button('Отправить',()=>run(async()=>{await api('chat',{clanId:id,message:msg.value});await detail(id)})),button('Обновить',()=>run(()=>detail(id))));if(d.visitor){msg.disabled=true;send.querySelector('button').disabled=true}chat.append(history,send);pane('chat').append(chat);
- const levels=panel('Развитие клана'),grid=el('div',undefined,'levels');rewards.forEach((name,i)=>{const l=i+1,cxp=i*250+i*(i-1)*25/2,card=el('div',undefined,'level'+(l<=d.level?' unlocked':''));card.append(el('b','LVL '+l),el('span',name),el('small',cxp+' CXP'));if(d.leader&&l<=d.level&&l>1&&!name.includes('слот')&&!name.includes('монет')){const active=Object.values(d.decorations||{}).includes(l),choose=button(active?'Активно':'Применить',()=>run(async()=>{await api('cosmetic',{clanId:id,reward:l});await detail(id)}));choose.disabled=active;card.append(choose)}grid.append(card)});levels.append(grid);pane('levels').append(levels);
+ const levels=panel('Развитие клана'),summary=el('div',undefined,'clan-level-summary'),intro=el('div'),grid=el('div',undefined,'levels'),ranges=el('div',undefined,'clan-section-switch');
+ intro.append(el('b','LVL '+d.level+' / 67'),el('span',d.cxp+' CXP · '+(level<67?'до следующего '+Math.max(0,next-xp)+' CXP':'Максимальный уровень')));summary.append(intro,el('span','✦','clan-level-icon'));levels.append(summary,el('p','Выбери диапазон уровней, чтобы посмотреть награды.','muted'),ranges,grid);
+ const rangeButtons=[];
+ function showRange(start){clanLevelRange=start;for(const [n,b] of rangeButtons)b.setAttribute('aria-pressed',String(n===start));grid.replaceChildren();for(let i=start-1;i<Math.min(start+9,rewards.length);i++){const name=rewards[i],l=i+1,cxp=i*250+i*(i-1)*25/2,unlocked=l<=d.level,card=el('div',undefined,'level'+(unlocked?' unlocked':' locked')+(l===d.level?' current':''));card.append(el('b','LVL '+l),el('span',name),el('span',l===d.level?'Текущий уровень':unlocked?'✓ Открыто':'🔒 Закрыто','clan-level-status'),el('small',cxp+' CXP'));if(d.leader&&unlocked&&l>1&&!name.includes('слот')&&!name.includes('монет')){const active=Object.values(d.decorations||{}).includes(l),choose=button(active?'Активно':'Применить',()=>run(async()=>{await api('cosmetic',{clanId:id,reward:l});await detail(id)}));choose.disabled=active;card.append(choose)}grid.append(card)}}
+ for(let start=1;start<=rewards.length;start+=10){const b=button(start+'–'+Math.min(start+9,rewards.length),()=>showRange(start));rangeButtons.push([start,b]);ranges.append(b)}
+ showRange(clanLevelRange||Math.floor((Math.max(1,level)-1)/10)*10+1);pane('levels').append(levels);
 }
 `;
