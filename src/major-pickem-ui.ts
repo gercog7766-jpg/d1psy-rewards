@@ -334,20 +334,22 @@ export const majorPickemScript = String.raw`(() => {
     'Five-SeveN | Капилляры','CZ75-Auto | Эко'
   ];
   const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+  const localBronzeImage=name=>'/predict/major-bronze-skins/'+caseNames.indexOf(name);
   async function preloadBronzeArtwork(catalog){
     const artwork=caseNames.map(name=>{const p=Array.isArray(catalog)?catalog.find(p=>p.name===name):null;return {name,image:p?.image,proxy:p?.proxy}});
-    if(artwork.some(p=>typeof p.image!=='string'||!p.image))throw Error('case_catalog_incomplete');
     const load=src=>new Promise((resolve,reject)=>{
       const img=new Image();const timer=setTimeout(()=>reject(Error('case_artwork_unavailable')),4500);
       function done(ok){clearTimeout(timer);ok?resolve(src):reject(Error('case_artwork_unavailable'))}
       img.referrerPolicy='no-referrer';img.onload=()=>done(true);img.onerror=()=>done(false);img.src=src;
       if(img.complete&&img.naturalWidth>0)done(true);
     });
-    return Promise.all(artwork.map(async p=>({name:p.name,image:await (p.proxy?load(p.proxy).catch(()=>load(p.image)):load(p.image))})));
+    return Promise.all(artwork.map(async p=>({name:p.name,image:await load(localBronzeImage(p.name)).catch(()=>p.proxy?load(p.proxy).catch(()=>p.image?load(p.image):Promise.reject(Error('case_artwork_unavailable'))):p.image?load(p.image):Promise.reject(Error('case_artwork_unavailable')))})));
   }
   async function spinBronze(result){
     const roulette=el('bronzeRoulette'),strip=el('bronzeStrip');
-    const fallback='/predict/major-bronze-case.webp';
+    // Never show the case picture as a skin. The only emergency art is a
+    // neutral question mark, and the normal reel uses locally stored skins.
+    const fallback='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 160 100%22%3E%3Ctext x=%2280%22 y=%2267%22 text-anchor=%22middle%22 font-size=%2254%22 font-family=%22sans-serif%22 font-weight=%22bold%22 fill=%22%23cc9eea%22%3E%3F%3C/text%3E%3C/svg%3E';
     const art=document.querySelector('.bronze-case-art');
     if(art){art.classList.remove('bronze-case-opening');void art.offsetWidth;art.classList.add('bronze-case-opening');}
     roulette.hidden=false;
@@ -372,12 +374,13 @@ export const majorPickemScript = String.raw`(() => {
     // real artwork is ready, so a failed CDN image never reveals the winner.
     let finished=false,completeArtwork=false;
     const resetArtwork=()=>{completeArtwork=false;for(const {img} of slots){img.onerror=null;img.src=fallback}};
-    void preloadBronzeArtwork(result.catalog).then(artwork=>{
+    const loadAll=preloadBronzeArtwork(result.catalog).then(artwork=>{
       if(finished||!strip.contains(slots[0].img))return;
       const byName=new Map(artwork.map(p=>[p.name,p.image]));
       completeArtwork=true;
       for(const {name,img} of slots){img.onerror=resetArtwork;img.src=byName.get(name)||fallback}
     }).catch(()=>{});
+    await Promise.race([loadAll,sleep(1400)]);
     await sleep(60);
     const selected=strip.children[winningSlot];
     const target=selected.offsetLeft+selected.offsetWidth/2-roulette.clientWidth/2;
@@ -389,8 +392,9 @@ export const majorPickemScript = String.raw`(() => {
     const won=slots[winningSlot].img;
     if(!completeArtwork&&result.image){
       const actual=Array.isArray(result.catalog)?result.catalog.find(p=>p.name===result.name):null;
-      won.onerror=()=>{if(actual?.proxy&&won.getAttribute('src')===actual.proxy){won.src=result.image;return}won.onerror=null;won.src=fallback};
-      won.src=actual?.proxy||result.image;
+      const choices=[localBronzeImage(result.name),actual?.proxy,result.image].filter(Boolean);
+      let attempt=0;won.onerror=()=>{if(++attempt<choices.length){won.src=choices[attempt];return}won.onerror=null;won.src=fallback};
+      won.src=choices[0];
     }
     selected.classList.add('bronze-slot-won');
     if(art)art.classList.remove('bronze-case-opening');

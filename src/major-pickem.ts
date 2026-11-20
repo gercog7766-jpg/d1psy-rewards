@@ -1,4 +1,5 @@
 import { resolve } from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { majorPickemAdminPage, majorPickemAdminPath, type MajorPickemEntrant } from './major-pickem-admin.js';
 import { majorMedals } from './major-medals.js';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -57,6 +58,16 @@ export function installMajorPickem(app:Express,db:SupabaseClient,user:RequestHan
   });
   app.get('/predict/major-bronze-case.webp', (_req,res) => {
     res.sendFile(resolve(process.cwd(),'assets/major-pickem/bronze-case.webp'),{maxAge:'1d'});
+  });
+  // Stable, same-origin artwork. The cache is outside rotating VPS releases.
+  app.get('/predict/major-bronze-skins/:id',async(req,res)=>{
+    const id=String(req.params.id);if(!/^(?:[0-9]|10|11)$/.test(id)){res.sendStatus(404);return}
+    try{
+      const bytes=await readFile(resolve('/var/lib/dropso-case-artwork',id+'.img'));
+      const type=bytes.length>12&&(bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]))?'image/png':bytes[0]===255&&bytes[1]===216&&bytes[2]===255?'image/jpeg':bytes.toString('ascii',0,4)==='RIFF'&&bytes.toString('ascii',8,12)==='WEBP'?'image/webp':null);
+      if(!type||bytes.length>1024*1024){res.set('Cache-Control','no-store').sendStatus(404);return}
+      res.set({'Content-Type':type,'Cache-Control':'public,max-age=86400','X-Content-Type-Options':'nosniff'}).send(bytes);
+    }catch{res.set('Cache-Control','no-store').sendStatus(404)}
   });
   app.get('/predict/major-token.webp', (_req,res) => {
     res.sendFile(resolve(process.cwd(),'assets/major-pickem/token.webp'),{maxAge:'1d'});

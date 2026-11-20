@@ -41,10 +41,11 @@ test('roulette opens even if artwork fails, uses image-only slots and inventory 
   assert.equal(w.document.querySelectorAll('.bronze-slot').length,56);
   assert.equal(w.document.querySelectorAll('.bronze-slot-won').length,1);
   assert(w.document.getElementById('bronzeStrip').style.transition.includes('5800ms'));
-  assert([...w.document.querySelectorAll('.bronze-slot:not(.bronze-slot-won) img')].every(img=>img.getAttribute('src')==='/predict/major-bronze-case.webp'));
+  assert([...w.document.querySelectorAll('.bronze-slot:not(.bronze-slot-won) img')].every(img=>img.getAttribute('src').startsWith('data:image/svg+xml,')));
+  assert(!w.document.querySelector('.bronze-slot img[src="/predict/major-bronze-case.webp"]'));
   imageFailure=false;btn.click();await until(()=>opens===2&&status.textContent.includes('Доступен в инвентаре.')&&w.document.querySelectorAll('.bronze-slot').length===56);
-  const slots=[...w.document.querySelectorAll('.bronze-slot')];assert.equal(slots.length,56);assert(slots.every(s=>s.children.length===1&&catalog.some(x=>x.image===s.firstChild.src)));
-  assert.equal(slots[49].firstChild.src,catalog[5].image);
+  const slots=[...w.document.querySelectorAll('.bronze-slot')];assert.equal(slots.length,56);assert(slots.every(s=>s.children.length===1&&/^\/predict\/major-bronze-skins\/(?:[0-9]|10|11)$/.test(s.firstChild.getAttribute('src'))));
+  assert.equal(slots[49].firstChild.getAttribute('src'),'/predict/major-bronze-skins/5');
   assert(w.document.getElementById('bronzeCaseStatus').textContent.includes('Доступен в инвентаре.'));
  }finally{w.close()}
 });
