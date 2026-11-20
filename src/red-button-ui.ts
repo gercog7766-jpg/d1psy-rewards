@@ -21,13 +21,13 @@ main{max-width:1020px;margin:auto;padding:22px 14px 52px}a{color:#e9c6ff}h1{font
 <a href="/games">← Игры</a><h1>Красная кнопка</h1>
 <div class="layout"><div>
 <section class="panel stage" aria-label="Текущий раунд">
-  <p class="muted">Сегодняшний приз</p><img id="image" hidden alt=""><strong id="prize">Загрузка…</strong>
+  <p class="muted">Приз текущего раунда</p><img id="image" hidden alt=""><strong id="prize">Загрузка…</strong>
   <p id="countdown" class="clock"></p><p id="holder" class="muted"></p><p id="playerCount" class="muted"></p>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs><clipPath id="redButtonCutout" clipPathUnits="objectBoundingBox"><path d="M .494 .181 C .602 .179 .688 .272 .711 .373 C .768 .420 .805 .520 .805 .633 C .805 .771 .661 .891 .493 .891 C .332 .890 .177 .793 .177 .645 C .177 .528 .218 .423 .277 .379 C .312 .274 .398 .181 .494 .181 Z"/></clipPath></defs></svg>
   <button type="button" id="press" class="press" disabled><span class="press-art"><img src="/games/red-button/button-v1.webp" width="768" height="512" alt=""></span><span id="pressLabel" class="press-label">Загрузка условий…</span></button>
   <p id="notice" role="status"></p>
 </section>
-<section class="panel"><h2>Как играть</h2><p>Вход в раунд стоит <b id="ruleEntry">—</b> монет. Первое нажатие оплачивает вход и передаёт кнопку тебе. После каждого успешного нажатия нужно подождать <b id="ruleCooldown">—</b> минут. Если кнопку ещё никто не перехватил, ты продолжаешь держать её.</p><p>Призы: скины стоимостью от 50 до <b id="rulePrizeMax">—</b> монет.</p><p>Время всех твоих удержаний за раунд складывается. Побеждает игрок с наибольшей суммой. При равенстве побеждает тот, кто раньше впервые перехватил кнопку. Время победителя появится в истории после раунда. Раунды заканчиваются в полночь по Москве.</p></section>
+<section class="panel"><h2>Как играть</h2><p>Вход в раунд стоит <b id="ruleEntry">—</b> монет. Первое нажатие оплачивает вход и передаёт кнопку тебе. После каждого успешного нажатия нужно подождать <b id="ruleCooldown">—</b> минут. <span id="holdRule">Если кнопку ещё никто не перехватил, ты продолжаешь держать её.</span></p><p id="legacyPrize">Призы: скины стоимостью от 50 до <b id="rulePrizeMax">—</b> монет.</p><p id="modernPrize" hidden>Один вход на 48 часов. Приз обновляется по мере вступления участников. Если подходящего скина нет, победитель получает монеты.</p><p>Время всех твоих удержаний за раунд складывается. Побеждает игрок с наибольшей суммой. При равенстве побеждает тот, кто раньше впервые перехватил кнопку. Время победителя появится в истории после раунда.</p></section>
 </div><div>
 <section class="dropso-live-chat" data-chat-panel="room" data-chat-moderator-write="true" data-chat-participant="false" data-room="" hidden>
   <h2>Чат раунда</h2><ol aria-label="Сообщения"></ol><form><input name="message" maxlength="140" aria-label="Сообщение" required><button type="submit">Отправить</button></form><p role="status"></p>
@@ -48,7 +48,7 @@ export const redButtonScript = String.raw`(() => {
     round_closed:'Раунд завершился. Обновляем приз.'
   };
   let state, offset = 0, pending, busy = false, loading = false;
-  const terms = () => ({entryCost:state?.rules?.entryCost===20?20:10,cooldownMinutes:state?.rules?.cooldownMinutes===60?60:20,prizeMax:state?.rules?.prizeMax===200?200:300});
+  const terms = () => ({entryCost:state?.rules?.entryCost===15?15:state?.rules?.entryCost===20?20:10,cooldownMinutes:state?.rules?.cooldownMinutes===30?30:state?.rules?.cooldownMinutes===60?60:20,prizeMax:state?.rules?.prizeMax===200?200:300,modern:state?.rules?.roundHours===48});
   const secondsUntil = stamp => Math.max(0, Math.ceil((Date.parse(stamp)-Date.now()-offset)/1000)) || 0;
   function duration(seconds) {
     return [Math.floor(seconds/3600),Math.floor(seconds/60)%60,seconds%60]
@@ -60,12 +60,14 @@ export const redButtonScript = String.raw`(() => {
     const wait = secondsUntil(round?.readyAt);
     el('countdown').textContent = round ? 'До конца раунда: ' + duration(left) : '';
     button.disabled = !state?.canPlay || !round || !left || busy || round.holding || wait > 0;
-    el('pressLabel').textContent = !round?.joined ? 'Войти за '+terms().entryCost+' монет и нажать' : round.holding
-      ? 'Кнопка у тебя' : wait ? 'Нажатие через ' + duration(wait) : 'Перехватить кнопку';
+    el('pressLabel').textContent = !round?.joined ? 'Войти за '+terms().entryCost+' монет и нажать' : wait ? 'Нажатие через ' + duration(wait) : round.holding
+      ? 'Кнопка у тебя' : round.holder ? 'Перехватить кнопку' : 'Занять кнопку';
   }
   function render() {
     const round = state.round;
-    const rules=terms();el('ruleEntry').textContent=rules.entryCost;el('ruleCooldown').textContent=rules.cooldownMinutes;el('rulePrizeMax').textContent=rules.prizeMax;
+    const rules=terms();el('ruleEntry').textContent=rules.entryCost;el('ruleCooldown').textContent=rules.cooldownMinutes;el('rulePrizeMax').textContent=rules.modern?'':rules.prizeMax;
+    el('legacyPrize').hidden=rules.modern;el('modernPrize').hidden=!rules.modern;
+    el('holdRule').textContent=rules.modern?'Кнопка освобождается не позднее чем через 15 минут или при перехвате другим игроком.':'Если кнопку ещё никто не перехватил, ты продолжаешь держать её.';
     el('prize').textContent = round?.prize || 'Раунд пока недоступен';
     const image = el('image');
     image.hidden = !round?.image;

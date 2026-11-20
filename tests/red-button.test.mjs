@@ -84,10 +84,49 @@ test('red button charges once per day, hides holds and settles the sum of holds 
     await db.query("update rewards_red_button_members set last_press=now()-interval '21 minutes' where round_id=$1",[newer]);await assert.rejects(call('a',newer,randomUUID()),/cooldown/);
     await db.query("update rewards_red_button_members set last_press=now()-interval '61 minutes' where round_id=$1",[newer]);await call('a',newer,randomUUID());
     assert.equal((await db.query('select count(*)::int as n from rewards_coin_transactions where amount=-20')).rows[0].n,2);
+    // New 48-hour rules: simulate the second day of the first modern round.
+    await db.exec('reset role');
+    const anchor=(await db.query("select ((clock_timestamp() at time zone 'Europe/Moscow')::date-1)::text as day")).rows[0].day;
+    await db.query("update rewards_red_button_rounds set day=day-5,ends_at=now() where id=$1",[newer]);
+    await db.query("update rewards_red_button_rounds set day=day-10 where day=$1::date",[anchor]);
+    await db.exec("insert into rewards_shop_items(name,image_url,status) values('Budget skin','https://example.com/budget.png','available'),('Upgrade skin','https://example.com/upgrade.png','available');insert into rewards_shop_item_variants select id,'normal','FT',case when name='Budget skin' then 28 else 45 end,true from rewards_shop_items where name in ('Budget skin','Upgrade skin')");
+    const modernMigration=await readFile(new URL('../supabase/migrations/20261120170000_red_button_48h.sql',import.meta.url),'utf8');
+    await db.exec(modernMigration.replaceAll('2026-11-21',anchor));await db.exec('set role service_role');
+    const modern=await call('a');assert.deepEqual(modern.rules,{entryCost:15,cooldownMinutes:30,roundHours:48,holdMinutes:15});
+    const id=modern.round.id;assert.equal(modern.round.prize,'Ожидаем первого участника');
+    assert.equal((await db.query("select extract(epoch from ends_at-starts_at)::int as seconds from rewards_red_button_rounds where id=$1",[id])).rows[0].seconds,172800);
+    const req=randomUUID();const joined=await call('a',id,req);assert.equal(joined.round.prize,'Награда монетами');
+    await call('a',id,req);
+    assert.equal((await db.query("select price from rewards_red_button_rounds where id=$1",[id])).rows[0].price,15);
+    assert.equal(Object.hasOwn(joined.round,'price'),false);assert.equal(Object.hasOwn(joined.round,'wear'),false);assert.equal(Object.hasOwn(joined.round,'heldSince'),false);
+    await db.query("update rewards_red_button_holds set started_at=now()-interval '16 minutes' where round_id=$1",[id]);
+    await db.query("update rewards_red_button_rounds set held_since=now()-interval '16 minutes' where id=$1",[id]);
+    await db.query("update rewards_red_button_members set last_press=now()-interval '16 minutes' where round_id=$1",[id]);
+    assert.equal((await call('a')).round.holder,null);
+    assert.equal((await db.query("select extract(epoch from ended_at-started_at)::int as seconds from rewards_red_button_holds where round_id=$1",[id])).rows[0].seconds,900);
+    await assert.rejects(call('a',id,randomUUID()),/cooldown/);
+    assert.equal((await call('b',id,randomUUID())).round.prize,'Budget skin');
+    assert.equal((await call('c',id,randomUUID())).round.prize,'Upgrade skin');
+    await db.query("update rewards_red_button_members set last_press=now()-interval '31 minutes' where round_id=$1",[id]);
+    await call('a',id,randomUUID());
+    assert.equal((await db.query('select count(*)::int as n from rewards_coin_transactions where amount=-15')).rows[0].n,3);
+    await db.query("update rewards_red_button_rounds set ends_at=clock_timestamp() where id=$1",[id]);
+    await call('b');await call('b');
+    assert.equal((await db.query('select count(*)::int as n from rewards_red_button_rounds where id=$1 and winner is not null and win_id is not null',[id])).rows[0].n,1);
+    // No affordable skin: the funded coin prize is paid only once.
+    const fallback=(await db.query("insert into rewards_red_button_rounds(day,starts_at,ends_at,prize_name,price) values($1::date+2,now()-interval '1 minute',now()+interval '48 hours','Ожидаем первого участника',0) returning id",[anchor])).rows[0].id;
+    assert.equal((await call('c',fallback,randomUUID())).round.prize,'Награда монетами');
+    await db.query("update rewards_red_button_rounds set ends_at=clock_timestamp() where id=$1",[fallback]);
+    await call('c');await call('c');
+    assert.deepEqual((await db.query("select count(*)::int as n,coalesce(sum(amount),0)::int as total from rewards_coin_transactions where note=$1",['Красная кнопка · приз · '+fallback])).rows[0],{n:1,total:15});
     await db.exec('reset role;set role authenticated');
     await assert.rejects(call('b'),/permission denied/);
     await assert.rejects(db.exec('select * from rewards_red_button_holds'),/permission denied/);
   } finally { await db.close(); }
+});
+test('48-hour UI hides pricing and shows only personal cooldown and current prize',async()=>{
+ const dom=new JSDOM(redButtonPage,{url:'https://dropso.test/games/red-button',runScripts:'outside-only'}),w=dom.window;
+ try{w.fetch=async()=>Response.json({now:new Date().toISOString(),canPlay:true,rules:{entryCost:15,cooldownMinutes:30,roundHours:48,holdMinutes:15},round:{id:randomUUID(),endsAt:new Date(Date.now()+3600000).toISOString(),joined:true,holding:false,holder:null,prize:'Budget skin',readyAt:new Date(Date.now()+600000).toISOString()},history:[]});w.eval(redButtonScript);await new Promise(r=>setTimeout(r,40));const d=w.document;assert.equal(d.getElementById('ruleEntry').textContent,'15');assert.equal(d.getElementById('ruleCooldown').textContent,'30');assert.equal(d.getElementById('legacyPrize').hidden,true);assert.equal(d.getElementById('modernPrize').hidden,false);assert.match(d.getElementById('pressLabel').textContent,/Нажатие через/);assert.equal(d.getElementById('prize').textContent,'Budget skin')}finally{w.close()}
 });
 test('red button shows the current server rules and confirms only the real entry amount',async()=>{
  const dom=new JSDOM(redButtonPage,{url:'https://dropso.test/games/red-button',runScripts:'outside-only'}),w=dom.window;let confirmation='',posts=0;
