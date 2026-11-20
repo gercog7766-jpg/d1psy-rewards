@@ -73,5 +73,37 @@ test('bronze case atomically debits tokens, grants a win and replays request IDs
 
   const {rows:[entry]}=await db.query("select tokens from rewards_major_pickem_entries where user_id=(select id from rewards_users where twitch_user_id='alice')");
   assert.equal(entry.tokens,0);
+  // Historic and future token purchases are upgradeable without becoming saleable.
+  await db.exec(`
+   alter table rewards_wins add column delivered_at timestamptz,add column choice_at timestamptz,add column sold_for_coins int,add column round_id uuid;
+   alter table rewards_prizes add column created_at timestamptz default now();
+   alter table rewards_shop_item_variants add column id uuid default gen_random_uuid();
+   create table rewards_coin_transactions(user_id uuid,amount int,transaction_type text,win_id uuid,note text);
+   create table rewards_upgrades(id uuid primary key default gen_random_uuid(),user_id uuid,source_win_id uuid,target_shop_item_id uuid,target_shop_variant_id uuid,source_value_coins int,target_value_coins int,chance_bps int,roll_bps int,result text,source_name text,target_name text,extra_coins int,reward_win_id uuid);
+   update rewards_shop_item_variants set available=true;
+   update rewards_prizes set sell_price_coins=12 where name='SG 553 | Киберсила' and status='available';
+   insert into rewards_shop_items(name,image_url,status) values('Upgrade target','https://example.com/target.png','available');
+   insert into rewards_shop_item_variants(shop_item_id,available,wear,variant_kind,price_coins) select id,true,'FT','normal',100 from rewards_shop_items where name='Upgrade target';
+  `);
+  const newer=await readFile(new URL('../supabase/migrations/20261118213000_major_rewards_standard_inventory.sql',import.meta.url),'utf8');
+  await db.exec(newer.slice(newer.indexOf('create or replace function public.rewards_major_shop_buy'),newer.indexOf("NOTIFY pgrst")));
+  const sell=await readFile(new URL('../supabase/migrations/20261108114703_referrals_qualified_rewards_v2.sql',import.meta.url),'utf8');
+  await db.exec(sell.slice(sell.indexOf('create or replace function public.rewards_sell_win'),sell.indexOf('create function public.rewards_referral_same_steam')));
+  await db.exec(await readFile(new URL('../supabase/migrations/20261120210000_major_shop_upgrade_values.sql',import.meta.url),'utf8'));
+  const value=async win=>(await db.query('select p.sell_price_coins,p.upgrade_value_coins from rewards_prizes p join rewards_wins w on w.prize_id=p.id where w.id=$1',[win])).rows[0];
+  assert.deepEqual(await value(purchased.winId),{sell_price_coins:0,upgrade_value_coins:12});
+  assert.equal((await value(first.winId)).upgrade_value_coins,null,'case rewards unchanged');
+  const alice=(await db.query("select id from rewards_users where twitch_user_id='alice'")).rows[0].id;
+  await assert.rejects(db.query('select rewards_sell_win($1,$2)',[purchased.winId,alice]),/sale_price_not_set/);
+  await db.exec('update rewards_major_pickem_entries set tokens=10');
+  const sticker=await buy('alice','00000000-0000-4000-8000-000000000006',4);
+  assert.deepEqual(await value(sticker.winId),{sell_price_coins:0,upgrade_value_coins:5});
+  await assert.rejects(db.query('select rewards_sell_win($1,$2)',[sticker.winId,alice]),/sale_price_not_set/);
+  const target=(await db.query("select v.id,v.shop_item_id from rewards_shop_item_variants v join rewards_shop_items i on i.id=v.shop_item_id where i.name='Upgrade target'")).rows[0];
+  const single=(await db.query('select * from rewards_run_skin_upgrade($1,$2,$3,$4,0)',[alice,purchased.winId,target.shop_item_id,target.id])).rows[0];
+  assert.equal(single.chance_bps,1080);
+  const multi=(await db.query('select * from rewards_run_skin_upgrade_multi($1,$2,$3,$4,0)',[alice,[sticker.winId],[target.shop_item_id],[target.id]])).rows[0];
+  assert.equal(multi.chance_bps,450);
+  assert.equal((await db.query('select count(*)::int n from rewards_coin_transactions where transaction_type=\'win_sale\'')).rows[0].n,0);
  }finally{await db.close();}
 });
