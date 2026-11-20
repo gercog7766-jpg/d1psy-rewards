@@ -1,5 +1,6 @@
 import {installBonuses} from './bonuses.js';
 import {installAdvent} from './advent.js';
+import {installClans} from './clans.js';
 import {installAdventAdmin} from './advent-admin.js';
 import {installAdminStatistics} from './admin-statistics.js';
 import {installMajorPickem} from './major-pickem.js';
@@ -61,6 +62,7 @@ async function requireAdmin(req:express.Request,res:express.Response,next:expres
 installBonuses(app,db,requireUser,new URL(APP_URL).origin);
 installAdvent(app,db,requireUser,new URL(APP_URL).origin);
 installAdventAdmin(app,db,requireAdmin);
+installClans(app,db,requireUser,requireAdmin,new URL(APP_URL).origin);
 installAdminStatistics(app,db,requireAdmin);
 installStreamerPilot(app,requireUser,requireAdmin,subscribeToPartnerChat,partnerChatReady);
 installProfileCustomization(app,requireUser,requireAdmin);
