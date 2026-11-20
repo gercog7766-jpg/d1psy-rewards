@@ -21,12 +21,12 @@ function applyShopDecorations(shop,h,emblem){
  if(shopTones[a.tag])h.querySelector('h2').style.color=shopTones[a.tag];
  if(shopText[a.banner]){const b=el('div',shopText[a.banner],'shop-banner');b.style.background=shopBgs[a.banner];h.append(b)}
 }
-function renderClanShop(d,id){
+function renderClanShop(d,id,shopMount=root,treasuryMount=root){
  const s=d.shop;if(!s)return;
- const p=panel('Магазин клана · общак'),active=s.proposals.find(v=>v.status==='pending');
+ const p=panel('Голосования и расширение клана'),active=s.proposals.find(v=>v.status==='pending');
  p.append(el('p','Любая покупка требует больше половины голосов всех участников. Голосование длится 24 часа; при изменении состава оно отменяется.','muted'));
  p.append(el('p','Платные места: '+s.paidSlots+'/15 · Всего мест: '+d.capacity+'/30','clan-own-rank'));
- const proposal=(item,label,price)=>run(async()=>{if(!await window.dropsoConfirm('Предложить покупку «'+label+'» за '+price+' монет из общака?'))return;await api('shop_propose',{clanId:id,item,requestId:crypto.randomUUID()});await detail(id)});
+ const proposal=(item,label,price)=>run(async()=>{if(!await window.dropsoConfirm('Предложить покупку «'+label+'» за '+price+' монет из общака?'))return;await api('shop_propose',{clanId:id,item,requestId:crypto.randomUUID()});switchClanTab('treasury');await detail(id)});
  const slot=button(s.nextSlotCost==null?'Все слоты куплены':'Предложить +1 место · '+s.nextSlotCost+' монет',()=>proposal('slot','Дополнительный слот',s.nextSlotCost));
  slot.disabled=!!d.visitor||!!active||s.nextSlotCost==null||d.treasury<s.nextSlotCost;p.append(slot);
  for(const v of s.proposals){
@@ -41,9 +41,13 @@ function renderClanShop(d,id){
   p.append(q);
  }
  if(active)p.append(button('Обновить голосование',()=>run(()=>detail(id))));
+ treasuryMount.append(p);
+ const catalog=panel('Магазин оформлений');
+ catalog.append(el('p','Баланс общака: '+d.treasury+' монет','clan-own-rank'));
+ if(active)catalog.append(button('Перейти к голосованию →',()=>switchClanTab('treasury')));
  const labels={frame:'Рамки',background:'Фоны',banner:'Баннеры',tag:'Цвета названия'};
  for(const [kind,label] of Object.entries(labels)){
-  p.append(el('h3',label));const grid=el('div',undefined,'clan-shop-grid');
+  catalog.append(el('h3',label));const grid=el('div',undefined,'clan-shop-grid');
   for(const item of s.catalog.filter(x=>x.kind===kind)){
    const card=el('div',undefined,'clan-shop-card'),preview=el('div',kind==='frame'?'':shopText[item.id]|| (kind==='tag'?'SYNDICATE':''),'clan-shop-preview '+kind);
    if(shopTones[item.id])preview.style.setProperty('--shop-tone',shopTones[item.id]);if(shopBgs[item.id])preview.style.setProperty('--shop-bg',shopBgs[item.id]);
@@ -52,8 +56,8 @@ function renderClanShop(d,id){
    else if(d.leader){const selected=s.decorations?.[kind]===item.id;card.append(button(selected?'Снять оформление':'Применить',()=>run(async()=>{await api('shop_equip',{clanId:id,item:selected?'clear':item.id,kind});await detail(id)})))}
    grid.append(card);
   }
-  p.append(grid);
+  catalog.append(grid);
  }
- root.append(p);
+ shopMount.append(catalog);
 }
 `;

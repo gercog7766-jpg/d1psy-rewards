@@ -59,10 +59,14 @@ test('clan shop displays previews, spending and member voting without an immedia
  const detail={id,name:'Alpha',member:true,leader:false,level:1,cxp:0,capacity:7,treasury:300,members:[{id,login:'Alice',owner:false}],tasks:[],chat:[],requests:[],ends:'2026-11-30',ledger:[{amount:-50,description:'Дополнительный слот'}],shop:{paidSlots:2,nextSlotCost:100,decorations:{},catalog:[{id:'frame_neon',kind:'frame',name:'Неоновый контур',price:100,owned:false}],proposals:[{id:proposalId,label:'Дополнительный слот',amount:100,status:'pending',eligible:5,required:3,yes:2,no:0,my_vote:null,expires_at:new Date().toISOString()}]}};
  w.fetch=async(path,opt)=>{calls.push([path,JSON.parse(opt.body)]);return {ok:true,json:async()=>path.endsWith('/list')?{mine:id,clans:[]}:detail}};w.dropsoConfirm=async()=>true;
  try{w.eval(clansJs);await wait();[...w.document.querySelectorAll('button')].find(b=>b.textContent==='Мой клан →').click();await wait();
+ assert.equal(w.document.getElementById('clan-pane-overview').hidden,false);assert.equal(w.document.getElementById('clan-pane-treasury').hidden,true);
+ w.document.getElementById('clan-tab-shop').click();assert.equal(w.document.getElementById('clan-pane-shop').hidden,false);assert.equal(w.document.getElementById('clan-pane-overview').hidden,true);
+ w.document.getElementById('clan-tab-treasury').click();assert.equal(w.document.getElementById('clan-pane-treasury').hidden,false);assert.equal(w.document.getElementById('clan-pane-shop').hidden,true);
  assert(w.document.body.textContent.includes('Платные места: 2/15'));assert(w.document.body.textContent.includes('-50 монет'));assert(w.document.querySelector('.clan-shop-preview.frame'));
  assert(w.document.body.textContent.includes('За: 2/3'));assert([...w.document.querySelectorAll('button')].find(b=>b.textContent.includes('Предложить +1 место')).disabled);
  [...w.document.querySelectorAll('button')].find(b=>b.textContent==='За').click();await wait();
  assert(calls.some(([path,b])=>path.endsWith('/shop_vote')&&b.proposalId===proposalId&&b.approve===true));
+ assert.equal(w.document.getElementById('clan-pane-treasury').hidden,false,'selected section survives the refresh');
  }finally{w.close()}
 });
 

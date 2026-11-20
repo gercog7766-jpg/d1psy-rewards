@@ -4,11 +4,13 @@ import { majorMedals } from './major-medals.js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Express, RequestHandler } from 'express';
 import { majorPickemPage, majorPickemScript } from './major-pickem-ui.js';
+import { BronzeArtworkCache } from './major-bronze-artwork.js';
 
 const known = new Set(['invalid_request','invalid_picks','user_unavailable','entry_closed','entry_required','stage_locked','insufficient_coins']);
 const outcomes = ['3:0','3:1','3:2','1:3','2:3','0:3'];
 
 export function installMajorPickem(app:Express,db:SupabaseClient,user:RequestHandler,admin:RequestHandler,origin:string) {
+  const artwork=new BronzeArtworkCache();
   const noStore:RequestHandler = (_req,res,next) => {res.set('Cache-Control','private, no-store');next()};
   const rpc = (action:'state'|'enter'|'save'):RequestHandler => async(req,res) => {
     if (action!=='state' && (req.get('origin')!==origin || !req.is('application/json'))) {
@@ -46,7 +48,12 @@ export function installMajorPickem(app:Express,db:SupabaseClient,user:RequestHan
     if(error||!Array.isArray(data)||data.length!==12||data.some(item=>!item?.image)){
       res.status(503).json({error:'case_catalog_incomplete'});return;
     }
-    res.json({items:data});
+    res.json({items:artwork.decorate(data)});
+  });
+  app.get('/api/me/major-pickem/cases/bronze/art/:key',user,async(req,res)=>{
+    const image=await artwork.get(String(req.params.key));
+    if(!image){res.set('Cache-Control','no-store').sendStatus(404);return}
+    res.set({'Cache-Control':'private, max-age=3600','Content-Type':image.type,'X-Content-Type-Options':'nosniff'}).send(image.body);
   });
   app.get('/predict/major-bronze-case.webp', (_req,res) => {
     res.sendFile(resolve(process.cwd(),'assets/major-pickem/bronze-case.webp'),{maxAge:'1d'});
@@ -134,7 +141,7 @@ export function installMajorPickem(app:Express,db:SupabaseClient,user:RequestHan
       if(!reason)console.error('major_bronze_open_failed',error.code);
       res.status(reason?409:503).json({error:reason||'case_unavailable'});return;
     }
-    res.json(data);
+    res.json({...data,catalog:artwork.decorate(data?.catalog)});
   });
   app.get('/api/me/major-pickem',noStore,user,rpc('state'));
   app.post('/api/me/major-pickem/enter',noStore,user,rpc('enter'));
