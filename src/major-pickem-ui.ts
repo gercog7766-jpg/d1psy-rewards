@@ -347,25 +347,37 @@ export const majorPickemScript = String.raw`(() => {
   }
   async function spinBronze(result){
     const roulette=el('bronzeRoulette'),strip=el('bronzeStrip');
-    const artwork=await preloadBronzeArtwork(result.catalog);
+    const fallback='/predict/major-bronze-case.webp';
     const art=document.querySelector('.bronze-case-art');
     if(art){art.classList.remove('bronze-case-opening');void art.offsetWidth;art.classList.add('bronze-case-opening');}
     roulette.hidden=false;
+    if(window.matchMedia?.('(max-width:700px)').matches)roulette.scrollIntoView?.({behavior:'smooth',block:'center'});
     strip.style.transition='none';strip.style.transform='translateX(0)';
     const winner=caseNames.findIndex(name=>name===result.name);
-    if(winner<0)throw Error('case_unavailable');
     const total=56,winningSlot=49;
     strip.replaceChildren();
+    const slots=[];
     for(let i=0;i<total;i++){
-      const prize=artwork[i===winningSlot?winner:Math.floor(Math.random()*artwork.length)];
+      const name=caseNames[i===winningSlot&&winner>=0?winner:Math.floor(Math.random()*caseNames.length)];
       const slot=document.createElement('div');
       slot.className='bronze-slot';
       const img=document.createElement('img');
-      img.referrerPolicy='no-referrer';img.src=prize.image;
+      img.referrerPolicy='no-referrer';img.src=fallback;
       img.alt='';img.loading='eager';img.decoding='async';
       slot.append(img);
       strip.append(slot);
+      slots.push({name,img});
     }
+    // Start the reel immediately. Switch all images together only after every
+    // real artwork is ready, so a failed CDN image never reveals the winner.
+    let finished=false,completeArtwork=false;
+    const resetArtwork=()=>{completeArtwork=false;for(const {img} of slots){img.onerror=null;img.src=fallback}};
+    void preloadBronzeArtwork(result.catalog).then(artwork=>{
+      if(finished||!strip.contains(slots[0].img))return;
+      const byName=new Map(artwork.map(p=>[p.name,p.image]));
+      completeArtwork=true;
+      for(const {name,img} of slots){img.onerror=resetArtwork;img.src=byName.get(name)||fallback}
+    }).catch(()=>{});
     await sleep(60);
     const selected=strip.children[winningSlot];
     const target=selected.offsetLeft+selected.offsetWidth/2-roulette.clientWidth/2;
@@ -373,6 +385,14 @@ export const majorPickemScript = String.raw`(() => {
     strip.style.transition='transform 5800ms cubic-bezier(.09,.65,.12,1)';
     strip.style.transform='translateX('+(-target+jitter)+'px)';
     await sleep(5900);
+    finished=true;
+    const won=slots[winningSlot].img;
+    if(!completeArtwork&&result.image){
+      const actual=Array.isArray(result.catalog)?result.catalog.find(p=>p.name===result.name):null;
+      won.onerror=()=>{if(actual?.proxy&&won.getAttribute('src')===actual.proxy){won.src=result.image;return}won.onerror=null;won.src=fallback};
+      won.src=actual?.proxy||result.image;
+    }
+    selected.classList.add('bronze-slot-won');
     if(art)art.classList.remove('bronze-case-opening');
   }
   el('openBronzeCase').onclick=async()=>{
