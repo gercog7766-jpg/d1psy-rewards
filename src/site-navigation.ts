@@ -20,6 +20,8 @@ body[data-dropso-shell] .dropso-home{display:inline-flex;align-items:center;flex
 body[data-dropso-shell] .dropso-home img{display:block;width:32px!important;height:32px!important;object-fit:contain;flex:none;filter:drop-shadow(0 0 8px #9e2df533)}
 body[data-dropso-shell] .dropso-site-shortcuts{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 body[data-dropso-shell] .dropso-site-shortcuts a{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:8px 13px;border:1px solid #70428f;border-radius:10px;background:#241431;color:#f2e6fc;font-size:13px;font-weight:650;line-height:1.3}
+body[data-dropso-shell] .dropso-nav-toggle{display:none;flex:none;width:44px;height:44px;align-items:center;justify-content:center;color:#f1dfff;border:1px solid #684481;border-radius:10px;background:#241431;cursor:pointer}
+body[data-dropso-shell] .dropso-nav-toggle svg,#accountLogoMenuToggle svg{width:23px;height:23px;display:block;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
 body[data-dropso-shell] .dropso-site-header a:focus-visible,body[data-dropso-shell] .dropso-site-sidebar :focus-visible{outline:2px solid #d7a4ff;outline-offset:3px}
 body[data-dropso-shell] .dropso-site-sidebar{box-sizing:border-box;margin:0 14px 12px;padding:8px;border:1px solid #70428f70;border-radius:14px;background:linear-gradient(150deg,#251535,#120c1c);color:#f2e6fc}
 body[data-dropso-shell] .dropso-site-sidebar details{display:block}
@@ -42,6 +44,8 @@ body[data-dropso-shell] #d1psyFooter .footer-brand{font-size:15px}
  body[data-dropso-shell] .dropso-site-layout>main{box-sizing:border-box;width:100%;min-width:0;max-width:100%;margin:0;padding-inline:clamp(0px,1vw,14px)}
 }
 @media(max-width:1099px){body[data-dropso-shell] .dropso-site-sidebar nav{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:1099px){body[data-dropso-shell] .dropso-nav-toggle{display:inline-flex}body[data-dropso-shell] .dropso-site-sidebar[data-mobile-nav-ready] details{display:none}body[data-dropso-shell] .dropso-site-sidebar[data-mobile-nav-ready]:not(:has(details[open])){display:none}body[data-dropso-shell]>.dropso-site-header{min-height:60px;padding-block:8px}}
+@media(max-width:620px){body[data-dropso-shell]>.dropso-site-header #mobileMenuToggle{display:flex;margin-left:auto;flex:none}body[data-dropso-shell] .dropso-site-shortcuts:empty{display:none}body[data-dropso-shell] #accountLogoMenuToggle{display:none!important}}
 @media(max-width:420px){body[data-dropso-shell]>.dropso-site-header{gap:10px}body[data-dropso-shell] .dropso-site-shortcuts a{padding:8px 10px}body[data-dropso-shell] .dropso-home{font-size:20px!important}}
 </style>`;
 
@@ -54,7 +58,14 @@ const boot = `<script id="dropsoSiteNavigationScript">(()=>{
    sidebar.before(layout);layout.append(sidebar,main);
   }
   const toggle=document.getElementById('accountLogoMenuToggle');
-  if(toggle){const label=document.createElement('span');label.textContent='Меню';toggle.replaceChildren(label)}
+  if(toggle){const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');const path=document.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d','M4 6h16M4 12h16M4 18h16');svg.append(path);toggle.replaceChildren(svg)}
+  const header=document.querySelector('.dropso-site-header'),mobileToggle=document.getElementById('mobileMenuToggle');
+  if(header&&mobileToggle&&typeof matchMedia==='function'){
+   const placeholder=document.createComment('mobile account menu position');mobileToggle.before(placeholder);
+   const media=matchMedia('(max-width:620px)');const sync=()=>{if(media.matches)header.append(mobileToggle);else if(placeholder.parentNode)placeholder.after(mobileToggle)};media.addEventListener('change',sync);sync();
+  }
+  const siteToggle=document.getElementById('dropsoSiteMenuToggle'),details=sidebar?.querySelector('details');
+  if(siteToggle&&details){sidebar.dataset.mobileNavReady='true';siteToggle.addEventListener('click',()=>{details.open=!details.open;siteToggle.setAttribute('aria-expanded',String(details.open))});details.addEventListener('toggle',()=>siteToggle.setAttribute('aria-expanded',String(details.open)))}
  }
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
 })();</script>`;
@@ -72,7 +83,7 @@ export function withSiteNavigation(html:string,path:string){
  const menu=sidebar?`<aside id="dropsoSiteSidebar" class="dropso-site-sidebar"><details><summary>Меню Dropso</summary></details><nav aria-label="Меню Dropso">${links}</nav></aside>`:'';
  const brand=`<a class="dropso-home" href="/account" aria-label="Dropso — на главную"><img src="${brandLogoUrl}" alt="" width="32" height="32"><span>Dropso</span></a>`;
  const shortcut=path==='/shop'?'<a href="/upgrader">Апгрейдер</a>':path==='/upgrader'?'<a href="/shop">Магазин</a>':'';
- const header=`<header class="dropso-site-header">${brand}<nav class="dropso-site-shortcuts" aria-label="Переходы">${shortcut}</nav></header>${menu}`;
+ const header=`<header class="dropso-site-header">${brand}<nav class="dropso-site-shortcuts" aria-label="Переходы">${shortcut}</nav>${sidebar?'<button type="button" id="dropsoSiteMenuToggle" class="dropso-nav-toggle" aria-label="Открыть меню" aria-controls="dropsoSiteSidebar" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>':''}</header>${menu}`;
  // Process static markup without touching script templates, selectors or strings.
  html=html.split(/(<script\b[^>]*>[\s\S]*?<\/script>|<style\b[^>]*>[\s\S]*?<\/style>)/gi).map((part,index)=>index%2?part:part
    .replace(/<(?:button|a)\b[^>]*\bid=["']promoOpen["'][^>]*>[\s\S]*?<\/(?:button|a)>/gi,'<a id="bonusesLink" class="shoplink" href="/bonuses">Бонусы</a>')

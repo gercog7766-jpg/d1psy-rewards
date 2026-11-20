@@ -20,6 +20,7 @@ test('vault HTTP binds actors, preserves main account placement, validates code 
  try{
   const doc=accountDom.window.document,tiles=[...doc.querySelectorAll('main #majorPickemBanner, main .seasonAccountHero, main .blackBoxBanner')];
   assert.deepEqual(tiles.map(tile=>tile.id),['adventAccountHero','majorPickemBanner','vaultAccountHero','seasonAccountHero','clanAccountHero']);
+  assert(doc.querySelector('#seasonAccountHero .nightShiftArt svg'));assert.equal(doc.querySelector('#clanAccountHero .syndicateArt img').getAttribute('src'),'/clans/medals/syndicate-owner.webp');
   assert.equal(tiles[0].getAttribute('href'),'/advent');
   assert.equal(tiles[1].getAttribute('href'),'/predict/major-pickem');
   assert.equal(doc.querySelector('main #majorProfileMedal, main #savingsBanner, main a[href="/savings"], script[src="/predict/major-profile-medal.js"]'),null);
