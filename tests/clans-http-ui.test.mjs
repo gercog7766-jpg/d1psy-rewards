@@ -9,7 +9,7 @@ test('clan routes enforce signed actor, JSON origin, avatar bounds and admin acc
  const app=express(),calls=[];app.use(express.json());
  const user=(q,r,n)=>{if(!q.get('x-user'))return r.sendStatus(401);r.locals.session={twitchUserId:q.get('x-user')};n()};
  const admin=(q,r,n)=>user(q,r,()=>q.get('x-user')==='admin'?n():r.sendStatus(403));
- installClans(app,{rpc:async(name,body)=>{calls.push({name,body});return {data:{ok:true}}}},user,admin,'https://dropso.site');
+ installClans(app,{rpc:async(name,body)=>{calls.push({name,body});return {data:body.p_action==='list'?{mine:'a',myRank:1,myScore:23,clans:[{id:'a',name:'Zeta',level:2,score:23,rank:1},{id:'b',name:'Alpha',level:1,score:10,rank:2}]}:{ok:true}}}},user,admin,'https://dropso.site');
  const server=app.listen(0);const base='http://127.0.0.1:'+server.address().port;
  const post=(action,body,headers={},admin=false)=>fetch(base+'/api/'+(admin?'admin':'me')+'/clans/'+action,{method:'POST',headers:{'content-type':'application/json','x-user':'alice',...headers},body:JSON.stringify(body)});
  try{
@@ -24,6 +24,7 @@ test('clan routes enforce signed actor, JSON origin, avatar bounds and admin acc
  assert.equal((await post('shop_vote',{proposalId:requestId,approve:'true'})).status,400);
  assert.equal((await post('shop_vote',{proposalId:requestId,approve:true})).status,200);assert.equal(calls.at(-1).body.p_actor,'alice');
  assert.equal((await post('admin',{}, {'x-user':'admin'},true)).status,200);
+ const list=await (await post('list',{})).json();assert.equal(list.myRank,undefined);assert.equal(list.myScore,23);assert.deepEqual(list.clans.map(c=>c.name),['Alpha','Zeta']);assert(list.clans.every(c=>!('score' in c)&&!('rank' in c)));
  }finally{await new Promise(resolve=>server.close(resolve))}
 });
 
@@ -48,8 +49,8 @@ test('owner inspection displays private sections safely without player action bu
  try{w.eval(clansJs);await wait();[...w.document.querySelectorAll('button')].find(b=>b.textContent==='Просмотреть клан').click();await wait();const text=w.document.body.textContent;assert(text.includes('Режим владельца Dropso'));assert(text.includes('Участники'));assert(text.includes('Чат клана'));assert(text.includes('20/200'));assert(text.includes('Общак · 75 монет'));assert(text.includes('<img src=x'));assert.equal(w.document.querySelector('img[src="x"]'),null);assert(![...w.document.querySelectorAll('button')].some(b=>/Пополнить|Отправить|Исключить|Принять|Отклонить|Купить слот/.test(b.textContent)))}finally{w.close()}
 });
 
-test('clan ranking shows seasonal CP, podium, own place and season deadline',async()=>{
- const id='11111111-1111-4111-8111-111111111111',dom=new JSDOM(clansHtml(false),{runScripts:'outside-only',url:'https://dropso.site/clans'}),w=dom.window;w.fetch=async()=>({ok:true,json:async()=>({mine:id,myRank:1,myScore:1105,seasonStart:'2026-11-20',seasonEnd:'2027-01-01',serverNow:'2026-11-20T14:00:00+03:00',clans:[{id,name:'Alpha',rank:1,level:4,score:1105}],past:[{rank:1,name:'Old',season_start:'2026-10-01',score:500,prize:1500}]})});try{w.eval(clansJs);await new Promise(r=>setTimeout(r,30));const text=w.document.body.textContent;assert(text.includes('1105 CP'));assert(!text.includes('1105 CXP'));assert(text.includes('Твой клан: #1'));assert(text.includes('500 CP'));assert(w.document.querySelector('.clan-podium-place'));assert(w.document.getElementById('clanSeasonClock').textContent.includes('До конца сезона'))}finally{w.close()}
+test('clan list hides current places, podium and other scores, keeps own CP and season deadline',async()=>{
+ const id='11111111-1111-4111-8111-111111111111',dom=new JSDOM(clansHtml(false),{runScripts:'outside-only',url:'https://dropso.site/clans'}),w=dom.window;w.fetch=async()=>({ok:true,json:async()=>({mine:id,myRank:1,myScore:1105,seasonStart:'2026-11-20',seasonEnd:'2027-01-01',serverNow:'2026-11-20T14:00:00+03:00',clans:[{id,name:'Zeta',rank:1,level:4,score:1105},{id:'other',name:'Alpha',rank:2,level:3,score:999}],past:[{rank:1,name:'Old',season_start:'2026-10-01',score:500,prize:1500}]})});try{w.eval(clansJs);await new Promise(r=>setTimeout(r,30));const text=w.document.body.textContent;assert(text.includes('CP твоего клана: 1105'));assert(!text.includes('999 CP'));assert(!text.includes('Твой клан: #1'));assert(text.includes('500 CP'));assert(!w.document.querySelector('.clan-podium-place'));assert(!text.includes('Писать сообщения не нужно'));assert(text.indexOf('Alpha')<text.indexOf('Zeta'));assert(w.document.getElementById('clanSeasonClock').textContent.includes('До конца сезона'))}finally{w.close()}
 });
 
 test('clan shop displays previews, spending and member voting without an immediate charge button',async()=>{

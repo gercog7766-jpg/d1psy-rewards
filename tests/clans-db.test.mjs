@@ -136,5 +136,11 @@ test('clan membership, wallet, task receipts and level rewards',async()=>{
  assert.equal((await rpc('102','detail',{clanId:id})).member,false);assert.equal((await rpc('102','list')).visit,null);
  await assert.rejects(rpc('102','owner_enter',{clanId:id}),/owner_required/);
  await db.exec('set role anon');await assert.rejects(db.query('select * from rewards_clan_owner_visits'),/permission denied/);await db.exec('reset role');
+ await db.exec(await readFile(new URL('../supabase/migrations/20261120200500_clan_private_standings.sql',import.meta.url),'utf8'));
+ await db.exec("update rewards_streamers set enabled=true where twitch_broadcaster_id='102'");
+ const hidden=await rpc('101','list');assert.equal(hidden.myRank,undefined);assert.equal(typeof hidden.myScore,'number');
+ assert.deepEqual(hidden.clans.map(c=>c.name),['Newer','Older','Renamed']);assert(hidden.clans.every(c=>!Object.hasOwn(c,'rank')&&!Object.hasOwn(c,'score')&&!Object.hasOwn(c,'base_cp')));
+ assert.equal((await rpc('101','admin')).ranking,null);
+ const ownerRank=await rpc('102','admin');assert(ownerRank.ranking.some(c=>c.id===id));assert.equal(ownerRank.ranking[0].rank,1);
  }finally{await db.close()}
 });
