@@ -66,4 +66,39 @@ body[data-account-design="neon"] :is(a,button,input,[role=link]):focus-visible{o
 @media(max-width:760px){body[data-account-design="neon"] .seasonAccountHero{padding:24px 21px;min-height:210px}body[data-account-design="neon"] .seasonAccountCopy{width:100%}body[data-account-design="neon"] .seasonAccountTitle{font-size:clamp(32px,8vw,52px)}body[data-account-design="neon"] .seasonAccountS1{font-size:160px;right:-10px;top:5px}body[data-account-design="neon"] .seasonAccountOpen{position:relative;right:auto;bottom:auto;display:inline-block;margin-top:17px;padding:12px 15px}body[data-account-design="neon"] .dailyBonus{padding:19px 17px}body[data-account-design="neon"] .dailyDays{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}body[data-account-design="neon"] .dailyClaim{width:auto}body[data-account-design="neon"] .card h2{font-size:24px}body[data-account-design="neon"] .levelWidget{padding:17px}body[data-account-design="neon"] .item-img{height:140px}body[data-account-design="neon"] .item-name{font-size:13px}}
 @media(max-width:380px){body[data-account-design="neon"] .inventory{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}body[data-account-design="neon"] .item-img{height:110px}body[data-account-design="neon"] .item-body{padding:11px 10px 48px}body[data-account-design="neon"] .dailyDay strong{font-size:17px}}
 @media(prefers-reduced-motion:reduce){body[data-account-design="neon"] .item{transition:none}body[data-account-design="neon"] .item:hover{transform:none}}
+/* Feature banners: keep artwork behind the text and keep every CTA inside its card. */
+body[data-account-design="neon"] .seasonAccountHero{container-type:inline-size;min-width:0;box-sizing:border-box}
+body[data-account-design="neon"] .seasonAccountTitle{font-size:clamp(32px,6.6cqw,66px);white-space:normal;overflow-wrap:normal}
+body[data-account-design="neon"] .featureBannerArt{position:absolute;inset:0 0 0 auto;width:43%;height:100%;z-index:0;pointer-events:none;overflow:hidden;mask-image:linear-gradient(90deg,transparent 0%,#000 21%)}
+body[data-account-design="neon"] .nightShiftArt{background:radial-gradient(ellipse at 70% 45%,#7434c44d,transparent 66%)}
+body[data-account-design="neon"] .nightShiftArt svg{position:absolute;width:100%;height:112%;right:2%;top:-12%;filter:drop-shadow(0 0 20px #a74cf77c);opacity:.89}
+body[data-account-design="neon"] .syndicateArt{background:radial-gradient(ellipse at 66% 45%,#7838df65,transparent 65%)}
+body[data-account-design="neon"] .syndicateArt img{position:absolute;width:clamp(112px,27cqw,210px);height:auto;max-height:92%;object-fit:contain;right:10%;top:0;filter:drop-shadow(0 0 17px #a838fa88);opacity:.92}
+body[data-account-design="neon"] .syndicateOrbit{position:absolute;width:245px;aspect-ratio:1;right:1%;top:-12%;border:1px solid #c18eff48;border-radius:50%;box-shadow:0 0 0 18px #a06bff0b,0 0 0 41px #b46bff0a,inset 0 0 34px #9c52f51a;transform:rotate(-20deg) scaleY(.75)}
+body[data-account-design="neon"] .syndicateSpark{position:absolute;right:55%;top:20%;font-size:26px;color:#d9abff;opacity:.68;text-shadow:0 0 15px #b24aff}
+body[data-account-design="neon"] .syndicateSpark.second{right:8%;top:15%;font-size:17px}
+body[data-account-design="neon"] #clanAccountHero .seasonAccountTitle{color:#f5efff}
+body[data-account-design="neon"] #clanAccountHero .seasonAccountTitle span{color:#c46aff}
+@media(min-width:761px){body[data-account-design="neon"] #clanAccountHero .seasonAccountCopy{width:76%;max-width:unset}body[data-account-design="neon"] #clanAccountHero .seasonAccountTitle{font-size:clamp(32px,6cqw,60px)}}
+@media(max-width:760px){
+ body[data-account-design="neon"] main{padding:12px 12px 30px;min-width:0}
+ body[data-account-design="neon"] .top{padding:0;margin:0 0 8px;gap:8px}
+ body[data-account-design="neon"] .seasonAccountHero{min-height:174px;padding:18px 17px;margin-bottom:11px;border-radius:14px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center}
+ body[data-account-design="neon"] .seasonAccountCopy{width:100%;max-width:100%;min-width:0;position:relative;z-index:2}
+ body[data-account-design="neon"] .seasonAccountEyebrow{font-size:10px;letter-spacing:.12em;gap:9px}
+ body[data-account-design="neon"] .seasonAccountEyebrow:after{width:38px;flex:none}
+ body[data-account-design="neon"] .seasonAccountTitle{font-size:clamp(27px,7.2cqw,43px);line-height:1.08;margin:10px 0 9px;max-width:100%;text-wrap:balance}
+ body[data-account-design="neon"] .seasonAccountMeta{font-size:11px;line-height:1.4;gap:4px 10px;flex-wrap:wrap;padding-right:0}
+ body[data-account-design="neon"] .seasonAccountProgress{width:min(100%,280px);margin-top:10px}
+ body[data-account-design="neon"] .seasonAccountOpen{position:relative;inset:auto;align-self:flex-start;min-height:36px;display:inline-flex;align-items:center;justify-content:center;padding:9px 12px;margin-top:14px;max-width:100%;font-size:10px;white-space:normal;z-index:3}
+ body[data-account-design="neon"] .featureBannerArt{width:52%;opacity:.39;mask-image:linear-gradient(90deg,transparent,#000 40%)}
+ body[data-account-design="neon"] .syndicateArt img{width:130px;right:4%;top:6%;max-height:90%}
+ body[data-account-design="neon"] .nightShiftArt svg{right:-10%;width:120%}
+ body[data-account-design="neon"] .majorPickemBanner{min-height:76px;padding:12px 14px;margin-bottom:11px;gap:11px}
+ body[data-account-design="neon"] .majorPickemBannerCopy{min-width:0}
+ body[data-account-design="neon"] .majorPickemBannerCopy strong{font-size:19px;overflow-wrap:anywhere}
+ body[data-account-design="neon"] .majorPickemBannerCopy span{font-size:11px;line-height:1.4}
+ body[data-account-design="neon"] .majorPickemBanner img{width:44px;height:44px}
+}
+@media(max-width:620px){body[data-account-design="neon"] main>.top{display:flex!important;min-height:0;justify-content:flex-end;margin:0;padding:0}body[data-account-design="neon"] main>.top .mobile-account-identity:empty{display:none}body[data-account-design="neon"] main>.top .top-right{justify-content:flex-end}body[data-account-design="neon"] .top #accountLogoMenuToggle{display:none!important}}
 `;

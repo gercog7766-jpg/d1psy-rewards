@@ -5,7 +5,9 @@ export const desktopAccountSidebar = String.raw`<style id="desktopAccountSidebar
 @media(min-width:900px){
   body[data-account-design="neon"] .account-art-rails{display:none}
   .desktop-account-layout{width:min(100%,1440px);margin-inline:auto;padding:20px clamp(14px,2vw,30px) 0;display:grid;grid-template-columns:clamp(190px,17vw,230px) minmax(0,1fr);gap:clamp(14px,2vw,26px);align-items:start}
-  body[data-account-design="neon"] .desktop-account-layout>main{width:100%;min-width:0;max-width:none;margin:0;border:1px solid #6d3b914d;border-radius:18px;padding:22px clamp(16px,2vw,30px) 36px}
+  body[data-account-design="neon"] .desktop-account-layout>main{width:100%;min-width:0;max-width:none;margin:0;border:1px solid #6d3b914d;border-radius:18px;padding:16px clamp(16px,2vw,30px) 36px}
+  body[data-account-design="neon"] .desktop-account-layout>main>.top{padding:0;margin:0;border:0;gap:0;min-height:0}
+  .desktop-account-layout .top .account-logo-menu,.desktop-account-layout .top .mobile-menu-toggle{display:none}
   .desktop-account-layout #accountLogoMenuToggle,.desktop-account-layout .top .economybar:empty{display:none}
   .desktop-account-sidebar{display:flex;flex-direction:column;position:sticky;top:20px;max-height:calc(100dvh - 40px);overflow:auto;scrollbar-width:thin;padding:10px;gap:6px;border:1px solid #7945a360;border-radius:16px;background:linear-gradient(155deg,#251535,#120c1c 70%);box-shadow:0 16px 40px #0004}
   .desktop-account-sidebar .desktop-account-brand{display:flex;align-items:center;gap:9px;padding:2px 9px 8px;color:#f8efff;font:800 16px/1.2 system-ui;letter-spacing:.08em;text-decoration:none}

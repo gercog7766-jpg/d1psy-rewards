@@ -45,3 +45,14 @@ test('document decoration preserves embedded templates and excludes OBS and API 
   finally{dom.window.close()}
  }
 });
+
+test('mobile page navigation uses an icon in the header and keeps all links accessible',()=>{
+ const dom=new JSDOM(withSiteNavigation(page,'/clans'),{runScripts:'outside-only'}),w=dom.window,d=w.document;
+ try{w.eval(d.getElementById('dropsoSiteNavigationScript').textContent);d.dispatchEvent(new w.Event('DOMContentLoaded'));const toggle=d.getElementById('dropsoSiteMenuToggle'),details=d.querySelector('#dropsoSiteSidebar details');assert(toggle.querySelector('svg'));assert.equal(toggle.textContent,'');assert.equal(toggle.getAttribute('aria-expanded'),'false');toggle.click();assert(details.open);assert.equal(toggle.getAttribute('aria-expanded'),'true');assert(d.querySelector('#dropsoSiteSidebar a[href="/clans"]'));toggle.click();assert(!details.open)}finally{w.close()}
+});
+
+test('account mobile hamburger moves to shared header and duplicate menu label is removed',()=>{
+ const html=withSiteNavigation(page.replace('<main>','<main><div id="identity"><button id="mobileMenuToggle">☰</button><button id="accountLogoMenuToggle">Меню</button></div>'),'/account');
+ const dom=new JSDOM(html,{runScripts:'outside-only'}),w=dom.window,d=w.document;let change;const media={matches:true,addEventListener:(_,fn)=>change=fn};w.matchMedia=()=>media;
+ try{w.eval(d.getElementById('dropsoSiteNavigationScript').textContent);d.dispatchEvent(new w.Event('DOMContentLoaded'));assert(d.querySelector('.dropso-site-header #mobileMenuToggle'));assert.equal(d.getElementById('accountLogoMenuToggle').textContent,'');assert(d.querySelector('#accountLogoMenuToggle svg'));media.matches=false;change();assert(d.querySelector('#identity #mobileMenuToggle'))}finally{w.close()}
+});
