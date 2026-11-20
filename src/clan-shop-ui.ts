@@ -28,13 +28,14 @@ function renderClanShop(d,id){
  p.append(el('p','Платные места: '+s.paidSlots+'/15 · Всего мест: '+d.capacity+'/30','clan-own-rank'));
  const proposal=(item,label,price)=>run(async()=>{if(!await window.dropsoConfirm('Предложить покупку «'+label+'» за '+price+' монет из общака?'))return;await api('shop_propose',{clanId:id,item,requestId:crypto.randomUUID()});await detail(id)});
  const slot=button(s.nextSlotCost==null?'Все слоты куплены':'Предложить +1 место · '+s.nextSlotCost+' монет',()=>proposal('slot','Дополнительный слот',s.nextSlotCost));
- slot.disabled=!!active||s.nextSlotCost==null||d.treasury<s.nextSlotCost;p.append(slot);
+ slot.disabled=!!d.visitor||!!active||s.nextSlotCost==null||d.treasury<s.nextSlotCost;p.append(slot);
  for(const v of s.proposals){
   const status=({pending:'Голосование',approved:'Одобрено',rejected:'Отклонено',expired:'Истекло',cancelled:'Состав изменился'})[v.status]||v.status;
   const q=el('div',undefined,'shop-vote');q.append(el('b',v.label+' · '+v.amount+' монет · '+status),el('p','За: '+v.yes+'/'+v.required+' необходимых · против: '+v.no+' · участников: '+v.eligible,'muted'));
   if(v.status==='pending'){
    q.append(el('p','До '+formatStamp(v.expires_at),'muted'));
-   if(v.my_vote==null){const row=el('div',undefined,'row');for(const [label,approve] of [['За',true],['Против',false]])row.append(button(label,()=>run(async()=>{if(!await window.dropsoConfirm('Подтвердить голос «'+label+'»?'))return;await api('shop_vote',{clanId:id,proposalId:v.id,approve});await detail(id)})));q.append(row)}
+   if(d.visitor)q.append(el('p','Голосование доступно только участникам клана','muted'));
+   else if(v.my_vote==null){const row=el('div',undefined,'row');for(const [label,approve] of [['За',true],['Против',false]])row.append(button(label,()=>run(async()=>{if(!await window.dropsoConfirm('Подтвердить голос «'+label+'»?'))return;await api('shop_vote',{clanId:id,proposalId:v.id,approve});await detail(id)})));q.append(row)}
    else q.append(el('p',v.my_vote?'Ты проголосовал за':'Ты проголосовал против','muted'));
   }
   p.append(q);
@@ -47,7 +48,7 @@ function renderClanShop(d,id){
    const card=el('div',undefined,'clan-shop-card'),preview=el('div',kind==='frame'?'':shopText[item.id]|| (kind==='tag'?'SYNDICATE':''),'clan-shop-preview '+kind);
    if(shopTones[item.id])preview.style.setProperty('--shop-tone',shopTones[item.id]);if(shopBgs[item.id])preview.style.setProperty('--shop-bg',shopBgs[item.id]);
    card.append(preview,el('b',item.name),el('span',item.owned?'Куплено':item.price+' монет','muted'));
-   if(!item.owned){const b=button('Предложить',()=>proposal(item.id,item.name,item.price));b.disabled=!!active||d.treasury<item.price;card.append(b)}
+   if(!item.owned){const b=button('Предложить',()=>proposal(item.id,item.name,item.price));b.disabled=!!d.visitor||!!active||d.treasury<item.price;card.append(b)}
    else if(d.leader){const selected=s.decorations?.[kind]===item.id;card.append(button(selected?'Снять оформление':'Применить',()=>run(async()=>{await api('shop_equip',{clanId:id,item:selected?'clear':item.id,kind});await detail(id)})))}
    grid.append(card);
   }
