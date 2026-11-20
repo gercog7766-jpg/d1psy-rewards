@@ -17,6 +17,9 @@ test('shared navigation preserves page nodes and actions, marks the most specifi
   assert.equal(doc.querySelector('.dropso-site-layout>main'),main);
   button.click();assert.equal(clicks,1);
   assert.equal(doc.querySelectorAll('footer').length,1);
+  assert.equal(doc.querySelector('footer .footer-social a').getAttribute('href'),'https://t.me/dropso_cs2');
+  assert.equal(doc.querySelectorAll('footer .footer-social a').length,1);
+  assert.equal(doc.querySelector('footer a[href*="twitch.tv"]'),null);
   assert.equal(doc.querySelectorAll('.dropso-home').length,1);
   assert.equal(doc.querySelector('.dropso-home img').getAttribute('src'),'/pwa/icon/brand-logo.png');
   assert.equal(doc.querySelector('a[aria-current]').getAttribute('href'),'/games/three-doors');
