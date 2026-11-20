@@ -334,12 +334,20 @@ export const majorPickemScript = String.raw`(() => {
     'Five-SeveN | Капилляры','CZ75-Auto | Эко'
   ];
   const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+  async function preloadBronzeArtwork(catalog){
+    const artwork=caseNames.map(name=>({name,image:Array.isArray(catalog)?catalog.find(p=>p.name===name)?.image:null}));
+    if(artwork.some(p=>typeof p.image!=='string'||!p.image))throw Error('case_catalog_incomplete');
+    await Promise.all([...new Set(artwork.map(p=>p.image))].map(src=>new Promise((resolve,reject)=>{
+      const img=new Image();const timer=setTimeout(()=>reject(Error('case_artwork_unavailable')),8000);
+      function done(ok){clearTimeout(timer);ok?resolve():reject(Error('case_artwork_unavailable'))}
+      img.referrerPolicy='no-referrer';img.onload=()=>done(true);img.onerror=()=>done(false);img.src=src;
+      if(img.complete&&img.naturalWidth>0)done(true);
+    })));
+    return artwork;
+  }
   async function spinBronze(result){
     const roulette=el('bronzeRoulette'),strip=el('bronzeStrip');
-    const prizes=Array.isArray(result.catalog)?result.catalog:[];
-    const artwork=caseNames.map((name,i)=>({name,image:prizes[i]?.image||null}));
-    const winningArtwork=artwork.find(p=>p.name===result.name);
-    if(winningArtwork && result.image)winningArtwork.image=result.image;
+    const artwork=await preloadBronzeArtwork(result.catalog);
     const art=document.querySelector('.bronze-case-art');
     if(art){art.classList.remove('bronze-case-opening');void art.offsetWidth;art.classList.add('bronze-case-opening');}
     roulette.hidden=false;
@@ -353,19 +361,14 @@ export const majorPickemScript = String.raw`(() => {
       const slot=document.createElement('div');
       slot.className='bronze-slot';
       const img=document.createElement('img');
-      if(prize.image)img.src=prize.image;
+      img.referrerPolicy='no-referrer';img.src=prize.image;
       img.alt='';img.loading='eager';img.decoding='async';
-      img.onerror=()=>{img.removeAttribute('src');};
-      const caption=document.createElement('span');
-      caption.textContent=prize.name;
-      slot.append(img,caption);
+      slot.append(img);
       strip.append(slot);
     }
-    await Promise.all(Array.from(strip.querySelectorAll('img[src]')).map(img=>
-      img.decode().catch(()=>{})));
     await sleep(60);
-    const slotWidth=148;
-    const target=winningSlot*slotWidth+70-roulette.clientWidth/2;
+    const selected=strip.children[winningSlot];
+    const target=selected.offsetLeft+selected.offsetWidth/2-roulette.clientWidth/2;
     const jitter=Math.floor(Math.random()*32)-16;
     strip.style.transition='transform 5800ms cubic-bezier(.09,.65,.12,1)';
     strip.style.transform='translateX('+(-target+jitter)+'px)';
@@ -379,18 +382,19 @@ export const majorPickemScript = String.raw`(() => {
     const requestId=crypto.randomUUID();
     try{
       const catalogResponse=await fetch('/api/me/major-pickem/cases/bronze/catalog',{cache:'no-store'});
-      const catalog=catalogResponse.ok?await catalogResponse.json().catch(()=>({})):{};
+      if(!catalogResponse.ok)throw Error('case_catalog_incomplete');
+      const catalog=await catalogResponse.json();
+      await preloadBronzeArtwork(catalog.items);
       const response=await fetch('/api/me/major-pickem/cases/bronze/open',{
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({requestId})
       });
       const result=await response.json().catch(()=>({}));
       if(!response.ok)throw Error(result.error||'case_unavailable');
-      result.catalog=catalog.items;
       state.tokens=result.tokens;
       el('bronzeCaseStatus').textContent='Кейс открывается…';
-      try{await spinBronze(result);}catch(animationError){console.warn('major_bronze_animation',animationError);}
-      el('bronzeCaseStatus').textContent='Выпало: '+result.name+(result.wear?' ('+result.wear+')':'')+'. Предмет доступен в апгрейдере.';
+      try{await spinBronze(result);}catch(animationError){el('bronzeRoulette').hidden=true;console.warn('major_bronze_animation',animationError);}
+      el('bronzeCaseStatus').textContent='Выпало: '+result.name+(result.wear?' ('+result.wear+')':'')+'. Доступен в инвентаре.';
       el('tokens').textContent='Жетоны Major Dropso: '+state.tokens;
     }catch(error){
       el('bronzeCaseStatus').textContent=({
@@ -398,6 +402,7 @@ export const majorPickemScript = String.raw`(() => {
         entry_required:'Для открытия нужен пропуск Major Pick’em.',
         case_prize_unavailable:'Открытие временно недоступно: проверь наличие скинов.',
         case_catalog_incomplete:'Открытие временно недоступно: каталог призов ещё не заполнен.',
+        case_artwork_unavailable:'Не удалось загрузить изображения скинов. Жетон не списан. Попробуй ещё раз.',
       })[error.message]||'Не удалось открыть кейс. Если жетон списан, не повторяй запрос — обратись в поддержку.';
     }finally{caseBusy=false;render();}
   };

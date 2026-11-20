@@ -42,31 +42,11 @@ export function installMajorPickem(app:Express,db:SupabaseClient,user:RequestHan
   app.get('/predict/major-pickem.js',noStore,(_req,res) => res.type('application/javascript').send(majorPickemScript));
   // Public case artwork catalog: image URLs only; draw weights remain server-side.
   app.get('/api/me/major-pickem/cases/bronze/catalog',noStore,user,async(_req,res) => {
-    const names=[
-      'AK-47 | Оливковый поликамуфляж','Five-SeveN | Небесная голубизна',
-      'P250 | Ледяная корка','SG 553 | Корзинные полутона',
-      'SCAR-20 | Песчаная сетка','M249 | Ледяная корка',
-      'Негев | Кислый виноград','XM1014 | Ирэдзуми',
-      'ПП-19 «Бизон» | Карамельное яблоко','MAC-10 | Световой короб',
-      'Five-SeveN | Капилляры','CZ75-Auto | Эко'
-    ];
-    const candidates=names.flatMap((name,i)=>i===1||i===3||i===6||i===8||i===10||i===11
-      ? [name+' '+(i===6?'BS':'FT'),name]
-      : [name,name+' FT',name+' BS']);
-    const {data,error}=await db.from('rewards_prizes').select('name,image_url')
-      .in('name',candidates);
-    if(error){res.status(503).json({error:'case_unavailable'});return;}
-    // Some rewards are sourced from shop variants rather than the drop prize catalog.
-    const {data:shopImages,error:shopError}=await db.from('rewards_shop_items')
-      .select('name,image_url').in('name',names);
-    if(shopError){res.status(503).json({error:'case_unavailable'});return;}
-    const images=names.map((name,i)=>{
-      const exactWear=i===6?'BS':'FT';
-      const matches=(data??[]).filter(p=>p.image_url && (p.name===name || p.name===name+' FT' || p.name===name+' BS'));
-      const preferred=matches.find(p=>p.name===name+' '+exactWear)??matches.find(p=>p.name===name)??matches[0];
-      return {name,image:preferred?.image_url??shopImages?.find(p=>p.name===name)?.image_url??null};
-    });
-    res.json({items:images});
+    const {data,error}=await db.rpc('rewards_major_bronze_catalog');
+    if(error||!Array.isArray(data)||data.length!==12||data.some(item=>!item?.image)){
+      res.status(503).json({error:'case_catalog_incomplete'});return;
+    }
+    res.json({items:data});
   });
   app.get('/predict/major-bronze-case.webp', (_req,res) => {
     res.sendFile(resolve(process.cwd(),'assets/major-pickem/bronze-case.webp'),{maxAge:'1d'});
