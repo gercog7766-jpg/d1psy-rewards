@@ -335,15 +335,15 @@ export const majorPickemScript = String.raw`(() => {
   ];
   const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   async function preloadBronzeArtwork(catalog){
-    const artwork=caseNames.map(name=>({name,image:Array.isArray(catalog)?catalog.find(p=>p.name===name)?.image:null}));
+    const artwork=caseNames.map(name=>{const p=Array.isArray(catalog)?catalog.find(p=>p.name===name):null;return {name,image:p?.image,proxy:p?.proxy}});
     if(artwork.some(p=>typeof p.image!=='string'||!p.image))throw Error('case_catalog_incomplete');
-    await Promise.all([...new Set(artwork.map(p=>p.image))].map(src=>new Promise((resolve,reject)=>{
-      const img=new Image();const timer=setTimeout(()=>reject(Error('case_artwork_unavailable')),8000);
-      function done(ok){clearTimeout(timer);ok?resolve():reject(Error('case_artwork_unavailable'))}
+    const load=src=>new Promise((resolve,reject)=>{
+      const img=new Image();const timer=setTimeout(()=>reject(Error('case_artwork_unavailable')),4500);
+      function done(ok){clearTimeout(timer);ok?resolve(src):reject(Error('case_artwork_unavailable'))}
       img.referrerPolicy='no-referrer';img.onload=()=>done(true);img.onerror=()=>done(false);img.src=src;
       if(img.complete&&img.naturalWidth>0)done(true);
-    })));
-    return artwork;
+    });
+    return Promise.all(artwork.map(async p=>({name:p.name,image:await (p.proxy?load(p.proxy).catch(()=>load(p.image)):load(p.image))})));
   }
   async function spinBronze(result){
     const roulette=el('bronzeRoulette'),strip=el('bronzeStrip');
@@ -378,13 +378,10 @@ export const majorPickemScript = String.raw`(() => {
   el('openBronzeCase').onclick=async()=>{
     if(caseBusy||shopBusy||busy||!state?.entered||state.tokens<1)return;
     caseBusy=true;el('openBronzeCase').disabled=true;
+    el('bronzeRoulette').hidden=true;
     el('bronzeCaseStatus').textContent='Открываем кейс…';
     const requestId=crypto.randomUUID();
     try{
-      const catalogResponse=await fetch('/api/me/major-pickem/cases/bronze/catalog',{cache:'no-store'});
-      if(!catalogResponse.ok)throw Error('case_catalog_incomplete');
-      const catalog=await catalogResponse.json();
-      await preloadBronzeArtwork(catalog.items);
       const response=await fetch('/api/me/major-pickem/cases/bronze/open',{
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({requestId})
@@ -392,8 +389,9 @@ export const majorPickemScript = String.raw`(() => {
       const result=await response.json().catch(()=>({}));
       if(!response.ok)throw Error(result.error||'case_unavailable');
       state.tokens=result.tokens;
+      el('tokens').textContent='Жетоны Major Dropso: '+state.tokens;
       el('bronzeCaseStatus').textContent='Кейс открывается…';
-      try{await spinBronze(result);}catch(animationError){el('bronzeRoulette').hidden=true;console.warn('major_bronze_animation',animationError);}
+      try{await spinBronze(result);}catch(animationError){el('bronzeRoulette').hidden=true;document.querySelector('.bronze-case-art')?.classList.remove('bronze-case-opening');console.warn('major_bronze_animation',animationError);}
       el('bronzeCaseStatus').textContent='Выпало: '+result.name+(result.wear?' ('+result.wear+')':'')+'. Доступен в инвентаре.';
       el('tokens').textContent='Жетоны Major Dropso: '+state.tokens;
     }catch(error){
