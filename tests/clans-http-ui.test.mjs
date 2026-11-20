@@ -64,3 +64,10 @@ test('clan shop displays previews, spending and member voting without an immedia
  assert(calls.some(([path,b])=>path.endsWith('/shop_vote')&&b.proposalId===proposalId&&b.approve===true));
  }finally{w.close()}
 });
+
+test('site owner enters and exits a full clan from the normal player page',async()=>{
+ const id='11111111-1111-4111-8111-111111111111',dom=new JSDOM(clansHtml(false),{runScripts:'outside-only',url:'https://dropso.site/clans'}),w=dom.window,calls=[];let entered=false;
+ const wait=()=>new Promise(r=>setTimeout(r,25));const member={id,name:'Alpha',member:true,visitor:true,leader:false,level:1,cxp:0,capacity:5,treasury:100,members:Array.from({length:5},(_,i)=>({id:String(i),login:'Player '+i})),tasks:[],chat:[],requests:[],ends:'2026-11-30',ledger:[],shop:{paidSlots:0,nextSlotCost:50,decorations:{},catalog:[],proposals:[]}};
+ w.fetch=async(path,opt)=>{calls.push(path);if(path.endsWith('/owner_enter'))entered=true;if(path.endsWith('/owner_exit'))entered=false;return {ok:true,json:async()=>path.endsWith('/list')?{mine:null,canVisit:true,visit:entered?id:null,clans:[{id,name:'Alpha',level:1,score:0}]}:path.endsWith('/detail')?entered?member:{id,name:'Alpha',level:1,member:false,canVisit:true}:{} }};
+ try{w.eval(clansJs);await wait();[...w.document.querySelectorAll('button')].find(b=>b.textContent==='Войти для проверки').click();await wait();assert(calls.some(p=>p.endsWith('/owner_enter')));assert(w.document.body.textContent.includes('проверка без занятия места'));assert(w.document.body.textContent.includes('5/5 участников'));assert([...w.document.querySelectorAll('button')].find(b=>b.textContent==='Пополнить').disabled);assert([...w.document.querySelectorAll('button')].find(b=>b.textContent==='Отправить').disabled);[...w.document.querySelectorAll('button')].find(b=>b.textContent==='Выйти из клана (проверка)').click();await wait();assert(calls.some(p=>p.endsWith('/owner_exit')));assert(!w.document.body.textContent.includes('проверка без занятия места'));}finally{w.close()}
+});
