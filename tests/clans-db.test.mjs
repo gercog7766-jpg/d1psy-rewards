@@ -52,5 +52,24 @@ test('clan membership, wallet, task receipts and level rewards',async()=>{
  await rpc('bob','chat',{clanId:id,message:'Hello'});await rpc('alice','kick',{clanId:id,userId:bob});assert.equal((await rpc('bob','detail',{clanId:id})).chat,undefined);
  await rpc('alice','moderate',{clanId:id,name:'Renamed',removeAvatar:true});assert.equal((await rpc('outsider','detail',{clanId:id})).name,'Renamed');
  assert.equal((await db.query('select rewards_clan_level(70125) level,rewards_clan_capacity(70125,true) capacity')).rows[0].capacity,16);
+ await db.exec(await readFile(new URL('../supabase/migrations/20261120150000_clan_season_cp.sql',import.meta.url),'utf8'));
+ const first=await rpc('alice','list');assert.equal(first.clans[0].score,1000);assert.equal(first.clans[0].base_cp,1000);assert.equal(first.myRank,1);assert.equal(first.seasonStart,'2026-11-20');assert.equal(first.seasonEnd,'2027-01-01');
+ await db.exec(`insert into rewards_vault_contributions(user_id,amount) select id,100 from rewards_users where twitch_user_id='alice';
+ insert into rewards_defuse_games(user_id,status) select id,'playing' from rewards_users where twitch_user_id='alice';update rewards_defuse_games set status='won',finished_at=clock_timestamp() where status='playing';
+ insert into rewards_coin_transactions(user_id,amount,note) select id,1,'Ежедневный бонус · день 1' from rewards_users where twitch_user_id='alice';
+ insert into rewards_promo_redemptions(user_id) select id from rewards_users where twitch_user_id='alice';`);
+ let cp=await rpc('alice','list');assert.equal(cp.clans[0].score,1105);assert.equal(cp.clans[0].bonus_cp,105);assert.equal((await rpc('alice','detail',{clanId:id})).cxp,1000,'CP never advances permanent level');
+ await db.query("insert into rewards_users(twitch_user_id,twitch_login) select 'member'||n,'member'||n from generate_series(1,4) n");await db.query("insert into rewards_clan_members(clan_id,user_id) select $1,id from rewards_users where twitch_user_id like 'member%'",[id]);
+ cp=await rpc('alice','list');assert.equal(cp.clans[0].bonus_cp,87,'six distinct members, including a departed member, normalize additional CP');assert.equal(cp.clans[0].score,1087);
+ await db.query("insert into rewards_clan_tasks(period,source,label,target,cxp) values('2026-12-28','vault','Ключи',200,160)");
+ const alice=(await db.query("select id from rewards_users where twitch_user_id='alice'")).rows[0].id;
+ await db.query("insert into rewards_clan_events(source,event_key,clan_id,user_id,amount,occurred_at,received_at) values('vault','year1',$1,$2,180,'2026-12-30 10:00+03','2026-12-30 10:00+03'),('vault','year2',$1,$2,50,'2026-12-31 10:00+03','2026-12-31 10:00+03'),('vault','year3',$1,$2,40,'2027-01-01 10:00+03','2027-01-01 10:00+03')",[id,alice]);
+ await db.query("insert into rewards_clan_task_awards(clan_id,period,source,cxp,awarded_at) values($1,'2026-12-28','vault',160,'2027-01-01 00:01+03')",[id]);
+ const dec=(await db.query("select * from rewards_clan_cp_scores('2026-11-20','2027-01-01 00:00+03',$1)",[id])).rows[0];assert.equal(Number(dec.bonus_cp),117);assert.equal(Number(dec.base_cp),1160,'task completed before cutoff belongs to December even if CXP tick was delayed');
+ const jan=(await db.query("select * from rewards_clan_cp_scores('2027-01-01','2027-01-02 00:00+03',$1)",[id])).rows[0];assert.equal(Number(jan.base_cp),0);assert.equal(Number(jan.bonus_cp),40,'only the additional units confirmed in January count in January');
+ const tie=(await db.query("insert into rewards_clans(name,owner_id,created_at) select name,$1,stamp from (values ('Older','2026-12-01 00:00+03'::timestamptz),('Newer','2026-12-02 00:00+03'::timestamptz)) q(name,stamp) returning id,name",[alice])).rows;
+ await db.query("insert into rewards_clan_task_awards(clan_id,period,source,cxp,awarded_at) values($1,'2026-12-28','vault',160,'2026-12-31 10:00+03'),($2,'2026-12-28','vault',160,'2026-12-30 10:00+03')",[tie[0].id,tie[1].id]);
+ const tieRank=(await db.query("select name,rank from rewards_clan_cp_rank('2026-11-20','2027-01-01 00:00+03') where name in('Older','Newer') order by rank")).rows;assert.deepEqual(tieRank.map(r=>r.name),['Newer','Older']);
+ await db.exec('set role anon');await assert.rejects(db.query("select * from rewards_clan_cp_scores('2026-11-20',now())"),/permission denied/);await db.exec('reset role');
  }finally{await db.close()}
 });

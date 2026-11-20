@@ -31,7 +31,8 @@ export async function readClanOwnerView(db:SupabaseClient,id:string){
  // PostgREST caps individual responses; aggregate every page of receipts, not merely the first 1000.
  for(let offset=0;;offset+=500){const rows=read(await db.from('rewards_clan_events').select('source,event_key,amount').eq('clan_id',id).gte('occurred_at',from).lt('occurred_at',until).order('source').order('event_key').range(offset,offset+499))||[];for(const row of rows)progress.set(row.source,(progress.get(row.source)||0)+Number(row.amount));if(rows.length<500)break}
  const done=new Set((read(awards)||[]).map((a:any)=>a.source));
- return {id:clan.id,name:clan.name,avatar:clan.avatar,level:read(level),capacity:read(capacity),cxp:clan.cxp,treasury:clan.treasury,extraSlot:clan.extra_slot,minLevel:clan.min_level,minBp:clan.min_bp,period,ends:end,createdAt:clan.created_at,decorations:clan.decorations,
+ let cp:number|undefined;try{const now=new Date().toISOString(),start=read(await db.rpc('rewards_clan_season_start',{p_at:now}));const scores=read(await db.rpc('rewards_clan_cp_scores',{p_start:start,p_until:now,p_clan:id}));if(Array.isArray(scores)&&scores[0])cp=Number(scores[0].cp)}catch{/* Older deployments may not yet have seasonal CP. */}
+ return {id:clan.id,name:clan.name,avatar:clan.avatar,level:read(level),capacity:read(capacity),cxp:clan.cxp,cp,treasury:clan.treasury,extraSlot:clan.extra_slot,minLevel:clan.min_level,minBp:clan.min_bp,period,ends:end,createdAt:clan.created_at,decorations:clan.decorations,
   members:(read(members)||[]).map((m:any)=>({login:login(m),owner:m.user_id===clan.owner_id,joinedAt:m.joined_at})),
   requests:(read(requests)||[]).map((r:any)=>({login:login(r),created_at:r.created_at})),
   tasks:(read(tasks)||[]).map((t:any)=>({...t,progress:progress.get(t.source)||0,done:done.has(t.source)})),
