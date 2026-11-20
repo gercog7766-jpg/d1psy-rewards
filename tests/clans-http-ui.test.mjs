@@ -18,6 +18,11 @@ test('clan routes enforce signed actor, JSON origin, avatar bounds and admin acc
  assert.equal((await post('create',{name:'Alpha',actor:'bob'})).status,400);
  assert.equal((await post('create',{name:'Alpha',avatar:'data:image/svg+xml;base64,PHN2Zz4='})).status,400);
  assert.equal((await post('create',{name:'Alpha'})).status,200);assert.equal(calls.at(-1).body.p_actor,'alice');
+ const requestId='11111111-1111-4111-8111-111111111111';
+ assert.equal((await post('slot',{})).status,400);
+ assert.equal((await post('shop_propose',{item:'slot',requestId,amount:1})).status,200);
+ assert.equal((await post('shop_vote',{proposalId:requestId,approve:'true'})).status,400);
+ assert.equal((await post('shop_vote',{proposalId:requestId,approve:true})).status,200);assert.equal(calls.at(-1).body.p_actor,'alice');
  assert.equal((await post('admin',{}, {'x-user':'admin'},true)).status,200);
  }finally{await new Promise(resolve=>server.close(resolve))}
 });
@@ -45,4 +50,17 @@ test('owner inspection displays private sections safely without player action bu
 
 test('clan ranking shows seasonal CP, podium, own place and season deadline',async()=>{
  const id='11111111-1111-4111-8111-111111111111',dom=new JSDOM(clansHtml(false),{runScripts:'outside-only',url:'https://dropso.site/clans'}),w=dom.window;w.fetch=async()=>({ok:true,json:async()=>({mine:id,myRank:1,myScore:1105,seasonStart:'2026-11-20',seasonEnd:'2027-01-01',serverNow:'2026-11-20T14:00:00+03:00',clans:[{id,name:'Alpha',rank:1,level:4,score:1105}],past:[{rank:1,name:'Old',season_start:'2026-10-01',score:500,prize:1500}]})});try{w.eval(clansJs);await new Promise(r=>setTimeout(r,30));const text=w.document.body.textContent;assert(text.includes('1105 CP'));assert(!text.includes('1105 CXP'));assert(text.includes('Твой клан: #1'));assert(text.includes('500 CP'));assert(w.document.querySelector('.clan-podium-place'));assert(w.document.getElementById('clanSeasonClock').textContent.includes('До конца сезона'))}finally{w.close()}
+});
+
+test('clan shop displays previews, spending and member voting without an immediate charge button',async()=>{
+ const id='11111111-1111-4111-8111-111111111111',proposalId='22222222-2222-4222-8222-222222222222',calls=[],dom=new JSDOM(clansHtml(false),{runScripts:'outside-only',url:'https://dropso.site/clans'}),w=dom.window;
+ const wait=()=>new Promise(r=>setTimeout(r,25));
+ const detail={id,name:'Alpha',member:true,leader:false,level:1,cxp:0,capacity:7,treasury:300,members:[{id,login:'Alice',owner:false}],tasks:[],chat:[],requests:[],ends:'2026-11-30',ledger:[{amount:-50,description:'Дополнительный слот'}],shop:{paidSlots:2,nextSlotCost:100,decorations:{},catalog:[{id:'frame_neon',kind:'frame',name:'Неоновый контур',price:100,owned:false}],proposals:[{id:proposalId,label:'Дополнительный слот',amount:100,status:'pending',eligible:5,required:3,yes:2,no:0,my_vote:null,expires_at:new Date().toISOString()}]}};
+ w.fetch=async(path,opt)=>{calls.push([path,JSON.parse(opt.body)]);return {ok:true,json:async()=>path.endsWith('/list')?{mine:id,clans:[]}:detail}};w.dropsoConfirm=async()=>true;
+ try{w.eval(clansJs);await wait();[...w.document.querySelectorAll('button')].find(b=>b.textContent==='Мой клан →').click();await wait();
+ assert(w.document.body.textContent.includes('Платные места: 2/15'));assert(w.document.body.textContent.includes('-50 монет'));assert(w.document.querySelector('.clan-shop-preview.frame'));
+ assert(w.document.body.textContent.includes('За: 2/3'));assert([...w.document.querySelectorAll('button')].find(b=>b.textContent.includes('Предложить +1 место')).disabled);
+ [...w.document.querySelectorAll('button')].find(b=>b.textContent==='За').click();await wait();
+ assert(calls.some(([path,b])=>path.endsWith('/shop_vote')&&b.proposalId===proposalId&&b.approve===true));
+ }finally{w.close()}
 });
