@@ -1,0 +1,56 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {PGlite} from '@electric-sql/pglite';
+
+test('clan membership, wallet, task receipts and level rewards',async()=>{
+ const db=new PGlite();
+ try{
+ await db.exec(`create role anon; create role authenticated; create role service_role bypassrls;
+ create table rewards_users(id uuid primary key default gen_random_uuid(),twitch_user_id text,twitch_login text,banned boolean default false,participation_restricted boolean default false,xp_total int default 0);
+ create table rewards_admins(twitch_user_id text);create table rewards_coin_transactions(id uuid default gen_random_uuid(),user_id uuid,amount int,transaction_type text,note text,created_at timestamptz default clock_timestamp());
+ create table rewards_season_progress(user_id uuid,season_id text,sp int);
+ create table rewards_vault_contributions(request_id uuid default gen_random_uuid(),user_id uuid,amount int,created_at timestamptz default clock_timestamp());
+ create table rewards_game_week_results(week_start date,game text,category text,rank int,user_id uuid,completed_at timestamptz default clock_timestamp());
+ create table rewards_red_button_rounds(id uuid default gen_random_uuid(),winner uuid,ends_at timestamptz default clock_timestamp());
+ create table rewards_defuse_games(id uuid default gen_random_uuid(),user_id uuid,status text,finished_at timestamptz);
+ create table rewards_ms_games(id uuid default gen_random_uuid(),user_id uuid,status text,finished_at timestamptz);
+ create table rewards_checkers_rooms(id uuid default gen_random_uuid(),host_id uuid,guest_id uuid,winner_id uuid,status text);
+ create table rewards_promo_redemptions(id uuid default gen_random_uuid(),user_id uuid,created_at timestamptz default clock_timestamp());
+ create table rewards_streamer_live_awards(id uuid default gen_random_uuid(),user_id uuid,promo_id uuid,created_at timestamptz default clock_timestamp());
+ create table rewards_advent_promo_redemptions(user_id uuid,day int,redeemed_at timestamptz default clock_timestamp());
+ create table rewards_guess_rounds(id uuid default gen_random_uuid(),winner_id uuid,status text,ended_at timestamptz);
+ insert into rewards_users(twitch_user_id,twitch_login) values('alice','alice'),('bob','bob'),('outsider','outsider'),('poor','poor');
+ insert into rewards_admins values('alice');insert into rewards_coin_transactions(user_id,amount) select id,2000 from rewards_users where twitch_user_id='alice';`);
+ const sql=await readFile(new URL('../supabase/migrations/20261120100000_clans.sql',import.meta.url),'utf8');
+ await db.exec(sql.replaceAll('2026-11-20 00:00:00+03','2000-01-01 00:00:00+03'));
+ const rpc=async(actor,action,body={})=>(await db.query('select rewards_clan_api($1,$2,$3) result',[actor,action,JSON.stringify(body)])).rows[0].result;
+ const {id}=await rpc('alice','create',{name:'Alpha'});
+ assert.equal((await rpc('alice','list')).clans[0].id,id);
+ const bob=(await db.query("select id from rewards_users where twitch_user_id='bob'")).rows[0].id;
+ await assert.rejects(rpc('poor','create',{name:'Poor'}),/insufficient_coins/);
+ await assert.rejects(rpc('alice','create',{name:'Second'}),/already_member/);
+ const outside=await rpc('bob','detail',{clanId:id});assert.equal(outside.member,false);assert.equal(outside.tasks,undefined);assert.equal(outside.chat,undefined);
+ await rpc('bob','apply',{clanId:id});await assert.rejects(rpc('bob','approve',{clanId:id,userId:bob}),/member_required/);await rpc('alice','approve',{clanId:id,userId:bob});
+ await rpc('alice','slot',{clanId:id});await rpc('alice','slot',{clanId:id});
+ const requestId='11111111-1111-4111-8111-111111111111';await rpc('alice','deposit',{clanId:id,amount:1000,requestId});await rpc('alice','deposit',{clanId:id,amount:1000,requestId});
+ await db.exec(`insert into rewards_vault_contributions(user_id,amount) select id,200 from rewards_users where twitch_user_id='bob';`);
+ const d=await rpc('alice','detail',{clanId:id});assert.equal(d.cxp,310);assert.equal(d.level,2);assert.equal(d.capacity,6);assert.equal(d.treasury,1000);assert.equal(d.members.length,2);
+ assert.equal((await db.query("select sum(amount)::int balance from rewards_coin_transactions where user_id=(select id from rewards_users where twitch_user_id='alice')")).rows[0].balance,800);
+ await rpc('alice','cosmetic',{clanId:id,reward:2});await assert.rejects(rpc('alice','cosmetic',{clanId:id,reward:6}),/requirements/);
+ await db.exec(`insert into rewards_game_week_results(week_start,game,category,rank,user_id) select date_trunc('week',now())::date,'night-run',g,1,id from rewards_users cross join unnest(array['a','b']) g where twitch_user_id='alice';
+ insert into rewards_red_button_rounds(id) select gen_random_uuid() from generate_series(1,3);update rewards_red_button_rounds set winner=(select id from rewards_users where twitch_user_id='alice'),ends_at=clock_timestamp();
+ insert into rewards_defuse_games(user_id,status) select id,'playing' from rewards_users cross join generate_series(1,25) where twitch_user_id='bob';update rewards_defuse_games set status='won',finished_at=clock_timestamp();
+ insert into rewards_ms_games(user_id,status) select id,'playing' from rewards_users cross join generate_series(1,20) where twitch_user_id='alice';update rewards_ms_games set status='won',finished_at=clock_timestamp();
+ insert into rewards_checkers_rooms(host_id,guest_id,status) select a.id,b.id,'active' from rewards_users a,rewards_users b where a.twitch_user_id='alice' and b.twitch_user_id='bob';update rewards_checkers_rooms set winner_id=host_id,status='won';
+ insert into rewards_checkers_rooms(host_id,guest_id,status) select a.id,b.id,'active' from rewards_users a,rewards_users b,generate_series(1,20) where a.twitch_user_id='alice' and b.twitch_user_id='outsider';update rewards_checkers_rooms set winner_id=host_id,status='won' where status='active';
+ insert into rewards_coin_transactions(user_id,amount,note) select id,1,'Ежедневный бонус · день 1' from rewards_users cross join generate_series(1,30) where twitch_user_id='alice';
+ insert into rewards_promo_redemptions(user_id) select id from rewards_users cross join generate_series(1,40) where twitch_user_id='bob';
+ insert into rewards_guess_rounds(status) values('active');update rewards_guess_rounds set status='won',winner_id=(select id from rewards_users where twitch_user_id='alice'),ended_at=clock_timestamp();`);
+ const complete=await rpc('alice','detail',{clanId:id});assert.equal(complete.cxp,1000);assert.equal(complete.level,4);assert.equal(complete.treasury,1050);assert.equal(complete.tasks.find(t=>t.source==='checkers').progress,20);assert(complete.tasks.every(t=>t.done));
+ assert.equal((await rpc('alice','detail',{clanId:id})).treasury,1050);
+ await rpc('bob','chat',{clanId:id,message:'Hello'});await rpc('alice','kick',{clanId:id,userId:bob});assert.equal((await rpc('bob','detail',{clanId:id})).chat,undefined);
+ await rpc('alice','moderate',{clanId:id,name:'Renamed',removeAvatar:true});assert.equal((await rpc('outsider','detail',{clanId:id})).name,'Renamed');
+ assert.equal((await db.query('select rewards_clan_level(70125) level,rewards_clan_capacity(70125,true) capacity')).rows[0].capacity,16);
+ }finally{await db.close()}
+});

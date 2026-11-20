@@ -6,7 +6,7 @@ const destinations = [
   ['/games','Игры'], ['/games/battles','Сражения'], ['/games/three-doors','Три двери'],
   ['/games/pick','Pick'], ['/black-box','Чёрный ящик'], ['/games/red-button','Красная кнопка'],
   ['/predict','Предикты'], ['/predict/major-pickem','Major Pick’em'],
-  ['/advent','Адвент-календарь'], ['/vault','THE VAULT'], ['/season','NIGHT SHIFT'],
+  ['/advent','Адвент-календарь'], ['/vault','THE VAULT'], ['/season','NIGHT SHIFT'], ['/clans','Кланы'],
   ['/users','Пользователи'], ['/community','Сообщения'], ['/streamers','Стримеры'],
   ['/statistics','Статистика'], ['/savings','Накопления'], ['/referrals','Рефералы'],
   ['/suggestions','Предложения'],
