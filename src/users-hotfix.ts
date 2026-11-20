@@ -1,4 +1,6 @@
 import {majorMedals} from './major-medals.js';
+import {attachClanProfiles,clanProfileCss} from './clan-profile.js';
+import {resolve} from 'node:path';
 import {attachProfileStyles} from './profile-customization.js';
 import {createTwitchAvatarSync} from './twitch-avatars.js';
 import {attachStreamerPartners} from './users-partners.js';
@@ -19,6 +21,7 @@ export function installUsers(){
    if(path==='/account'&&!body.includes('id="communityLink"'))body=body.replace(/(<a\b[^>]*href="\/users"[^>]*>[\s\S]*?<\/a>)/,'$1<a id="communityLink" class="shoplink" href="/community">Сообщения</a>');
    if(path==='/account'&&!body.includes('id="customizeProfileLink"'))body=body.replace(/(<a\b[^>]*href="\/users"[^>]*>[\s\S]*?<\/a>)/,'$1<a id="customizeProfileLink" class="shoplink" href="/profile/customize">Оформление профиля</a>');
    if(path==='/account'&&!body.includes('mobileAccountMenuScript'))body=body.replace('</head>',mobileAccountMenu+'</head>');
+   if(path==='/account')body=body.replace('</head>','<style>'+clanProfileCss+'</style></head>');
    if(path!=='/'&&!body.includes('id="sitePresenceScript"'))body=body.replace('</head>','<script id="sitePresenceScript" src="/site-presence.js" defer></script></head>');
   }return send.call(this,body);
  };
@@ -39,7 +42,7 @@ export function installUsers(){
     const {data:adventPurchase}=await db.from('rewards_advent_purchases').select('user_id').eq('user_id',target.id).maybeSingle();
     if(adventPurchase?.user_id===target.id)data.adventPurchaseMedal=true;
    }
-  }res.json(data)}
+  }if(name==='rewards_users_directory'||name==='rewards_user_profile'){try{await attachClanProfiles(db,name==='rewards_users_directory'?data.users:[data],res.locals.session.login)}catch{/* Keep profiles available if clan metadata is temporarily unavailable. */}}res.json(data)}
   function page(req:any,res:any){if(req.query.page!==undefined&&(!/^\d{1,6}$/.test(String(req.query.page))||Number(req.query.page)<1)){res.status(400).json({error:'invalid_page'});return null}return Number(req.query.page)||1}
   app.use('/api/me/social',(_req:any,res:any,next:any)=>{res.set('Cache-Control','no-store');next()});
   async function skinGift(q:any,r:any,send:boolean){
@@ -77,6 +80,7 @@ export function installUsers(){
   app.get('/users',auth,(_req:any,res:any)=>res.set('Cache-Control','no-store').send(usersHtml));
   app.get('/users/:login',auth,(req:any,res:any)=>{if(!login(req.params.login))return res.sendStatus(404);res.set('Cache-Control','no-store').send(profileHtml)});
   app.get('/users.js',(_req:any,res:any)=>res.type('application/javascript').set('Cache-Control','no-cache').send(usersJs));
+  app.get('/clans/medals/syndicate-owner.webp',(_req:any,res:any)=>res.sendFile(resolve('assets','advent','syndicate-owner.webp'),{maxAge:'1d'}));
   app.get('/site-presence.js',(_req:any,res:any)=>res.type('application/javascript').set('Cache-Control','no-cache').send(presenceJs));
   app.get('/api/users',auth,async(req:any,res:any)=>{const p=page(req,res);if(!p)return;if(req.query.q!==undefined&&(typeof req.query.q!=='string'||req.query.q.length>60))return res.status(400).json({error:'invalid_query'});const id=await user(res);if(id)await rpc(res,'rewards_users_directory',{p_viewer:id,p_query:req.query.q||'',p_page:p})});
   app.get('/api/users/:login',auth,async(req:any,res:any)=>{if(!login(req.params.login))return res.sendStatus(404);const p=page(req,res);if(!p)return;const id=await user(res);if(id)await rpc(res,'rewards_user_profile',{p_viewer:id,p_login:req.params.login,p_page:p})});
