@@ -8,7 +8,15 @@ export const clanShopCss=String.raw`
 .clan-shop-preview.tag{color:var(--shop-tone,#e4bbff);font-size:20px}
 .shop-vote{padding:12px;border:1px solid #8859b6;border-radius:10px;margin:8px 0;background:#2b1940}
 .shop-vote .row{margin-top:8px}.shop-spend{color:#ffb7d1}.shop-banner{display:block;padding:9px 15px;margin:10px 0;border-radius:8px;text-align:center;font-weight:800;letter-spacing:.1em;color:white}
-@media(max-width:420px){.clan-shop-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.clan-shop-card{font-size:12px;padding:8px}}
+.clan-shop-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:15px}
+.clan-shop-card{padding:13px;gap:10px;border-radius:16px;background:linear-gradient(145deg,#342047,#20152e);border-color:#8b50b1}
+.clan-shop-card b{font-size:16px}.clan-shop-card button{margin-top:auto;background:linear-gradient(145deg,#7435b1,#4e257a);border-color:#9d64d0}
+.clan-shop-preview{height:120px;border-radius:12px}.clan-shop-preview.frame:after{width:70px;height:70px;font-size:38px}
+.clan-shop-preview.tag{font-size:22px}.clan-shop-category-heading{font-size:17px;font-weight:800;color:#e2b6ff;margin:4px 0}
+.clan-shop-card .clan-shop-price{display:inline-flex;justify-self:start;padding:5px 9px;border-radius:8px;background:#3d2850;color:#e1b8ff;font-size:13px;font-weight:750}
+@media(max-width:820px){.clan-shop-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.clan-shop-preview{height:96px}.clan-shop-card b{font-size:14px}}
+@media(max-width:420px){.clan-shop-grid{grid-template-columns:1fr}.clan-shop-preview{height:126px}.clan-shop-card{padding:12px}}
+@media(max-width:420px){.clan-shop-grid{gap:10px}.clan-shop-card{font-size:13px}}
 `;
 export const clanShopJs=String.raw`
 const shopTones={frame_neon:'#dd63ff',frame_ice:'#7eeaff',frame_gold:'#ffd575',tag_amethyst:'#d89bff',tag_ice:'#93efff',tag_gold:'#ffdc83'};
@@ -45,19 +53,22 @@ function renderClanShop(d,id,shopMount=root,treasuryMount=root){
  const catalog=panel('Магазин оформлений');
  catalog.append(el('p','Баланс общака: '+d.treasury+' монет','clan-own-rank'));
  if(active)catalog.append(button('Перейти к голосованию →',()=>switchClanTab('treasury')));
- const labels={frame:'Рамки',background:'Фоны',banner:'Баннеры',tag:'Цвета названия'};
- for(const [kind,label] of Object.entries(labels)){
-  catalog.append(el('h3',label));const grid=el('div',undefined,'clan-shop-grid');
+ const labels={frame:'Рамки',background:'Фоны',banner:'Баннеры',tag:'Цвета названия'},categories=el('div',undefined,'clan-section-switch'),heading=el('h3','','clan-shop-category-heading'),grid=el('div',undefined,'clan-shop-grid'),categoryButtons=[];
+ catalog.append(categories,heading,grid);
+ function showCategory(kind){
+  clanShopCategory=kind;heading.textContent=labels[kind];for(const [key,b] of categoryButtons)b.setAttribute('aria-pressed',String(key===kind));grid.replaceChildren();
   for(const item of s.catalog.filter(x=>x.kind===kind)){
    const card=el('div',undefined,'clan-shop-card'),preview=el('div',kind==='frame'?'':shopText[item.id]|| (kind==='tag'?'SYNDICATE':''),'clan-shop-preview '+kind);
    if(shopTones[item.id])preview.style.setProperty('--shop-tone',shopTones[item.id]);if(shopBgs[item.id])preview.style.setProperty('--shop-bg',shopBgs[item.id]);
-   card.append(preview,el('b',item.name),el('span',item.owned?'Куплено':item.price+' монет','muted'));
+   card.append(preview,el('b',item.name),el('span',item.owned?'✓ Куплено':item.price+' монет','clan-shop-price'));
    if(!item.owned){const b=button('Предложить',()=>proposal(item.id,item.name,item.price));b.disabled=!!d.visitor||!!active||d.treasury<item.price;card.append(b)}
    else if(d.leader){const selected=s.decorations?.[kind]===item.id;card.append(button(selected?'Снять оформление':'Применить',()=>run(async()=>{await api('shop_equip',{clanId:id,item:selected?'clear':item.id,kind});await detail(id)})))}
    grid.append(card);
   }
-  catalog.append(grid);
+  if(!grid.children.length)grid.append(el('p','В этой категории пока нет оформлений','muted'));
  }
+ for(const [kind,label] of Object.entries(labels)){const b=button(label,()=>showCategory(kind));categoryButtons.push([kind,b]);categories.append(b)}
+ showCategory(labels[clanShopCategory]?clanShopCategory:'frame');
  shopMount.append(catalog);
 }
 `;
