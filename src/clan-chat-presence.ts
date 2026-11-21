@@ -26,6 +26,7 @@ export function startClanPresencePoller(db:SupabaseClient){
   const users=await collectChatters(live,helix,async(id,error,viewers)=>{if(id===primary&&!error&&viewers){primaryViewers=viewers;primaryLive=true;}const now=new Date().toISOString();const result=await db.from('rewards_clan_chat_channels').update({last_checked_at:now,last_error:error,...(!error?{last_success_at:now}:{})}).eq('broadcaster',id);if(result.error)throw Error('presence_status_unavailable')});
   if(Date.now()-start>90000||users.length>50000)return;
   if(primary){try{const boost=await db.rpc('rewards_live_boost_sample',{p_broadcaster:primary,p_at:new Date().toISOString(),p_active:primaryLive,p_viewers:primaryViewers});if(boost.error&&boost.error.code!=='PGRST202')console.error('live_boost_sample_failed',boost.error.code)}catch{console.error('live_boost_sample_unavailable')}}
+  if(primary&&primaryLive){try{await db.rpc('rewards_live_time_achievement',{p_broadcaster:primary,p_viewers:primaryViewers,p_at:new Date().toISOString()})}catch{console.error('live_achievement_sample_unavailable')}}
   const result=await db.rpc('rewards_clan_chat_sample',{p_at:new Date().toISOString(),p_viewers:users});if(result.error)throw Error('presence_sample_unavailable');
  }catch(e){console.error('clan_presence_poll_failed',e instanceof Error?e.message:'unknown')}finally{busy=false}};
  // Initial delay avoids competing with deployment/startup checks. Every subsequent sample is five minutes apart.

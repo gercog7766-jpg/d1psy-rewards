@@ -73,6 +73,7 @@ async function profile(){const version=++revision;$('profileLevel').hidden=true;
  const medals=$('profileMedals');
  medals.replaceChildren();
  $('profileAchievements').hidden=!data.majorMedal&&!data.adventPurchaseMedal&&!data.clan?.owner&&!data.style?.advent?.includes('advent_drops_2026');
+ for(const m of data.liveMedals||[]){const badge=node('div','major-profile-medal'),img=node('img');img.src=m.image;img.alt='';badge.title=m.title;badge.append(img,m.title);medals.append(badge);$('profileAchievements').hidden=false}
  if(data.clan?.owner===true){const badge=node('div','major-profile-medal syndicate-owner-medal'),img=node('img');img.src='/clans/medals/syndicate-owner.webp';img.alt='';badge.title='За создание собственного клана Dropso';badge.append(img,'SYNDICATE OWNER');medals.append(badge)}
  if(data.adventPurchaseMedal===true){
   const badge=node('div','major-profile-medal advent-purchase-medal'),img=node('img');img.src='/advent/medals/advent-pass-2026.webp?v=2';img.alt='';
