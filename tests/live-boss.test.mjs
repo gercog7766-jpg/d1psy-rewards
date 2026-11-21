@@ -23,6 +23,9 @@ test('boss lifecycle, capped damage, paused cooldown, donor identity and proport
  await d.exec(await readFile(new URL('../supabase/migrations/20261121190000_boss_presence_cooldown.sql',import.meta.url),'utf8'));
  await d.exec(await readFile(new URL('../supabase/migrations/20261121210000_boss_donation_identification.sql',import.meta.url),'utf8'));
  await d.exec(await readFile(new URL('../supabase/migrations/20261121220000_primary_presence_json.sql',import.meta.url),'utf8'));
+ const cleanup=await readFile(new URL('../supabase/migrations/20261121230000_presence_scoped_cleanup.sql',import.meta.url),'utf8');
+ for(const table of ['rewards_boss_presence_viewers','rewards_live_boost_viewers'])assert.match(cleanup,new RegExp('delete from public\\.'+table+' where observed_at<=p_at;','i'));
+ await d.exec(cleanup);
  const control=(a,b={},actor='11')=>d.query('select rewards_boss_control($1,$2,$3)',[actor,a,b]);
  const hit=(s,e,actor,donor=null,rub=null)=>d.query('select rewards_boss_hit($1,$2,$3,$4,$5)',[s,e,actor,donor,rub]);
  await assert.rejects(control('start',{kind:'dropsy'},'22'),/owner_required/);
@@ -34,7 +37,7 @@ test('boss lifecycle, capped damage, paused cooldown, donor identity and proport
  const status=async(actor,run)=>(await d.query('select rewards_boss_presence_status($1,$2) s',[actor,run])).rows[0].s;
  await control('start',{kind:'dropsy'});assert.equal((await incoming(ignored,100)).rows[0].result.duplicate,true);
  await assert.rejects(hit('free','missing','33'),/stream_presence_required/);await assert.rejects(sample(['33'],true,'22'),/primary_required/);
- const recorded=(await record(['11','33','33','44'])).rows[0].result;assert.deepEqual(recorded,{boss:{ok:true},boost:{ok:true},achievement:{ok:true}});assert.equal(Number((await d.query('select count(*) n from rewards_boss_presence_viewers')).rows[0].n),2);assert.equal(Number((await d.query('select count(*) n from rewards_live_boost_viewers')).rows[0].n),2);await assert.rejects(record(['bad']),/invalid_viewers/);await assert.rejects(record(['33'],true,'22'),/primary_required/);await d.exec('set role anon');await assert.rejects(record(['33']),/permission denied/);await d.exec('reset role');await hit('free','1','33');await assert.rejects(hit('free','2','33'),/cooldown/);
+ const recorded=(await record(['11','33','33','44'])).rows[0].result;assert.deepEqual(recorded,{boss:{ok:true},boost:{ok:true},achievement:{ok:true}});assert.equal(Number((await d.query('select count(*) n from rewards_boss_presence_viewers')).rows[0].n),2);assert.equal(Number((await d.query('select count(*) n from rewards_live_boost_viewers')).rows[0].n),2);await record(['33']);for(const table of ['rewards_boss_presence_viewers','rewards_live_boost_viewers'])assert.equal(Number((await d.query('select count(*) n from '+table)).rows[0].n),1);await record(['33'],false);for(const table of ['rewards_boss_presence_viewers','rewards_live_boost_viewers'])assert.equal(Number((await d.query('select count(*) n from '+table)).rows[0].n),0);await record(['33','44']);await assert.rejects(record(['bad']),/invalid_viewers/);await assert.rejects(record(['33'],true,'22'),/primary_required/);await d.exec('set role anon');await assert.rejects(record(['33']),/permission denied/);await d.exec('reset role');await hit('free','1','33');await assert.rejects(hit('free','2','33'),/cooldown/);
  const run=(await d.query("select id from rewards_boss_runs where status='active'")).rows[0].id;
  assert.equal((await status('33',run)).cooldown,1800);
  // Simulate one completed five-minute interval without wall-clock waiting.
