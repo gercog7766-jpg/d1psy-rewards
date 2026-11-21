@@ -6,7 +6,7 @@ const destinations = [
   ['/games','Игры'], ['/games/battles','Сражения'], ['/games/three-doors','Три двери'],
   ['/games/pick','Pick'], ['/black-box','Чёрный ящик'], ['/games/red-button','Красная кнопка'],
   ['/predict','Предикты'], ['/predict/major-pickem','Major Pick’em'],
-  ['/advent','Адвент-календарь'], ['/vault','THE VAULT'], ['/season','NIGHT SHIFT'], ['/clans','Кланы'],
+  ['/advent','Адвент-календарь'], ['/vault','THE VAULT'], ['/season','NIGHT SHIFT'], ['/clans','Кланы'], ['/bosses','Боссы'],
   ['/users','Пользователи'], ['/community','Сообщения'], ['/streamers','Стримеры'],
   ['/statistics','Статистика'], ['/savings','Накопления'], ['/referrals','Рефералы'],
   ['/suggestions','Предложения'],
@@ -82,7 +82,7 @@ export function withSiteNavigation(html:string,path:string){
  const links=destinations.map(([href,label])=>`<a href="${href}"${href===current?' aria-current="page"':''}>${label}</a>`).join('');
  const menu=sidebar?`<aside id="dropsoSiteSidebar" class="dropso-site-sidebar"><details><summary>Меню Dropso</summary></details><nav aria-label="Меню Dropso">${links}</nav></aside>`:'';
  const brand=`<a class="dropso-home" href="/account" aria-label="Dropso — на главную"><img src="${brandLogoUrl}" alt="" width="32" height="32"><span>Dropso</span></a>`;
- const shortcut=path==='/shop'?'<a href="/upgrader">Апгрейдер</a>':path==='/upgrader'?'<a href="/shop">Магазин</a>':'';
+ const shortcut=path==='/shop'?'<a href="/upgrader">Апгрейдер</a>':path==='/upgrader'?'<a href="/shop">Магазин</a>':path.startsWith('/admin/bosses')?'<a href="/admin">Админка</a>':'';
  const header=`<header class="dropso-site-header">${brand}<nav class="dropso-site-shortcuts" aria-label="Переходы">${shortcut}</nav>${sidebar?'<button type="button" id="dropsoSiteMenuToggle" class="dropso-nav-toggle" aria-label="Открыть меню" aria-controls="dropsoSiteSidebar" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>':''}</header>${menu}`;
  // Process static markup without touching script templates, selectors or strings.
  html=html.split(/(<script\b[^>]*>[\s\S]*?<\/script>|<style\b[^>]*>[\s\S]*?<\/style>)/gi).map((part,index)=>index%2?part:part
@@ -92,6 +92,8 @@ export function withSiteNavigation(html:string,path:string){
  ).join('');
  const footer=accountFooterHtml.replace(/D1PSY Rewards/g,'Dropso').replace('<strong>Dropso</strong>',`<img src="${brandLogoUrl}" alt="" width="30" height="30"><strong>Dropso</strong>`);
  html=html.replace(/<body\b([^>]*)>/i,(_match,attrs)=>`<body${attrs} data-dropso-shell>${header}`);
- if(!html.includes('id="d1psyFooterStyles"'))html=html.replace(/<\/head>/i,accountFooterStyles+'</head>');
- return html.replace(/<\/head>/i,styles+'</head>').replace(/<\/body>/i,()=>footer+boot+'</body>');
+ const addStyles=(value:string)=>{html=/<\/head>/i.test(html)?html.replace(/<\/head>/i,value+'</head>'):html.replace(/<body\b/i,value+'<body')};
+ if(!html.includes('id="d1psyFooterStyles"'))addStyles(accountFooterStyles);
+ addStyles(styles);
+ return html.replace(/<\/body>/i,()=>footer+boot+'</body>');
 }
