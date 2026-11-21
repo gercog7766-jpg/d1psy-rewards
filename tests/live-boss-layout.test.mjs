@@ -32,3 +32,14 @@ test('provider cards render green, failure and reconnect status from owner API',
  assert.equal(d.getElementById('twitchStatus').textContent,'Подключён');assert.equal(d.getElementById('daStatus').dataset.state,'reconnect_required');assert.equal(d.getElementById('ihaqStatus').textContent,'Нет связи');assert.equal(d.getElementById('twitchConnect').textContent,'Переподключить');
  }finally{w.close()}
 });
+test('free attack is locked without confirmed presence and shows frozen cooldown',async()=>{
+ const dom=new JSDOM(liveBossPage('player'),{runScripts:'outside-only',url:'https://dropso.test/bosses'}),w=dom.window;
+ try{const d=w.document;let present=false,cooldown=600;let refresh;
+ w.setInterval=fn=>{refresh=fn;return 1};
+ w.fetch=async()=>({ok:true,json:async()=>({boss:{name:'DROPSY',image:'/live-boss/756.webp',hp:5000,max_hp:5000,status:'active'},damage:0,cooldown,present,live:true,streamLogin:'owner',code:'code'})});w.eval(liveBossScript);
+ const until=async expected=>{for(let i=0;i<50&&!d.getElementById('cooldownStatus').textContent.includes(expected);i++)await new Promise(r=>setTimeout(r,5));assert.match(d.getElementById('cooldownStatus').textContent,new RegExp(expected))};
+ await until('заморожен');assert(d.getElementById('attack').disabled);assert.equal(d.getElementById('bossStreamLink').href,'https://www.twitch.tv/owner');
+ present=true;await refresh();await until('восстанавливается');assert(d.getElementById('attack').disabled);
+ cooldown=0;await refresh();await until('Атака доступна');assert.equal(d.getElementById('attack').disabled,false);
+ }finally{w.close()}
+});
