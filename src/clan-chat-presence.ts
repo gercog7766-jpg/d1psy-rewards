@@ -5,6 +5,9 @@ import type {SupabaseClient} from '@supabase/supabase-js';
 const scope='moderator:read:chatters',idPattern=/^[0-9]{1,30}$/;
 const options={clientId:process.env.TWITCH_CLIENT_ID||'',secret:process.env.TWITCH_CLIENT_SECRET||''};
 const noStore:RequestHandler=(_q,r,n)=>{r.set({'Cache-Control':'private,no-store','Referrer-Policy':'no-referrer'});n()};
+export type PrimaryChatState='checking'|'ready'|'not_connected'|'authorization_required'|'unavailable';
+let primaryBroadcast:{live:boolean|null;chat:PrimaryChatState;checkedAt:number}={live:null,chat:'checking',checkedAt:0};
+export function primaryBroadcastStatus(){return Date.now()-primaryBroadcast.checkedAt<360000?primaryBroadcast:{live:null,chat:'checking' as const,checkedAt:primaryBroadcast.checkedAt}}
 async function approvedChannelSet(db:SupabaseClient){
  const [primary,partners]=await Promise.all([db.from('rewards_streamers').select('twitch_broadcaster_id').eq('is_primary',true).eq('enabled',true),db.from('rewards_streamer_live_profiles').select('broadcaster_id').eq('status','approved')]);
  if(primary.error||partners.error)throw Error('channel_lookup_failed');const own=[...new Set((primary.data||[]).map(x=>x.twitch_broadcaster_id))].filter(x=>idPattern.test(x));return {primary:own.length===1?own[0]:null,approved:[...new Set([...own,...(partners.data||[]).map(x=>x.broadcaster_id)])].filter(x=>idPattern.test(x))};
@@ -14,25 +17,38 @@ export async function collectChatters(broadcasters:string[],helix:(route:string)
  const users=new Set<string>();for(const id of broadcasters){if(!idPattern.test(id))continue;const channel=new Set<string>();let after='';try{for(let page=0;;page++){if(page>=50)throw Error('chatters_limit');const q=new URLSearchParams({broadcaster_id:id,moderator_id:id,first:'1000',...(after?{after}:{})});const result=await helix('chat/chatters?'+q);if(!Array.isArray(result.data))throw Error('chatters_unavailable');for(const row of result.data)if(idPattern.test(row.user_id)&&row.user_id!==id)channel.add(row.user_id);const cursor=result.pagination?.cursor||'';if(!cursor)break;if(cursor===after)throw Error('chatters_pagination');after=cursor;}for(const u of channel)users.add(u);await onResult(id,null,[...channel])}catch(e){await onResult(id,e instanceof Error&&e.message==='authorization_required'?'authorization_required':'chatters_unavailable')}}return [...users];
 }
 
+// Stream status and authorized chat presence are independent. Always ask Helix
+// about the primary channel, even when its chat-list grant is missing or revoked.
+export async function collectLiveChannels(connected:string[],primary:string|null,helix:(route:string)=>Promise<any>){
+ const ids=[...new Set([...(primary?[primary]:[]),...connected])].filter(x=>idPattern.test(x)),live:string[]=[];
+ for(let i=0;i<ids.length;i+=100){const batch=ids.slice(i,i+100),q=new URLSearchParams({first:'100'});for(const id of batch)q.append('user_id',id);const result=await helix('streams?'+q);if(!Array.isArray(result.data))throw Error('streams_unavailable');for(const s of result.data)if(s.type==='live'&&batch.includes(s.user_id))live.push(s.user_id)}
+ return {primaryLive:primary?live.includes(primary):null,authorizedLive:live.filter(id=>connected.includes(id))};
+}
+
 // App-token requests use the explicit broadcaster grant. User tokens are never persisted.
 export function startClanPresencePoller(db:SupabaseClient){
  if(!options.clientId||!options.secret)return;let busy=false,token='',expires=0;
  async function recordBossPresence(primary:string,active:boolean,viewers:string[]){try{const {error}=await db.rpc('rewards_boss_presence_sample',{p_broadcaster:primary,p_at:new Date().toISOString(),p_active:active,p_viewers:viewers});if(error&&error.code!=='PGRST202')console.error('boss_presence_sample_failed',error.code)}catch{console.error('boss_presence_sample_unavailable')}}
  async function appToken(){if(token&&Date.now()<expires-60000)return token;const r=await fetch('https://id.twitch.tv/oauth2/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:options.clientId,client_secret:options.secret,grant_type:'client_credentials'}),signal:AbortSignal.timeout(8000)});if(!r.ok)throw Error('twitch_token_unavailable');const data:any=await r.json();if(!data.access_token)throw Error('twitch_token_unavailable');token=data.access_token;expires=Date.now()+Number(data.expires_in||3600)*1000;return token}
  async function helix(route:string){const request=async()=>fetch('https://api.twitch.tv/helix/'+route,{headers:{'Client-Id':options.clientId,Authorization:'Bearer '+await appToken()},signal:AbortSignal.timeout(8000)});let r=await request();if(r.status===401){expires=0;r=await request()}if(r.status===401||r.status===403)throw Error('authorization_required');if(!r.ok)throw Error('twitch_unavailable');return r.json()}
+ let checkingBroadcast=false;
+ async function checkBroadcast(){if(checkingBroadcast||busy)return;checkingBroadcast=true;try{const {data,error}=await db.from('rewards_streamers').select('twitch_broadcaster_id').eq('is_primary',true).eq('enabled',true);if(error)throw Error();const ids=[...new Set((data||[]).map(x=>x.twitch_broadcaster_id))].filter(x=>idPattern.test(x));const state=await collectLiveChannels([],ids.length===1?ids[0]:null,helix);primaryBroadcast={...primaryBroadcast,live:state.primaryLive,checkedAt:Date.now()};}catch{primaryBroadcast={...primaryBroadcast,live:null,checkedAt:Date.now()}}finally{checkingBroadcast=false}}
  const tick=async()=>{if(busy)return;busy=true;const start=Date.now();try{
-  const {approved,primary}=await approvedChannelSet(db),{data,error}=await db.from('rewards_clan_chat_channels').select('broadcaster,last_error');if(error)throw Error('presence_channels_unavailable');const connected=(data||[]).filter(x=>approved.includes(x.broadcaster)&&x.last_error!=='authorization_required').map(x=>x.broadcaster);if(!connected.length){if(primary)await recordBossPresence(primary,false,[]);return}
-  const live:string[]=[];for(let i=0;i<connected.length;i+=100){const q=new URLSearchParams({first:'100'});for(const id of connected.slice(i,i+100))q.append('user_id',id);const result:any=await helix('streams?'+q);if(!Array.isArray(result.data))throw Error('streams_unavailable');for(const s of result.data)if(s.type==='live'&&connected.includes(s.user_id))live.push(s.user_id)}
+  const {approved,primary}=await approvedChannelSet(db),{data,error}=await db.from('rewards_clan_chat_channels').select('broadcaster,last_error');if(error)throw Error('presence_channels_unavailable');const connected=(data||[]).filter(x=>approved.includes(x.broadcaster)&&x.last_error!=='authorization_required').map(x=>x.broadcaster);
+  const stream=await collectLiveChannels(connected,primary,helix),primaryChannel=(data||[]).find(x=>x.broadcaster===primary);
+  primaryBroadcast={live:stream.primaryLive,chat:!primaryChannel?'not_connected':primaryChannel.last_error==='authorization_required'?'authorization_required':primaryChannel.last_error?'unavailable':'checking',checkedAt:Date.now()};
   let primaryViewers:string[]=[],primaryLive=false;
-  const users=await collectChatters(live,helix,async(id,error,viewers)=>{if(id===primary&&!error&&viewers){primaryViewers=viewers;primaryLive=true;}const now=new Date().toISOString();const result=await db.from('rewards_clan_chat_channels').update({last_checked_at:now,last_error:error,...(!error?{last_success_at:now}:{})}).eq('broadcaster',id);if(result.error)throw Error('presence_status_unavailable')});
+  const users=await collectChatters(stream.authorizedLive,helix,async(id,error,viewers)=>{if(id===primary){if(!error&&viewers){primaryViewers=viewers;primaryLive=true;}primaryBroadcast={...primaryBroadcast,chat:error==='authorization_required'?'authorization_required':error?'unavailable':'ready'};}const now=new Date().toISOString();const result=await db.from('rewards_clan_chat_channels').update({last_checked_at:now,last_error:error,...(!error?{last_success_at:now}:{})}).eq('broadcaster',id);if(result.error)throw Error('presence_status_unavailable')});
   if(Date.now()-start>90000||users.length>50000)return;
   if(primary)await recordBossPresence(primary,primaryLive,primaryViewers);
   if(primary){try{const boost=await db.rpc('rewards_live_boost_sample',{p_broadcaster:primary,p_at:new Date().toISOString(),p_active:primaryLive,p_viewers:primaryViewers});if(boost.error&&boost.error.code!=='PGRST202')console.error('live_boost_sample_failed',boost.error.code)}catch{console.error('live_boost_sample_unavailable')}}
   if(primary&&primaryLive){try{await db.rpc('rewards_live_time_achievement',{p_broadcaster:primary,p_viewers:primaryViewers,p_at:new Date().toISOString()})}catch{console.error('live_achievement_sample_unavailable')}}
   const result=await db.rpc('rewards_clan_chat_sample',{p_at:new Date().toISOString(),p_viewers:users});if(result.error)throw Error('presence_sample_unavailable');
- }catch(e){console.error('clan_presence_poll_failed',e instanceof Error?e.message:'unknown')}finally{busy=false}};
+ }catch(e){primaryBroadcast={live:null,chat:'unavailable',checkedAt:Date.now()};console.error('clan_presence_poll_failed',e instanceof Error?e.message:'unknown')}finally{busy=false}};
  // Initial delay avoids competing with deployment/startup checks. Every subsequent sample is five minutes apart.
- const first=setTimeout(()=>{void tick();const timer=setInterval(()=>void tick(),300000);timer.unref()},60000);first.unref();
+ const first=setTimeout(()=>{void tick();const timer=setInterval(()=>void tick(),300000);timer.unref()},10000);first.unref();
+ // Lightweight stream-only refresh does not advance cooldowns or CP.
+ const broadcastTimer=setInterval(()=>void checkBroadcast(),30000);broadcastTimer.unref();
 }
 
 export function installClanChatAuthorization(app:Express,db:SupabaseClient,user:RequestHandler,appUrl:string,redirectUri:string,oauth=options){

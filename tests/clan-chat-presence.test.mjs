@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {collectChatters} from '../src/clan-chat-presence.ts';
+import {collectChatters,collectLiveChannels} from '../src/clan-chat-presence.ts';
 import {installClanChatAuthorization} from '../src/clan-chat-presence.ts';
 import express from 'express';
 import cookieParser from 'cookie-parser';
@@ -12,6 +12,14 @@ import {JSDOM} from 'jsdom';
 test('Twitch presence paginates, deduplicates channels, excludes the broadcaster and ignores incomplete pages',async()=>{
  const requests=[],status=[];const fake=async(route)=>{const q=new URL(route,'https://api.twitch.tv/helix/').searchParams,id=q.get('broadcaster_id'),after=q.get('after');requests.push([id,after]);assert.equal(q.get('moderator_id'),id);assert.equal(q.get('first'),'1000');if(id==='11')return after?{data:[{user_id:'22'},{user_id:'33'}]}:{data:[{user_id:'11'},{user_id:'22'}],pagination:{cursor:'page2'}};if(id==='44')return {data:[{user_id:'22'},{user_id:'55'}]};if(id==='66'){if(after)throw Error('authorization_required');return {data:[{user_id:'77'}],pagination:{cursor:'next'}}}throw Error('unavailable')};
  const result=await collectChatters(['11','44','66','invalid'],fake,async(id,error,viewers)=>status.push([id,error,viewers]));assert.deepEqual(result.sort(),['22','33','55']);assert.deepEqual(requests,[['11',null],['11','page2'],['44',null],['66',null],['66','next']]);assert.deepEqual(status,[['11',null,['22','33']],['44',null,['22','55']],['66','authorization_required',undefined]]);
+});
+
+test('primary live status is queried even without chat authorization; only authorized live channels are sampled',async()=>{
+ const requested=[];const helix=async route=>{const ids=new URL(route,'https://api.twitch.tv/helix/').searchParams.getAll('user_id');requested.push(ids);return {data:[{user_id:'11',type:'live'},{user_id:'22',type:'live'}]}};
+ assert.deepEqual(await collectLiveChannels([], '11',helix),{primaryLive:true,authorizedLive:[]});
+ assert.deepEqual(await collectLiveChannels(['22'],'11',helix),{primaryLive:true,authorizedLive:['22']});assert.deepEqual(requested,[['11'],['11','22']]);
+ assert.deepEqual(await collectLiveChannels([],'11',async()=>({data:[]})),{primaryLive:false,authorizedLive:[]});
+ await assert.rejects(collectLiveChannels([],'11',async()=>({error:'bad'})),/streams_unavailable/);
 });
 
 test('only approved broadcaster can grant chat-list permission; OAuth state is single-use, bound to signed account and stores no token',async()=>{
