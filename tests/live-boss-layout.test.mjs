@@ -17,7 +17,7 @@ for(const [mode,path] of [['player','/bosses'],['admin','/admin/bosses'],['obs',
   if(mode==='obs'){assert.equal(d.querySelector('.dropso-site-header'),null);assert.equal(d.querySelector('footer'),null)}
   else{assert.equal(d.querySelectorAll('.dropso-site-header').length,1);assert.equal(d.querySelectorAll('footer').length,1);assert(d.head.querySelector('#dropsoSiteNavigationStyle'));assert(d.head.querySelector('#d1psyFooterStyles'));assert.equal(d.querySelectorAll('#bossIdle article').length,3)}
   if(mode==='player'){assert(d.querySelector('#dropso-mobile-bar'));assert(d.querySelector('#dropsoSiteSidebar a[href="/bosses"][aria-current="page"]'));assert(d.querySelector('#copyCode'));w.eval(d.querySelector('#dropsoSiteNavigationScript').textContent);d.dispatchEvent(new w.Event('DOMContentLoaded'));assert(d.querySelector('.dropso-site-layout>main'))}
-  if(mode==='admin'){assert(d.querySelector('a[href="/admin/bosses/twitch"]'));assert(d.querySelector('a[href="/admin"]'));assert.equal(d.querySelectorAll('[data-action]').length,4)}
+  if(mode==='admin'){assert(d.querySelector('a[href="/admin/bosses/twitch"]'));assert(d.querySelector('a[href="/admin"]'));assert.equal(d.querySelectorAll('[data-action]').length,6);assert(d.querySelector('[data-action="disable"]'));assert(d.querySelector('[data-action="switch"]'))}
  }finally{dom.window.close()}
 });
 test('implicit HTML head is decorated exactly once',()=>{
