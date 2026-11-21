@@ -1,6 +1,7 @@
 import {majorMedals} from './major-medals.js';
 import {attachClanProfiles,clanProfileCss} from './clan-profile.js';
 import {achievementMedals} from './achievement-medals.js';
+import {dropsoProgress} from './dropso-level.js';
 import {resolve} from 'node:path';
 import {attachProfileStyles} from './profile-customization.js';
 import {createTwitchAvatarSync} from './twitch-avatars.js';
@@ -34,14 +35,15 @@ export function installUsers(){
   async function rpc(res:any,name:string,params:any){if(name==='rewards_users_directory'||name==='rewards_user_profile')void syncAvatars();const{data,error}=await db.rpc(name,params);res.set('Cache-Control','no-store');if(error){const reason=['profile_not_found','user_unavailable','device_required','invalid_request','self_action','contact_blocked','gift_daily_limit','insufficient_coins','request_conflict','message_rate_limit','contact_unavailable','requests_limit','request_not_found','invalid_action','friend_request_limit'].find(x=>error.message.includes(x));if(!reason)console.error('users_rpc_failed',name,error.code);return res.status(reason==='profile_not_found'?404:reason?409:503).json({error:reason||'users_unavailable'})}if(name==='rewards_users_directory'||name==='rewards_user_profile'){try{await attachStreamerPartners(db,name==='rewards_users_directory'?data.users:[data]);await attachProfileStyles(db,name==='rewards_users_directory'?data.users:[data])}catch{ return res.status(503).json({error:'users_unavailable'})}}if(name==='rewards_user_profile'){
    const {data:target,error:levelError}=await db.from('rewards_users').select('id,xp_total').eq('twitch_login',data.login).single();
    if(levelError||!target)return res.status(503).json({error:'users_unavailable'});
-   const xp=Math.max(0,Number(target.xp_total)||0),level=Math.max(1,Math.floor((Math.sqrt(9+8*xp/75)-3)/2)+1),from=Math.round(37.5*(level-1)*(level+2)),to=Math.round(37.5*level*(level+3));
-   data.levelProgress={xp,level,levelXp:xp-from,nextXp:to-from};
+   const progress=dropsoProgress(target.xp_total);
+   data.levelProgress={xp:progress.xp,level:progress.level,levelXp:progress.levelXp,nextXp:progress.nextXp};data.levelRank=progress.rank;
    if(!data.isPrivate || data.isSelf){
     const {data:entry}=await db.from('rewards_major_pickem_entries').select('medal').eq('user_id',target.id).maybeSingle();
     if(entry?.medal && majorMedals[entry.medal])data.majorMedal=majorMedals[entry.medal];
     // The permanent purchase receipt is the entitlement, including all previous buyers.
     const {data:adventPurchase}=await db.from('rewards_advent_purchases').select('user_id').eq('user_id',target.id).maybeSingle();
     if(adventPurchase?.user_id===target.id)data.adventPurchaseMedal=true;
+    try{const {data:rows}=await db.from('rewards_level_v2_claims').select('level,equipped').eq('user_id',target.id);if(rows)data.levelDecorations=rows.filter(x=>x.equipped||x.level===100).map(x=>x.level)}catch{}
     try{const {data:p}=await db.from('rewards_live_achievement_progress').select('messages,seconds,bosses').eq('user_id',target.id).maybeSingle();if(p)data.achievementMedals=achievementMedals(p)}catch{/* Keep profile available before migration. */}
    }
   }if(name==='rewards_users_directory'||name==='rewards_user_profile'){try{await attachClanProfiles(db,name==='rewards_users_directory'?data.users:[data],res.locals.session.login)}catch{/* Keep profiles available if clan metadata is temporarily unavailable. */}}res.json(data)}

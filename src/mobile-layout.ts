@@ -9,6 +9,7 @@ export function mobilePage(path:string){
  if(/^\/users(?:\/[^/]+)?$/.test(path))return 'users';
  if(path==='/community')return 'community';
  if(path==='/bosses')return 'bosses';
+ if(path==='/level')return 'level';
  if(/^\/admin(?:\/|$)/.test(path))return 'admin';
  if(['/account','/shop','/season','/games','/predict','/upgrader','/contracts','/live','/streamer'].includes(path))return path.slice(1);
  if(['/','/privacy','/terms','/rules','/pwa/offline','/referrals'].includes(path))return 'public';

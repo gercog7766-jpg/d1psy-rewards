@@ -2,7 +2,7 @@ import {brandLogoUrl} from './site-branding.js';
 import {accountFooterHtml,accountFooterStyles} from './account-footer-hotfix.js';
 
 const destinations = [
-  ['/account','Главная'], ['/bonuses','Бонусы'], ['/shop','Магазин'], ['/upgrader','Апгрейдер'],
+  ['/account','Главная'], ['/level','Dropso LEVEL'], ['/bonuses','Бонусы'], ['/shop','Магазин'], ['/upgrader','Апгрейдер'],
   ['/games','Игры'], ['/games/battles','Сражения'], ['/games/three-doors','Три двери'],
   ['/games/pick','Pick'], ['/black-box','Чёрный ящик'], ['/games/red-button','Красная кнопка'],
   ['/predict','Предикты'], ['/predict/major-pickem','Major Pick’em'],

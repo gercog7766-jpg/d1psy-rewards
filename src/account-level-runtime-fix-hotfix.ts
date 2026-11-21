@@ -1,3 +1,4 @@
+import {dropsoLevel,dropsoThreshold,dropsoProgress,dropsoRewards} from './dropso-level.js';
 import crypto from 'node:crypto';
 import express from 'express';
 import { createClient } from '@supabase/supabase-js';
@@ -14,8 +15,8 @@ function session(req:any){
   const v=JSON.parse(Buffer.from(p,'base64url').toString()); return v.exp>Date.now()?v:null;
  }catch{return null}
 }
-function levelFor(x:number){return Math.max(1,Math.floor((Math.sqrt(9+8*Math.max(0,x)/75)-3)/2)+1)}
-function threshold(level:number){return Math.round(37.5*(level-1)*(level+2))}
+function levelFor(x:number){return dropsoLevel(x)}
+function threshold(level:number){return dropsoThreshold(level)}
 
 const SCRIPT=`<script id="levelRuntimeFix">(function(){
 async function refreshLevel(){
@@ -25,15 +26,15 @@ async function refreshLevel(){
   var r=await fetch('/api/me/level-v2?ts='+Date.now(),{cache:'no-store',credentials:'same-origin'});
   if(!r.ok)throw new Error('level_http_'+r.status);
   var x=await r.json();
-  badge.textContent='LVL '+x.level;
-  text.textContent=x.levelXp+' / '+x.nextXp+' XP';
+  badge.textContent='LVL '+x.level+' · '+(x.rank||'');
+  text.textContent=x.maxed?'MAX LEVEL':x.levelXp+' / '+x.nextXp+' XP';
   fill.style.width=Math.max(0,Math.min(100,x.nextXp?x.levelXp/x.nextXp*100:100))+'%';
   var stats=document.getElementById('levelModalStats');if(stats)stats.textContent='Уровень '+x.level+' · '+x.xp+' XP · до следующего '+x.remaining+' XP';
  }catch(e){text.textContent='Ошибка загрузки XP';console.error('level_runtime_load_failed',e)}
 }
 function bindLevelUi(){
  var w=document.getElementById('levelWidget'),m=document.getElementById('levelModal'),c=document.getElementById('levelClose');
- if(w&&!w.dataset.runtimeClick){w.dataset.runtimeClick='1';w.addEventListener('click',function(){var mm=document.getElementById('levelModal');if(mm)mm.style.display='flex'})}
+ if(w&&!w.dataset.runtimeClick){w.dataset.runtimeClick='1';w.setAttribute('role','link');w.tabIndex=0;w.addEventListener('click',function(){window.location.assign('/level')});w.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();window.location.assign('/level')}})}
  if(c&&!c.dataset.runtimeClick){c.dataset.runtimeClick='1';c.addEventListener('click',function(e){e.stopPropagation();var mm=document.getElementById('levelModal');if(mm)mm.style.display='none'})}
  if(m&&!m.dataset.runtimeClick){m.dataset.runtimeClick='1';m.addEventListener('click',function(e){if(e.target===m)m.style.display='none'})}
 }
@@ -58,9 +59,9 @@ export function installAccountLevelRuntimeFixHotfix(){
     const s=session(req);if(!s)return res.status(401).json({error:'authentication_required'});
     const {data:u,error}=await db.from('rewards_users').select('id,xp_total').eq('twitch_user_id',String(s.twitchUserId)).maybeSingle();
     if(error)return res.status(500).json({error:'level_user_lookup_failed'});if(!u)return res.status(404).json({error:'user_not_found'});
-    const xp=Math.max(0,Number(u.xp_total||0)),level=levelFor(xp),from=threshold(level),to=threshold(level+1);
+    const progress=dropsoProgress(u.xp_total);
     res.set('Cache-Control','no-store, no-cache, must-revalidate');
-    return res.json({xp,level,levelXp:xp-from,nextXp:to-from,remaining:Math.max(0,to-xp)});
+    return res.json(progress);
    });
   }
   return originalListen.apply(this,args);
