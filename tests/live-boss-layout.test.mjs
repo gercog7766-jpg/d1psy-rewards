@@ -2,6 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {JSDOM} from 'jsdom';
 import {liveBossPage,liveBossScript,bossDonationPage} from '../src/live-boss.ts';
+import {bossAccountBanner,bossAccountBannerScript} from '../src/boss-account-banner.ts';
 import {withSiteNavigation} from '../src/site-navigation.ts';
 import {withSiteBranding} from '../src/site-branding.ts';
 import {withMobileLayout} from '../src/mobile-layout.ts';
@@ -50,5 +51,15 @@ test('manual donation form has only provider, Twitch login and amount; resolves 
   w.eval(d.querySelector('script').textContent);assert.deepEqual([...f.querySelectorAll('[name]')].map(el=>el.name),['source','login','rub']);f.elements.login.value='alpha';f.elements.rub.value='100';
   await f.onsubmit({preventDefault(){}});assert.equal(calls.length,1);assert.equal(d.getElementById('candidateField').hidden,false);assert(d.getElementById('candidate').options[2].disabled);d.getElementById('candidate').value='existing-hit';
   await f.onsubmit({preventDefault(){}});assert.deepEqual(calls[1],{source:'ihaq',login:'alpha',rub:100,hitId:'existing-hit'});assert.match(d.getElementById('result').textContent,/HP босса не изменилось/);
+ }finally{w.close()}
+});
+test('account boss banner displays live public HP, handles paused and hidden raids and stays a link',async()=>{
+ const dom=new JSDOM('<main>'+bossAccountBanner+'</main>',{runScripts:'outside-only',url:'https://dropso.test/account'}),w=dom.window,d=w.document;
+ try{let tick,fail=false, boss={kind:'guardian',hp:7500,max_hp:10000,status:'active'};w.setInterval=fn=>{tick=fn;return 1};Object.defineProperty(d,'hidden',{value:false});
+  w.fetch=async(path)=>{assert.equal(path,'/api/public/boss');if(fail)throw Error();return {ok:true,json:async()=>({boss})}};
+  w.eval(bossAccountBannerScript);await new Promise(r=>setTimeout(r,0));const root=d.getElementById('bossAccountHero'),hp=d.getElementById('bossAccountHealth');assert.equal(root.getAttribute('href'),'/bosses');assert.equal(root.dataset.state,'active');assert.match(d.getElementById('bossAccountStatus').textContent,/VOID GUARDIAN/);assert.equal(hp.querySelector('i').style.width,'75%');assert.equal(hp.getAttribute('aria-valuenow'),'7500');
+  boss={kind:'titan',hp:10,max_hp:25000,status:'paused'};tick();await new Promise(r=>setTimeout(r,0));assert.equal(root.dataset.state,'paused');assert.equal(d.getElementById('bossAccountImage').getAttribute('src'),'/live-boss/758.webp');
+  boss={...boss,hidden:true};tick();await new Promise(r=>setTimeout(r,0));assert.equal(root.dataset.state,'idle');assert(hp.hidden);assert.equal(d.getElementById('bossAccountHp').textContent,'');
+  fail=true;tick();await new Promise(r=>setTimeout(r,0));assert.match(d.getElementById('bossAccountStatus').textContent,/проверить состояние/);
  }finally{w.close()}
 });

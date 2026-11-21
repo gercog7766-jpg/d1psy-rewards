@@ -19,10 +19,11 @@ test('vault HTTP binds actors, preserves main account placement, validates code 
  const accountDom=new JSDOM(account);
  try{
   const doc=accountDom.window.document,tiles=[...doc.querySelectorAll('main #majorPickemBanner, main .seasonAccountHero, main .blackBoxBanner')];
-  assert.deepEqual(tiles.map(tile=>tile.id),['adventAccountHero','majorPickemBanner','vaultAccountHero','seasonAccountHero','clanAccountHero']);
+  assert.deepEqual(tiles.map(tile=>tile.id),['bossAccountHero','adventAccountHero','majorPickemBanner','vaultAccountHero','seasonAccountHero','clanAccountHero']);
   assert(doc.querySelector('#seasonAccountHero .nightShiftArt svg'));assert.equal(doc.querySelector('#clanAccountHero .syndicateArt img').getAttribute('src'),'/clans/medals/syndicate-owner.webp');
-  assert.equal(tiles[0].getAttribute('href'),'/advent');
-  assert.equal(tiles[1].getAttribute('href'),'/predict/major-pickem');
+  assert.equal(tiles[0].getAttribute('href'),'/bosses');
+  assert.equal(tiles[1].getAttribute('href'),'/advent');
+  assert.equal(tiles[2].getAttribute('href'),'/predict/major-pickem');
   assert.equal(doc.querySelector('main #majorProfileMedal, main #savingsBanner, main a[href="/savings"], script[src="/predict/major-profile-medal.js"]'),null);
  }finally{accountDom.window.close()}
  const page=await(await fetch(base+'/vault',{headers:viewer})).text();assert(page.includes('vault-door-svg'));assert(page.includes('vaultContributionForm'));assert.equal((await fetch(base+'/admin/vault',{headers:viewer})).status,403);assert.equal((await fetch(base+'/admin/vault',{headers:owner})).status,200);
