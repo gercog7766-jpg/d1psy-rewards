@@ -16,10 +16,14 @@ test('boss lifecycle, capped damage, paused cooldown, donor identity and proport
  await d.exec(fixture.slice(0,fixture.indexOf('CREATE OR REPLACE FUNCTION public.rewards_season_add_task_progress')));
  await d.exec(await readFile(new URL('../supabase/migrations/20261121150000_live_boss.sql',import.meta.url),'utf8'));
  await d.exec(await readFile(new URL('../supabase/migrations/20261121160000_boss_switch.sql',import.meta.url),'utf8'));
+ await d.exec(await readFile(new URL('../supabase/migrations/20261121180000_boss_ihaq_events.sql',import.meta.url),'utf8'));
  const control=(a,b={},actor='11')=>d.query('select rewards_boss_control($1,$2,$3)',[actor,a,b]);
  const hit=(s,e,actor,donor=null,rub=null)=>d.query('select rewards_boss_hit($1,$2,$3,$4,$5)',[s,e,actor,donor,rub]);
  await assert.rejects(control('start',{kind:'dropsy'},'22'),/owner_required/);
- await control('start',{kind:'dropsy'});await hit('free','1','33');await assert.rejects(hit('free','2','33'),/cooldown/);
+ const incoming=(key,amount)=>d.query("select rewards_boss_ihaq_event($1,'ALPHA',$2,null,clock_timestamp()) result",[key,amount]);
+ const ignored='10000000-0000-0000-0000-000000000001',applied='10000000-0000-0000-0000-000000000002';
+ assert.equal((await incoming(ignored,100)).rows[0].result.ignored,'boss_inactive');
+ await control('start',{kind:'dropsy'});assert.equal((await incoming(ignored,100)).rows[0].result.duplicate,true);await hit('free','1','33');await assert.rejects(hit('free','2','33'),/cooldown/);
  await assert.rejects(d.query("select rewards_boss_hit('donationalerts','old',null,'alpha',50,1,null,now()-interval '1 day')"),/event_outside_battle/);
  await d.query("select rewards_boss_hit('donationalerts','test',null,'alpha',50,1,null,clock_timestamp(),false)");
  const rejected=(await d.query("select id from rewards_boss_hits where event_id='test'")).rows[0].id;await control('reject_donation',{hitId:rejected});assert.equal((await d.query('select hp from rewards_boss_runs')).rows[0].hp,4960);
@@ -28,7 +32,7 @@ test('boss lifecycle, capped damage, paused cooldown, donor identity and proport
  await control('disable');const disabled=(await d.query('select hp,status,hidden from rewards_boss_runs where id=$1',[original])).rows[0];assert.deepEqual(disabled,{hp:4960,status:'paused',hidden:true});await assert.rejects(hit('free','disabled','44'),/boss_inactive/);
  await control('switch',{kind:'guardian'});assert.equal((await d.query("select hp from rewards_boss_runs where status='active'")).rows[0].hp,10000);
  await hit('free','guardian','44');await control('switch',{kind:'dropsy'});assert.deepEqual((await d.query("select id,hp,hidden from rewards_boss_runs where status='active'")).rows[0],{id:original,hp:4960,hidden:false});await assert.rejects(hit('free','after-switch','33'),/cooldown/);
- await hit('donationalerts','a',null,'ALPHA',100);await hit('donationalerts','a',null,'ALPHA',100);
+ assert.equal((await incoming(applied,100)).rows[0].result.damage,200);assert.equal((await incoming(applied,100)).rows[0].result.duplicate,true);const autoId=(await d.query("select id from rewards_boss_hits where event_id=$1",[applied])).rows[0].id;await control('confirm_donation',{hitId:autoId});
  await hit('ihaq','b',null,'unrecognized',100);const id=(await d.query("select id from rewards_boss_hits where event_id='b'")).rows[0].id;
  await control('identify',{hitId:id,login:'beta'});await d.query("select rewards_boss_hit('donationalerts','c',null,'unknown',10000,1,null,clock_timestamp(),false)");
  const b=(await d.query('select hp,status from rewards_boss_runs where id=$1',[original])).rows[0];assert.deepEqual(b,{hp:0,status:'review'});

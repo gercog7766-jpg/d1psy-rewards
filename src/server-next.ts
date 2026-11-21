@@ -5,6 +5,7 @@ import {installClanChatAuthorization,startClanPresencePoller} from './clan-chat-
 import {installLiveBoost} from './live-boost.js';
 import {installLiveBoss} from './live-boss.js';
 import {installBossTwitchWebhook,installBossTwitchConnect,installBossDonationAlertsOAuth} from './live-boss-events.js';
+import {startBossIhaq} from './live-boss-ihaq.js';
 import {attachClanProfiles} from './clan-profile.js';
 import {installAdventAdmin} from './advent-admin.js';
 import {installAdminStatistics} from './admin-statistics.js';
@@ -75,6 +76,7 @@ installLiveBoost(app,db,requireUser);
 installLiveBoss(app,db,requireUser,requireAdmin,new URL(APP_URL).origin);
 installBossTwitchConnect(app,db,requireAdmin,{clientId:TWITCH_CLIENT_ID,clientSecret:TWITCH_CLIENT_SECRET,secret:process.env.TWITCH_EVENTSUB_SECRET||'',redirect:TWITCH_REDIRECT_URI,callback:new URL('/eventsub/boss',APP_URL).href});
 installBossDonationAlertsOAuth(app,db,requireAdmin,{clientId:process.env.BOSS_DA_CLIENT_ID||'',clientSecret:process.env.BOSS_DA_CLIENT_SECRET||'',encryptionKey:process.env.BOSS_DA_ENCRYPTION_KEY||'',redirect:new URL('/auth/boss/donationalerts',APP_URL).href});
+startBossIhaq(db);
 installAdminStatistics(app,db,requireAdmin);
 installStreamerPilot(app,requireUser,requireAdmin,subscribeToPartnerChat,partnerChatReady);
 installProfileCustomization(app,requireUser,requireAdmin);
