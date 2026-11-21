@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {JSDOM} from 'jsdom';
-import {liveBossPage,liveBossScript} from '../src/live-boss.ts';
+import {liveBossPage,liveBossScript,bossDonationPage} from '../src/live-boss.ts';
 import {withSiteNavigation} from '../src/site-navigation.ts';
 import {withSiteBranding} from '../src/site-branding.ts';
 import {withMobileLayout} from '../src/mobile-layout.ts';
@@ -41,5 +41,14 @@ test('free attack is locked without confirmed presence and shows frozen cooldown
  await until('заморожен');assert(d.getElementById('attack').disabled);assert.equal(d.getElementById('bossStreamLink').href,'https://www.twitch.tv/owner');
  present=true;await refresh();await until('восстанавливается');assert(d.getElementById('attack').disabled);
  cooldown=0;await refresh();await until('Атака доступна');assert.equal(d.getElementById('attack').disabled,false);
+ }finally{w.close()}
+});
+test('manual donation form has only provider, Twitch login and amount; resolves ambiguous existing hits without sending a new donation',async()=>{
+ const dom=new JSDOM(bossDonationPage(),{runScripts:'outside-only',url:'https://dropso.test/admin/bosses/donation'}),w=dom.window,d=w.document;
+ try{const f=d.getElementById('f'),calls=[];const hit={id:'existing-hit',donor:'Another nick',at:'2026-11-21T10:00:00Z',kind:'dropsy',damage:200,linked:false};
+  w.fetch=async(_url,opts)=>{const body=JSON.parse(opts.body);calls.push(body);return {ok:true,json:async()=>body.hitId?{ok:true,damage:200,already:false}:{candidates:[hit,{...hit,id:'other-hit',linked:true}]}}};
+  w.eval(d.querySelector('script').textContent);assert.deepEqual([...f.querySelectorAll('[name]')].map(el=>el.name),['source','login','rub']);f.elements.login.value='alpha';f.elements.rub.value='100';
+  await f.onsubmit({preventDefault(){}});assert.equal(calls.length,1);assert.equal(d.getElementById('candidateField').hidden,false);assert(d.getElementById('candidate').options[2].disabled);d.getElementById('candidate').value='existing-hit';
+  await f.onsubmit({preventDefault(){}});assert.deepEqual(calls[1],{source:'ihaq',login:'alpha',rub:100,hitId:'existing-hit'});assert.match(d.getElementById('result').textContent,/HP босса не изменилось/);
  }finally{w.close()}
 });
