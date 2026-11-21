@@ -8,3 +8,5 @@ func autostart(bool) error   { return nil }
 func autostartEnabled() bool { return false }
 func runTray(func(), func()) { select {} }
 func showWindow()            {}
+func showExistingWindow() bool { return false }
+func showStartupError(s string) { println(s) }

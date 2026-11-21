@@ -1,6 +1,7 @@
 name: Dropso Connect Windows
 on:
   push:
+    branches: [main]
     paths: ['desktop/connect/**', 'scripts/connect/**', '.github/workflows/dropso-connect.yml']
   pull_request:
     paths: ['desktop/connect/**', 'scripts/connect/**', '.github/workflows/dropso-connect.yml']
@@ -24,14 +25,23 @@ jobs:
       - name: Smoke test desktop and local listener
         shell: pwsh
         run: |
-          $program = Start-Process ./desktop/connect/DropsoConnect.exe -ArgumentList '--startup' -PassThru
+          $program = Start-Process ./desktop/connect/DropsoConnect.exe -PassThru
           try {
-            Start-Sleep -Seconds 3
-            if ($program.HasExited) { throw 'Desktop application exited unexpectedly' }
+            $deadline = (Get-Date).AddSeconds(15)
+            do {
+              Start-Sleep -Milliseconds 250
+              $program.Refresh()
+              if ($program.HasExited) { throw 'Desktop application exited unexpectedly' }
+            } until ($program.MainWindowHandle -ne 0 -or (Get-Date) -gt $deadline)
+            if ($program.MainWindowHandle -eq 0) { throw 'Desktop window did not appear' }
+            if (!$program.Responding) { throw 'Desktop window is not responding' }
             $response = Invoke-WebRequest http://127.0.0.1:28743/ -SkipHttpErrorCheck
             if ($response.StatusCode -ne 403) { throw 'Local panel must require its per-run key' }
             $response = Invoke-WebRequest http://127.0.0.1:28743/gsi -Method Post -ContentType application/json -Body '{"auth":{"token":"wrong"}}' -SkipHttpErrorCheck
             if ($response.StatusCode -ne 403) { throw 'GSI must require its local secret' }
+            $second = Start-Process ./desktop/connect/DropsoConnect.exe -PassThru
+            try { if (!$second.WaitForExit(5000)) { throw 'Second launch must restore the existing window and exit' } }
+            finally { if (!$second.HasExited) { Stop-Process -Id $second.Id -ErrorAction SilentlyContinue } }
           } finally { Stop-Process -Id $program.Id -ErrorAction SilentlyContinue }
       - name: Package the admin download
         if: github.event_name == 'push'
@@ -49,7 +59,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "Packaged download is already current"
           else
-            git commit -m "Release Dropso Connect 2.0.2"
+            git commit -m "Release Dropso Connect $(python -c 'import json; print(json.load(open("public/downloads/DropsoConnect.json"))["version"])')"
             git push origin "HEAD:${GITHUB_REF_NAME}"
           fi
       - uses: actions/upload-artifact@v4

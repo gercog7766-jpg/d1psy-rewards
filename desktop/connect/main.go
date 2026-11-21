@@ -19,7 +19,7 @@ import (
 )
 
 const site = "https://dropso.site"
-const version = "2.0.2"
+const version = "2.0.3"
 const protocolVersion = "1.0.1"
 
 type Snapshot struct {
@@ -276,8 +276,9 @@ func main() {
 	c.local = secret()
 	listener, e := net.Listen("tcp", "127.0.0.1:28743")
 	if e != nil {
+		if showExistingWindow() { return }
 		startupError = "Локальный порт CS2 уже занят. Закройте другую копию Dropso Connect и перезапустите программу."
-		runTray(func() { showWindow() }, func() { os.Exit(0) })
+		showStartupError(startupError)
 		return
 	}
 	go func() {
@@ -309,7 +310,5 @@ func main() {
 	mux.HandleFunc("/", func(w http.ResponseWriter,r *http.Request){w.Header().Set("Cache-Control","no-store");w.Header().Set("X-Frame-Options","DENY");if r.URL.Path!="/"{http.NotFound(w,r);return};http.Error(w,"Настройки доступны в окне Dropso Connect для Windows.",http.StatusForbidden)})
 	server := &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 40 * time.Second, MaxHeaderBytes: 8192}
 	go server.Serve(listener)
-	if err := install(detect(), c.local); err != nil {
-	}
 	runTray(func() { showWindow() }, func() { c.disconnect(); os.Exit(0) })
 }
