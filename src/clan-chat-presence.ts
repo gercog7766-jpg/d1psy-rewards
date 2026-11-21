@@ -25,10 +25,16 @@ export async function collectLiveChannels(connected:string[],primary:string|null
  return {primaryLive:primary?live.includes(primary):null,authorizedLive:live.filter(id=>connected.includes(id))};
 }
 
+export async function recordPrimaryPresence(db:SupabaseClient,primary:string,active:boolean,viewers:string[],at=new Date().toISOString()){
+ const {data,error}=await db.rpc('rewards_primary_presence_record',{p_sample:{broadcaster:primary,at,active,viewers}});
+ if(error){console.error('primary_presence_rpc_failed',error.code,error.message);return false}
+ for(const key of ['boss','boost','achievement']){const status=data?.[key];if(status&&!status.ok)console.error(key+'_presence_sample_failed',status.code,status.message)}
+ return data?.boss?.ok===true;
+}
+
 // App-token requests use the explicit broadcaster grant. User tokens are never persisted.
 export function startClanPresencePoller(db:SupabaseClient){
  if(!options.clientId||!options.secret)return;let busy=false,token='',expires=0;
- async function recordBossPresence(primary:string,active:boolean,viewers:string[]){try{const {error}=await db.rpc('rewards_boss_presence_sample',{p_broadcaster:primary,p_at:new Date().toISOString(),p_active:active,p_viewers:viewers});if(error&&error.code!=='PGRST202')console.error('boss_presence_sample_failed',error.code)}catch{console.error('boss_presence_sample_unavailable')}}
  async function appToken(){if(token&&Date.now()<expires-60000)return token;const r=await fetch('https://id.twitch.tv/oauth2/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:options.clientId,client_secret:options.secret,grant_type:'client_credentials'}),signal:AbortSignal.timeout(8000)});if(!r.ok)throw Error('twitch_token_unavailable');const data:any=await r.json();if(!data.access_token)throw Error('twitch_token_unavailable');token=data.access_token;expires=Date.now()+Number(data.expires_in||3600)*1000;return token}
  async function helix(route:string){const request=async()=>fetch('https://api.twitch.tv/helix/'+route,{headers:{'Client-Id':options.clientId,Authorization:'Bearer '+await appToken()},signal:AbortSignal.timeout(8000)});let r=await request();if(r.status===401){expires=0;r=await request()}if(r.status===401||r.status===403)throw Error('authorization_required');if(!r.ok)throw Error('twitch_unavailable');return r.json()}
  let checkingBroadcast=false;
@@ -40,9 +46,7 @@ export function startClanPresencePoller(db:SupabaseClient){
   let primaryViewers:string[]=[],primaryLive=false;
   const users=await collectChatters(stream.authorizedLive,helix,async(id,error,viewers)=>{if(id===primary){if(!error&&viewers){primaryViewers=viewers;primaryLive=true;}primaryBroadcast={...primaryBroadcast,chat:error==='authorization_required'?'authorization_required':error?'unavailable':'ready'};}const now=new Date().toISOString();const result=await db.from('rewards_clan_chat_channels').update({last_checked_at:now,last_error:error,...(!error?{last_success_at:now}:{})}).eq('broadcaster',id);if(result.error)throw Error('presence_status_unavailable')});
   if(Date.now()-start>90000||users.length>50000)return;
-  if(primary)await recordBossPresence(primary,primaryLive,primaryViewers);
-  if(primary){try{const boost=await db.rpc('rewards_live_boost_sample',{p_broadcaster:primary,p_at:new Date().toISOString(),p_active:primaryLive,p_viewers:primaryViewers});if(boost.error&&boost.error.code!=='PGRST202')console.error('live_boost_sample_failed',boost.error.code)}catch{console.error('live_boost_sample_unavailable')}}
-  if(primary&&primaryLive){try{await db.rpc('rewards_live_time_achievement',{p_broadcaster:primary,p_viewers:primaryViewers,p_at:new Date().toISOString()})}catch{console.error('live_achievement_sample_unavailable')}}
+  if(primary){try{if(!await recordPrimaryPresence(db,primary,primaryLive,primaryViewers))primaryBroadcast={...primaryBroadcast,chat:'unavailable'}}catch{console.error('primary_presence_sample_unavailable');primaryBroadcast={...primaryBroadcast,chat:'unavailable'}}}
   const result=await db.rpc('rewards_clan_chat_sample',{p_at:new Date().toISOString(),p_viewers:users});if(result.error)throw Error('presence_sample_unavailable');
  }catch(e){primaryBroadcast={live:null,chat:'unavailable',checkedAt:Date.now()};console.error('clan_presence_poll_failed',e instanceof Error?e.message:'unknown')}finally{busy=false}};
  // Initial delay avoids competing with deployment/startup checks. Every subsequent sample is five minutes apart.
