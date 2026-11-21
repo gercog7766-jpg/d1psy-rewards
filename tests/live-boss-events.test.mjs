@@ -2,8 +2,20 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
 import {createHmac} from 'node:crypto';
-import {donationAlertEvent,donationCode,twitchBossEvent,installBossTwitchWebhook,installBossDonationAlertsOAuth} from '../src/live-boss-events.ts';
+import {donationAlertEvent,donationCode,twitchBossEvent,installBossTwitchWebhook,installBossDonationAlertsOAuth,inspectBossTwitchSubscriptions,startBossDonationAlerts,bossDonationAlertsStatus} from '../src/live-boss-events.ts';
 import cookieParser from 'cookie-parser';
+test('Twitch connection requires both enabled subscription types for the exact owner and callback',async()=>{
+ const callback='https://dropso.test/eventsub/boss',actor='11';let full=false;
+ const request=async(url)=>{const q=new URL(url).searchParams,type=q.get('type'),after=q.get('after');const right={type,condition:{broadcaster_user_id:actor},transport:{method:'webhook',callback},status:'enabled'};const rows=type==='channel.subscribe'?(after?[right]:[{...right,transport:{method:'webhook',callback:'https://wrong.test'}}]):full?[right]:[{...right,status:'webhook_callback_verification_failed'}];return new Response(JSON.stringify({data:rows,pagination:type==='channel.subscribe'&&!after?{cursor:'next'}:{}}))};
+ assert.equal((await inspectBossTwitchSubscriptions(actor,callback,{},request)).status,'partial');full=true;const status=await inspectBossTwitchSubscriptions(actor,callback,{},request);assert.equal(status.status,'connected');assert.equal(status.details,'2 из 2 событий подписок');
+});
+test('DonationAlerts only reports connected after a valid API response; unauthorized response changes status',async()=>{
+ const original=globalThis.fetch,db={rpc(){return Promise.resolve({error:null})}};let stop;
+ const until=async state=>{for(let i=0;i<50;i++){if(bossDonationAlertsStatus().status===state)return;await new Promise(r=>setTimeout(r,5))}assert.equal(bossDonationAlertsStatus().status,state)};
+ try{globalThis.fetch=async()=>new Response(JSON.stringify({data:[]}));stop=startBossDonationAlerts(db,async()=>'mock-token');await until('connected');stop();
+ globalThis.fetch=async()=>new Response('',{status:401});stop=startBossDonationAlerts(db,async()=>'mock-token');await until('reconnect_required');
+ }finally{stop?.();globalThis.fetch=original}
+});
 test('donation mapping and gift subscription de-duplication by event type',()=>{
  const code='12345678-abcd-1234-abcd-123456789abc';
  assert.equal(donationCode('[DROPSO:'+code+']'),code);

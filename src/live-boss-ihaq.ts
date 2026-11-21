@@ -6,7 +6,9 @@ const uuid=/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
 type State='not_configured'|'connecting'|'connected'|'disconnected'|'invalid_token';
 let status:State='not_configured';
 let lastEventAt:string|null=null;
+let activeSocket:ReturnType<typeof io>|null=null;
 export function bossIhaqStatus(){return {status,lastEventAt}}
+export function reconnectBossIhaq(){if(!activeSocket)return false;activeSocket.disconnect();status='connecting';activeSocket.connect();return true}
 export function normalizeIhaqEvent(data:unknown,at=new Date().toISOString()){
  if(!data||typeof data!=='object')return null;
  const event=data as Record<string,any>,row=event.message;
@@ -21,6 +23,7 @@ export function startBossIhaq(db:SupabaseClient,apiToken=process.env.BOSS_IHAQ_A
  if(!uuid.test(apiToken)){status='invalid_token';console.error('live_boss_ihaq_invalid_token');return}
  status='connecting';
  const socket=connect('wss://ihaqdonate.com',{path:'/ws/integrations/socket.io/v1/'+apiToken,transports:['polling','websocket'],reconnection:true,reconnectionDelay:1000,reconnectionDelayMax:30000,timeout:10000,autoConnect:false});
+ activeSocket=socket;
  let queue=Promise.resolve(),pending=0;
  socket.on('connect',()=>{status='connected';console.info('live_boss_ihaq_connected')});
  socket.on('disconnect',()=>{status='disconnected'});

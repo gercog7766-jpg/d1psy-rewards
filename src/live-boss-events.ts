@@ -22,6 +22,30 @@ export function donationAlertEvent(row:any){
 }
 const ignored=new Set(['boss_inactive','event_outside_battle']);
 async function apply(db:SupabaseClient,args:any){const {error}=await db.rpc('rewards_boss_hit',args);if(error&&!ignored.has(error.message))throw Error(error.code||'boss_hit_failed')}
+type ProviderState='not_configured'|'not_connected'|'checking'|'connected'|'disconnected'|'partial'|'pending'|'reconnect_required';
+type ProviderStatus={status:ProviderState;checkedAt:string|null;details?:string};
+let daStatus:ProviderStatus={status:'not_configured',checkedAt:null};
+function setDaStatus(status:ProviderState){daStatus={status,checkedAt:new Date().toISOString()}}
+export function bossDonationAlertsStatus(){return daStatus.status==='connected'&&Date.now()-Date.parse(daStatus.checkedAt||'')>45000?{...daStatus,status:'disconnected' as const}:daStatus}
+const twitchTypes=['channel.subscribe','channel.subscription.gift'] as const;
+export async function inspectBossTwitchSubscriptions(actor:string,callback:string,headers:Record<string,string>,request:typeof fetch=fetch):Promise<ProviderStatus>{
+ const found=await Promise.all(twitchTypes.map(async type=>{
+  let after='',enabled=false,pending=false;
+  for(let page=0;page<20;page++){
+   const q=new URLSearchParams({type,...(after?{after}:{})});
+   const r=await request('https://api.twitch.tv/helix/eventsub/subscriptions?'+q,{headers,signal:AbortSignal.timeout(10000)});if(!r.ok)throw Error('twitch_status_unavailable');
+   const data:any=await r.json();if(!Array.isArray(data.data))throw Error('twitch_status_invalid');
+   for(const s of data.data)if(s.type===type&&s.condition?.broadcaster_user_id===actor&&s.transport?.method==='webhook'&&s.transport?.callback===callback){enabled||=s.status==='enabled';pending||=s.status==='webhook_callback_verification_pending'}
+   const cursor=data.pagination?.cursor;if(enabled||!cursor)return enabled?'enabled':pending?'pending':'missing';if(cursor===after)throw Error('twitch_status_pagination');after=cursor;
+  }
+  throw Error('twitch_status_limit');
+ }));
+ const count=found.filter(s=>s==='enabled').length;
+ return {status:count===2?'connected':found.includes('pending')?'pending':count===1?'partial':'not_connected',checkedAt:new Date().toISOString(),details:count+' из 2 событий подписок'};
+}
+let twitchStatusReader:(actor:string)=>ProviderStatus=()=>({status:'not_configured',checkedAt:null});
+let invalidateTwitchStatus=()=>{};
+export function bossTwitchStatus(actor:string){return twitchStatusReader(actor)}
 // Separate callback avoids changing the existing chat, giveaway and partner subscriptions.
 export function installBossTwitchWebhook(app:Express,db:SupabaseClient,secret:string){
  app.post('/eventsub/boss',express.raw({type:'application/json',limit:'64kb'}),async(q,r)=>{
@@ -33,7 +57,7 @@ export function installBossTwitchWebhook(app:Express,db:SupabaseClient,secret:st
   try{const p=JSON.parse(q.body.toString('utf8')),type=p.subscription?.type,broadcaster=p.subscription?.condition?.broadcaster_user_id;
    if(!['channel.subscribe','channel.subscription.gift'].includes(type)||!id.test(broadcaster||'')||!await isClanSiteOwner(db,broadcaster))return void r.sendStatus(403);
    if(kind==='webhook_callback_verification'&&typeof p.challenge==='string')return void r.type('text/plain').send(p.challenge);
-   if(kind==='revocation')return void r.sendStatus(204);
+   if(kind==='revocation'){invalidateTwitchStatus();return void r.sendStatus(204)}
    if(kind==='notification'&&p.event?.broadcaster_user_id===broadcaster){const hit=twitchBossEvent(type,p.event,eventId,at);if(hit)await apply(db,hit)}
    r.sendStatus(204);
   }catch{r.sendStatus(503)}
@@ -42,6 +66,20 @@ export function installBossTwitchWebhook(app:Express,db:SupabaseClient,secret:st
 type TwitchOptions={clientId:string;clientSecret:string;secret:string;redirect:string;callback:string};
 export function installBossTwitchConnect(app:Express,db:SupabaseClient,admin:RequestHandler,o:TwitchOptions){
  const pending=new Map<string,{actor:string;expires:number}>();const scope='channel:read:subscriptions';
+ let last:ProviderStatus={status:'checking',checkedAt:null},expires=0,checking=false,checkedActor='',generation=0;
+ invalidateTwitchStatus=()=>{generation++;expires=0;last={status:'checking',checkedAt:null}};
+ twitchStatusReader=actor=>{
+  if(!o.clientId||!o.clientSecret||!o.secret)return {status:'not_configured',checkedAt:null};
+  if(checkedActor!==actor){checkedActor=actor;invalidateTwitchStatus()}
+  if(!checking&&Date.now()>=expires){checking=true;const current=generation;void(async()=>{
+   try{const r=await fetch('https://id.twitch.tv/oauth2/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:o.clientId,client_secret:o.clientSecret,grant_type:'client_credentials'}),signal:AbortSignal.timeout(10000)});if(!r.ok)throw Error();const token=(await r.json() as any).access_token;if(!token)throw Error();
+    const result=await inspectBossTwitchSubscriptions(actor,o.callback,{'Client-Id':o.clientId,Authorization:'Bearer '+token});
+    if(current===generation){last=result;expires=Date.now()+30000}
+   }catch{if(current===generation){last={status:'disconnected',checkedAt:new Date().toISOString()};expires=Date.now()+15000}}finally{checking=false}
+  })()}
+  if(last.status==='connected'&&Date.now()-Date.parse(last.checkedAt||'')>90000)return {...last,status:'disconnected'};
+  return last;
+ };
  const owner:RequestHandler=async(_q,r,n)=>{try{if(!await isClanSiteOwner(db,r.locals.session.twitchUserId))return void r.sendStatus(403);r.set('Cache-Control','no-store');n()}catch{r.sendStatus(503)}};
  app.get('/admin/bosses/twitch',admin,owner,(_q,r)=>{
   if(!o.clientId||!o.clientSecret||!o.secret)return void r.status(503).send('Twitch не настроен');
@@ -61,12 +99,12 @@ export function installBossTwitchConnect(app:Express,db:SupabaseClient,admin:Req
     const identity=await fetch('https://api.twitch.tv/helix/users',{headers:{'Client-Id':o.clientId,Authorization:'Bearer '+u.access_token},signal:AbortSignal.timeout(10000)});if(!identity.ok||(await identity.json() as any).data?.[0]?.id!==entry.actor)return void r.sendStatus(403);
     const a=await token({grant_type:'client_credentials'});if(!a.access_token)throw Error();
     const headers={'Client-Id':o.clientId,Authorization:'Bearer '+a.access_token,'Content-Type':'application/json'};
-    for(const type of ['channel.subscribe','channel.subscription.gift']){
+    for(const type of twitchTypes){
      const response=await fetch('https://api.twitch.tv/helix/eventsub/subscriptions',{method:'POST',headers,body:JSON.stringify({type,version:'1',condition:{broadcaster_user_id:entry.actor},transport:{method:'webhook',callback:o.callback,secret:o.secret}}),signal:AbortSignal.timeout(10000)});
      if(response.status===409){const existing=await fetch('https://api.twitch.tv/helix/eventsub/subscriptions?'+new URLSearchParams({type}),{headers,signal:AbortSignal.timeout(10000)});if(!existing.ok||!(await existing.json() as any).data?.some((s:any)=>s.condition?.broadcaster_user_id===entry.actor&&s.transport?.callback===o.callback&&['enabled','webhook_callback_verification_pending'].includes(s.status)))throw Error()}
      else if(!response.ok)throw Error();
     }
-    r.redirect('/admin/bosses');
+    invalidateTwitchStatus();r.redirect('/admin/bosses');
    }catch{r.status(503).send('Не удалось подключить подписки Twitch. Проверь разрешения и повтори.')}
   }));
  });
@@ -76,15 +114,16 @@ export function installBossTwitchConnect(app:Express,db:SupabaseClient,admin:Req
 export function startBossDonationAlerts(db:SupabaseClient,getToken:()=>Promise<string|null>){
  let busy=false,watermark=Date.now();
  const tick=async()=>{if(busy)return;busy=true;try{
-  const accessToken=await getToken();if(!accessToken)return;
+  const accessToken=await getToken();if(!accessToken){setDaStatus('not_connected');return}
   const response=await fetch('https://www.donationalerts.com/api/v1/alerts/donations',{headers:{Authorization:'Bearer '+accessToken},signal:AbortSignal.timeout(10000)});
+  if(response.status===401||response.status===403){setDaStatus('reconnect_required');return}
   if(!response.ok)throw Error('da_api_unavailable');const payload:any=await response.json();if(!Array.isArray(payload.data))throw Error('da_api_invalid');
   const events=payload.data.map(donationAlertEvent).filter(Boolean).filter((e:any)=>Date.parse(e.p_at)>=watermark).sort((a:any,b:any)=>Date.parse(a.p_at)-Date.parse(b.p_at));
   for(const event of events)await apply(db,event);
   // Overlap to catch alerts with identical second timestamps; SQL deduplicates by provider ID.
-  watermark=Math.max(watermark,Date.now()-120000);
- }catch{console.error('live_boss_donation_alerts_unavailable')}finally{busy=false}};
- const t=setInterval(()=>void tick(),10000);t.unref();void tick();
+  watermark=Math.max(watermark,Date.now()-120000);setDaStatus('connected');
+ }catch{setDaStatus('disconnected');console.error('live_boss_donation_alerts_unavailable')}finally{busy=false}};
+ const t=setInterval(()=>void tick(),10000);t.unref();void tick();return ()=>clearInterval(t);
 }
 type DaOptions={clientId:string;clientSecret:string;encryptionKey:string;redirect:string;poll?:boolean};
 type DaTokens={access:string;refresh:string;expires:number};
@@ -92,6 +131,7 @@ function seal(value:DaTokens,key:Buffer){const iv=randomBytes(12),cipher=createC
 function unseal(value:string,key:Buffer):DaTokens{const data=Buffer.from(value,'base64'),cipher=createDecipheriv('aes-256-gcm',key,data.subarray(0,12));cipher.setAuthTag(data.subarray(12,28));return JSON.parse(Buffer.concat([cipher.update(data.subarray(28)),cipher.final()]).toString('utf8'))}
 export function installBossDonationAlertsOAuth(app:Express,db:SupabaseClient,admin:RequestHandler,o:DaOptions){
  const configured=!!(o.clientId&&o.clientSecret&&o.encryptionKey),key=createHash('sha256').update(o.encryptionKey||'disabled').digest();
+ setDaStatus(configured?'checking':'not_configured');
  const scope='oauth-donation-index',pending=new Map<string,{actor:string;expires:number}>();let cached:DaTokens|null=null;
  const owner:RequestHandler=async(_q,r,n)=>{try{if(!await isClanSiteOwner(db,r.locals.session.twitchUserId))return void r.sendStatus(403);r.set('Cache-Control','no-store');n()}catch{r.sendStatus(503)}};
  const exchange=async(args:Record<string,string>)=>{const response=await fetch('https://www.donationalerts.com/oauth/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:o.clientId,client_secret:o.clientSecret,scope,...args}),signal:AbortSignal.timeout(10000)});if(!response.ok)throw Error('da_token_failed');return response.json() as Promise<any>};
@@ -105,7 +145,7 @@ export function installBossDonationAlertsOAuth(app:Express,db:SupabaseClient,adm
  app.get('/auth/boss/donationalerts',admin,owner,async(q,r)=>{
   const state=typeof q.query.state==='string'?q.query.state:'',entry=pending.get(state);pending.delete(state);r.clearCookie('boss_da_oauth',{path:'/auth/boss/donationalerts'});
   if(!configured||!entry||entry.actor!==r.locals.session.twitchUserId||entry.expires<Date.now()||q.cookies?.boss_da_oauth!==state||typeof q.query.code!=='string')return void r.status(400).send('Авторизация не завершена');
-  try{await save(await exchange({grant_type:'authorization_code',code:q.query.code,redirect_uri:o.redirect}));r.redirect('/admin/bosses')}catch{r.status(503).send('Не удалось подключить DonationAlerts')}
+  try{await save(await exchange({grant_type:'authorization_code',code:q.query.code,redirect_uri:o.redirect}));setDaStatus('checking');r.redirect('/admin/bosses')}catch{setDaStatus('disconnected');r.status(503).send('Не удалось подключить DonationAlerts')}
  });
  if(configured&&o.poll!==false)startBossDonationAlerts(db,async()=>{
   if(!cached){const row=await db.from('rewards_boss_provider_credentials').select('ciphertext').eq('provider','donationalerts').maybeSingle();if(row.error)throw Error('da_token_lookup_failed');if(!row.data)return null;cached=unseal(row.data.ciphertext,key)}
