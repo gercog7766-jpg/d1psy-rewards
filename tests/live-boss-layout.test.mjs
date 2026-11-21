@@ -44,6 +44,11 @@ test('free attack is locked without confirmed presence and shows frozen cooldown
  cooldown=0;await refresh();await until('Атака доступна');assert.equal(d.getElementById('attack').disabled,false);
  }finally{w.close()}
 });
+test('active stream without chat-list authorization is not described as offline and cannot unlock attacks',async()=>{
+ const dom=new JSDOM(liveBossPage('player'),{runScripts:'outside-only',url:'https://dropso.test/bosses'}),w=dom.window;
+ try{const d=w.document;w.fetch=async()=>({ok:true,json:async()=>({boss:{name:'DROPSY',image:'/live-boss/756.webp',hp:5000,max_hp:5000,status:'active'},damage:0,cooldown:0,present:false,live:true,chatStatus:'authorization_required',streamLogin:'owner',code:'code'})});w.eval(liveBossScript);await new Promise(r=>setTimeout(r,20));assert.match(d.getElementById('cooldownStatus').textContent,/Эфир активен/);assert(d.getElementById('attack').disabled);
+ }finally{w.close()}
+});
 test('manual donation form has only provider, Twitch login and amount; resolves ambiguous existing hits without sending a new donation',async()=>{
  const dom=new JSDOM(bossDonationPage(),{runScripts:'outside-only',url:'https://dropso.test/admin/bosses/donation'}),w=dom.window,d=w.document;
  try{const f=d.getElementById('f'),calls=[];const hit={id:'existing-hit',donor:'Another nick',at:'2026-11-21T10:00:00Z',kind:'dropsy',damage:200,linked:false};
