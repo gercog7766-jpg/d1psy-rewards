@@ -20,6 +20,7 @@ test('boss lifecycle, capped damage, paused cooldown, donor identity and proport
  await d.exec(await readFile(new URL('../supabase/migrations/20261121160000_boss_switch.sql',import.meta.url),'utf8'));
  await d.exec(await readFile(new URL('../supabase/migrations/20261121180000_boss_ihaq_events.sql',import.meta.url),'utf8'));
  await d.exec(await readFile(new URL('../supabase/migrations/20261121190000_boss_presence_cooldown.sql',import.meta.url),'utf8'));
+ await d.exec(await readFile(new URL('../supabase/migrations/20261121210000_boss_donation_identification.sql',import.meta.url),'utf8'));
  const control=(a,b={},actor='11')=>d.query('select rewards_boss_control($1,$2,$3)',[actor,a,b]);
  const hit=(s,e,actor,donor=null,rub=null)=>d.query('select rewards_boss_hit($1,$2,$3,$4,$5)',[s,e,actor,donor,rub]);
  await assert.rejects(control('start',{kind:'dropsy'},'22'),/owner_required/);
@@ -50,7 +51,16 @@ test('boss lifecycle, capped damage, paused cooldown, donor identity and proport
  await hit('free','guardian','44');await control('switch',{kind:'dropsy'});assert.deepEqual((await d.query("select id,hp,hidden from rewards_boss_runs where status='active'")).rows[0],{id:original,hp:4960,hidden:false});await assert.rejects(hit('free','after-switch','33'),/cooldown/);
  assert.equal((await incoming(applied,100)).rows[0].result.damage,200);assert.equal((await incoming(applied,100)).rows[0].result.duplicate,true);const autoId=(await d.query("select id from rewards_boss_hits where event_id=$1",[applied])).rows[0].id;await control('confirm_donation',{hitId:autoId});
  await hit('ihaq','b',null,'unrecognized',100);const id=(await d.query("select id from rewards_boss_hits where event_id='b'")).rows[0].id;
- await control('identify',{hitId:id,login:'beta'});await d.query("select rewards_boss_hit('donationalerts','c',null,'unknown',10000,1,null,clock_timestamp(),false)");
+ const identify=async(actor='11',login='beta',amount=100,hitId=null,source='ihaq')=>(await d.query('select rewards_boss_identify_donation($1,$2,$3,$4,$5) result',[actor,source,login,amount,hitId])).rows[0].result;
+ const beforeIdentify=(await d.query('select hp from rewards_boss_runs where id=$1',[original])).rows[0].hp;
+ const beforeHits=Number((await d.query('select count(*) n from rewards_boss_hits')).rows[0].n);
+ await assert.rejects(identify('22'),/owner_required/);await assert.rejects(identify('11','missing'),/unknown_user/);await assert.rejects(identify('11','beta',99),/donation_not_found/);
+ const choices=(await identify()).candidates;assert.equal(choices.length,2);assert.equal(choices.find(h=>h.id===id).linked,false);assert.equal(choices.find(h=>h.id===autoId).linked,true);
+ await assert.rejects(identify('11','beta',100,autoId),/already_identified/);await assert.rejects(identify('11','beta',99,id),/donation_not_found/);
+ assert.deepEqual(await identify('11','BETA',100,id),{ok:true,damage:200,already:false});assert.deepEqual(await identify('11','beta',100,id),{ok:true,damage:200,already:true});
+ await assert.rejects(identify('11','alpha',100,id),/already_identified/);
+ assert.equal((await d.query('select hp from rewards_boss_runs where id=$1',[original])).rows[0].hp,beforeIdentify);assert.equal(Number((await d.query('select count(*) n from rewards_boss_hits')).rows[0].n),beforeHits);
+ await d.query("select rewards_boss_hit('donationalerts','c',null,'unknown',10000,1,null,clock_timestamp(),false)");
  const b=(await d.query('select hp,status from rewards_boss_runs where id=$1',[original])).rows[0];assert.deepEqual(b,{hp:0,status:'review'});
  await assert.rejects(control('switch',{kind:'guardian'}),/settle_current_boss_first/);
  await assert.rejects(control('pay'),/donations_require_review/);
