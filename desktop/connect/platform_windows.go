@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,13 +12,21 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 	"unsafe"
 )
 
+func hiddenRegistry(args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx,"reg.exe",args...)
+	cmd.SysProcAttr=&syscall.SysProcAttr{HideWindow:true,CreationFlags:0x08000000}
+	return cmd.Output()
+}
 func openBrowser(url string) { exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start() }
 func steamRoots() []string {
 	roots := []string{filepath.Join(os.Getenv("ProgramFiles(x86)"), "Steam"), filepath.Join(os.Getenv("ProgramFiles"), "Steam")}
-	b, _ := exec.Command("reg", "query", `HKCU\Software\Valve\Steam`, "/v", "SteamPath").Output()
+	b, _ := hiddenRegistry("query", `HKCU\Software\Valve\Steam`, "/v", "SteamPath")
 	m := regexp.MustCompile(`REG_SZ\s+([^\r\n]+)`).FindStringSubmatch(string(b))
 	if len(m) > 1 {
 		roots = append(roots, m[1])
@@ -26,19 +35,18 @@ func steamRoots() []string {
 }
 func autostartEnabled() bool {
 	key := `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
-	return exec.Command("reg", "query", key, "/v", "DropsoConnect").Run() == nil
+	_, err := hiddenRegistry("query", key, "/v", "DropsoConnect"); return err == nil
 }
 func autostart(enabled bool) error {
 	key := `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
 	if !enabled {
-		exec.Command("reg", "delete", key, "/v", "DropsoConnect", "/f").Run()
-		return nil
+		_, err := hiddenRegistry("delete", key, "/v", "DropsoConnect", "/f"); return err
 	}
 	p, e := os.Executable()
 	if e != nil {
 		return e
 	}
-	return exec.Command("reg", "add", key, "/v", "DropsoConnect", "/t", "REG_SZ", "/d", `"`+p+`" --startup`, "/f").Run()
+	_, err := hiddenRegistry("add", key, "/v", "DropsoConnect", "/t", "REG_SZ", "/d", `"`+p+`" --startup`, "/f"); return err
 }
 
 var user32 = syscall.NewLazyDLL("user32.dll")
@@ -79,6 +87,7 @@ type notify struct {
 }
 
 var mainWindow uintptr
+var moduleInstance uintptr
 var controls = map[int]uintptr{}
 var rowIDs = [6]string{"kill1", "kill2", "kill3", "kill4", "ace", "win"}
 var rowLabels = [6]string{"1+ убийство за раунд", "2+ убийства за раунд", "3+ убийства за раунд", "4+ убийства за раунд", "Эйс · 5 убийств", "Победа в раунде"}
@@ -108,6 +117,7 @@ var windowClass *uint16
 var trayHwnd uintptr
 var fontRegular, fontBold, brushBackground, brushSurface, brushInput, brushAccent, brushSecondary uintptr
 var taskBusy bool
+var startupPending = true
 var taskResults = make(chan taskResult, 1)
 var scrollX, scrollY int
 const virtualWidth, virtualHeight = 1180, 975
@@ -116,6 +126,9 @@ type taskResult struct { id int; success string; config *ConnectConfig; err erro
 
 const wmTaskDone = 0x8002
 const wmRefreshStatus = 0x8003
+const wmStartupReady = 0x8004
+type startupResult struct { path string; auto bool; err error }
+var startupResults = make(chan startupResult,1)
 
 func wide(s string) *uint16 { p, _ := syscall.UTF16PtrFromString(s); return p }
 func color(r, g, b byte) uintptr { return uintptr(uint32(r) | uint32(g)<<8 | uint32(b)<<16) }
@@ -125,7 +138,7 @@ func createFont(weight, height int32) uintptr {
 	return h
 }
 func control(parent uintptr, id int, class, text string, style uint32, x, y, w, h int) uintptr {
-	hw, _, _ := user32.NewProc("CreateWindowExW").Call(0, uintptr(unsafe.Pointer(wide(class))), uintptr(unsafe.Pointer(wide(text))), uintptr(style|0x50000000), uintptr(x), uintptr(y), uintptr(w), uintptr(h), parent, uintptr(id), 0, 0)
+	hw, _, _ := user32.NewProc("CreateWindowExW").Call(0, uintptr(unsafe.Pointer(wide(class))), uintptr(unsafe.Pointer(wide(text))), uintptr(style|0x50000000), uintptr(x), uintptr(y), uintptr(w), uintptr(h), parent, uintptr(id), moduleInstance, 0)
 	controls[id] = hw
 	if font := fontRegular; font != 0 { user32.NewProc("SendMessageW").Call(hw, 0x0030, font, 1) }
 	if class == "BUTTON" || class == "COMBOBOX" || class == "EDIT" { uxtheme.NewProc("SetWindowTheme").Call(hw, uintptr(unsafe.Pointer(wide(""))), uintptr(unsafe.Pointer(wide("")))) }
@@ -160,6 +173,8 @@ func comboGet(id int) string {
 	return "coins"
 }
 func showWindow(){if mainWindow!=0{user32.NewProc("ShowWindow").Call(mainWindow,5);user32.NewProc("SetForegroundWindow").Call(mainWindow)}}
+func showExistingWindow() bool { h,_,_:=user32.NewProc("FindWindowW").Call(uintptr(unsafe.Pointer(wide("DropsoConnectMainWindow"))),0);if h==0{return false};user32.NewProc("ShowWindowAsync").Call(h,9);user32.NewProc("SetForegroundWindow").Call(h);return true }
+func showStartupError(s string){user32.NewProc("MessageBoxW").Call(0,uintptr(unsafe.Pointer(wide(s))),uintptr(unsafe.Pointer(wide("Dropso Connect"))),0x10)}
 func nativeStatus(s string){setText(idStatus,s)}
 func setCue(id int, text string) { if h := controls[id]; h != 0 { user32.NewProc("SendMessageW").Call(h, 0x1501, 1, uintptr(unsafe.Pointer(wide(text)))) } }
 func button(parent uintptr, id int, label string, primary bool, x, y, w, h int) uintptr {
@@ -172,8 +187,10 @@ func createMainControls(hwnd uintptr) {
 	textControl(hwnd, 2, "Управление CS2-дропами · настройки сохраняются в твоём аккаунте Dropso", 25, 55, 880, 24, false)
 	textControl(hwnd, 3, "COUNTER-STRIKE 2", 24, 103, 300, 22, true)
 	textControl(hwnd, 4, "Папка игры", 24, 131, 150, 20, false)
-	control(hwnd, idPath, "EDIT", detect(), 0x00800000|0x00000080, 24, 154, 830, 36)
+	control(hwnd, idPath, "EDIT", "", 0x00800000|0x00000080, 24, 154, 830, 36)
+	setCue(idPath,"Определяем папку CS2…")
 	button(hwnd, idInstall, "Сохранить путь и настроить CS2", true, 875, 154, 265, 36)
+	user32.NewProc("EnableWindow").Call(controls[idInstall],0)
 
 	textControl(hwnd, 5, "ПОДКЛЮЧЕНИЕ DROPso", 24, 216, 300, 22, true)
 	textControl(hwnd, 6, "Ключ подключения", 24, 244, 230, 20, false)
@@ -209,7 +226,7 @@ func createMainControls(hwnd uintptr) {
 	button(hwnd, idConnect, "Подключить перед стримом", true, 405, 760, 255, 38)
 	button(hwnd, idDisconnect, "Отключить", false, 680, 760, 150, 38)
 	control(hwnd, idAuto, "BUTTON", "Запускать Dropso Connect вместе с Windows", 0x00000003|0x00010000, 24, 814, 400, 30)
-	setChecked(idAuto, autostartEnabled())
+	user32.NewProc("EnableWindow").Call(controls[idAuto],0)
 	textControl(hwnd, 17, "OBS  ·  dropso.site/obs/connect", 24, 862, 600, 24, true)
 	button(hwnd, idCopyObs, "Копировать ссылку OBS", false, 875, 856, 265, 38)
 	initialStatus := "Отключено · вставь ключ подключения, затем нажми «Загрузить настройки»."
@@ -276,9 +293,10 @@ func setControlColors(hdc, hwnd uintptr, which uint32) uintptr {
 	return brushBackground
 }
 func finishTask() {
-	result := <-taskResults
+	var result taskResult
+	select { case result = <-taskResults: default: return }
 	taskBusy = false
-	for _, buttonID := range []int{idInstall, idLoad, idSave, idConnect, idAuto} { user32.NewProc("EnableWindow").Call(controls[buttonID], 1) }
+	for _, buttonID := range []int{idInstall, idLoad, idSave, idConnect, idAuto} { if startupPending && (buttonID==idInstall || buttonID==idAuto) {continue};user32.NewProc("EnableWindow").Call(controls[buttonID], 1) }
 	if result.err != nil { setAppStatus(result.err.Error()); return }
 	if result.config != nil { applyConfig(*result.config) }
 	setAppStatus(result.success)
@@ -316,11 +334,10 @@ func windowProcedure(hwnd uintptr, m uint32, wp, lp uintptr) uintptr {
 		mainWindow = hwnd
 		createMainControls(hwnd)
 		user32.NewProc("SetTimer").Call(hwnd, 1, 1000, 0)
-		if len(os.Args) > 1 && os.Args[1] == "--startup" { user32.NewProc("ShowWindow").Call(hwnd, 0) } else { user32.NewProc("ShowWindow").Call(hwnd, 5) }
 		return 0
 	case 0x0111:
 		id := int(wp & 0xffff)
-		if id >= idInstall && id <= idCopyObs { handleCommand(id) }
+		if lp != 0 && (wp>>16)&0xffff == 0 && id >= idInstall && id <= idCopyObs { handleCommand(id) }
 		return 0
 	case 0x0005:
 		updateScrollRanges(hwnd); return 0
@@ -341,6 +358,14 @@ func windowProcedure(hwnd uintptr, m uint32, wp, lp uintptr) uintptr {
 		return setControlColors(wp, lp, m)
 	case wmTaskDone:
 		finishTask(); return 0
+	case wmStartupReady:
+		select {case result:=<-startupResults:
+			startupPending=false
+			if getText(idPath)=="" {setText(idPath,result.path)}
+			setCue(idPath,"Укажи путь к папке CS2")
+			setChecked(idAuto,result.auto);if !taskBusy {user32.NewProc("EnableWindow").Call(controls[idAuto],1);user32.NewProc("EnableWindow").Call(controls[idInstall],1)}
+			if result.err!=nil && !taskBusy {setAppStatus("CS2: "+result.err.Error())}
+		default:};return 0
 	case wmRefreshStatus, 0x0113:
 		refreshStatus(); return 0
 	case 0x0010:
@@ -355,6 +380,7 @@ func windowProcedure(hwnd uintptr, m uint32, wp, lp uintptr) uintptr {
 func runTray(open, exit func()) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	moduleInstance,_,_=kernel32.NewProc("GetModuleHandleW").Call(0)
 	fontRegular = createFont(400, -18)
 	fontBold = createFont(700, -19)
 	brushBackground = makeBrush(color(14, 10, 22))
@@ -369,15 +395,20 @@ func runTray(open, exit func()) {
 	cl.Proc = appCallback
 	cl.Name = windowClass
 	cl.Brush = brushBackground
-	user32.NewProc("RegisterClassExW").Call(uintptr(unsafe.Pointer(&cl)))
+	cl.Instance=moduleInstance
+	cl.Cursor,_,_=user32.NewProc("LoadCursorW").Call(0,32512)
+	if atom,_,_:=user32.NewProc("RegisterClassExW").Call(uintptr(unsafe.Pointer(&cl)));atom==0 {showStartupError("Не удалось зарегистрировать окно Dropso Connect.");return}
 	width, height := 1220, 1000
 	screenW, _, _ := user32.NewProc("GetSystemMetrics").Call(0)
 	screenH, _, _ := user32.NewProc("GetSystemMetrics").Call(1)
 	if int(screenW) < width+60 { width = int(screenW)-60 }
 	if int(screenH) < height+100 { height = int(screenH)-100 }
 	if width < 800 { width = 800 }; if height < 620 { height = 620 }
-	hwnd, _, _ := user32.NewProc("CreateWindowExW").Call(0, uintptr(unsafe.Pointer(windowClass)), uintptr(unsafe.Pointer(wide("Dropso Connect 2.0.2"))), 0x00ff0000, 30, 30, uintptr(width), uintptr(height), 0, 0, 0, 0)
+	hwnd, _, _ := user32.NewProc("CreateWindowExW").Call(0, uintptr(unsafe.Pointer(windowClass)), uintptr(unsafe.Pointer(wide("Dropso Connect "+version))), 0x00ff0000, 30, 30, uintptr(width), uintptr(height), 0, 0, moduleInstance, 0)
+	if hwnd==0 {showStartupError("Не удалось создать окно Dropso Connect.");return}
 	mainWindow = hwnd
+	if len(os.Args)<=1 || os.Args[1]!="--startup" {showWindow();user32.NewProc("UpdateWindow").Call(hwnd)}
+	go func(){p:=detect();var err error;if p!=""{err=installGame(p)};startupResults<-startupResult{path:p,auto:autostartEnabled(),err:err};user32.NewProc("PostMessageW").Call(hwnd,wmStartupReady,0,0)}()
 
 	name := wide("DropsoConnectTray")
 	proc := syscall.NewCallback(func(w uintptr, m uint32, wp, lp uintptr) uintptr {
@@ -404,19 +435,20 @@ func runTray(open, exit func()) {
 	trayClass.Size = uint32(unsafe.Sizeof(trayClass))
 	trayClass.Proc = proc
 	trayClass.Name = name
+	trayClass.Instance=moduleInstance
 	user32.NewProc("RegisterClassExW").Call(uintptr(unsafe.Pointer(&trayClass)))
-	trayHwnd, _, _ = user32.NewProc("CreateWindowExW").Call(0, uintptr(unsafe.Pointer(name)), uintptr(unsafe.Pointer(name)), 0, 0, 0, 0, 0, 0, 0, 0, 0)
+	trayHwnd, _, _ = user32.NewProc("CreateWindowExW").Call(0, uintptr(unsafe.Pointer(name)), uintptr(unsafe.Pointer(name)), 0, 0, 0, 0, 0, 0, 0, moduleInstance, 0)
 	icon, _, _ := user32.NewProc("LoadIconW").Call(0, 32516)
 	n := notify{Wnd: trayHwnd, ID: 1, Flags: 7, Callback: 0x8001, Icon: icon}
 	n.Size = uint32(unsafe.Sizeof(n))
-	copy(n.Tip[:], syscall.StringToUTF16("Dropso Connect 2.0.2 · CS2"))
+	copy(n.Tip[:], syscall.StringToUTF16("Dropso Connect "+version+" · CS2"))
 	shell32.NewProc("Shell_NotifyIconW").Call(0, uintptr(unsafe.Pointer(&n)))
 	defer shell32.NewProc("Shell_NotifyIconW").Call(2, uintptr(unsafe.Pointer(&n)))
 	if len(os.Args) > 1 && os.Args[1] == "--startup" { user32.NewProc("ShowWindow").Call(mainWindow, 0) }
 	var m msg
 	for {
 		r, _, _ := user32.NewProc("GetMessageW").Call(uintptr(unsafe.Pointer(&m)), 0, 0, 0)
-		if r == 0 { break }
+		if int32(r) <= 0 { break }
 		user32.NewProc("TranslateMessage").Call(uintptr(unsafe.Pointer(&m)))
 		user32.NewProc("DispatchMessageW").Call(uintptr(unsafe.Pointer(&m)))
 	}
