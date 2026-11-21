@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {collectChatters,collectLiveChannels} from '../src/clan-chat-presence.ts';
+import {collectChatters,collectLiveChannels,recordPrimaryPresence} from '../src/clan-chat-presence.ts';
 import {installClanChatAuthorization} from '../src/clan-chat-presence.ts';
 import express from 'express';
 import cookieParser from 'cookie-parser';
@@ -20,6 +20,10 @@ test('primary live status is queried even without chat authorization; only autho
  assert.deepEqual(await collectLiveChannels(['22'],'11',helix),{primaryLive:true,authorizedLive:['22']});assert.deepEqual(requested,[['11'],['11','22']]);
  assert.deepEqual(await collectLiveChannels([],'11',async()=>({data:[]})),{primaryLive:false,authorizedLive:[]});
  await assert.rejects(collectLiveChannels([],'11',async()=>({error:'bad'})),/streams_unavailable/);
+});
+test('primary sample uses a single JSON RPC argument and a structured acknowledgement',async()=>{
+ const calls=[],at='2026-11-21T12:00:00Z';const db={rpc:async(name,args)=>{calls.push({name,args});return {data:{boss:{ok:true},boost:{ok:true},achievement:{ok:true}}}}};
+ assert.equal(await recordPrimaryPresence(db,'11',true,['33','44'],at),true);assert.deepEqual(calls,[{name:'rewards_primary_presence_record',args:{p_sample:{broadcaster:'11',at,active:true,viewers:['33','44']}}}]);
 });
 
 test('only approved broadcaster can grant chat-list permission; OAuth state is single-use, bound to signed account and stores no token',async()=>{
