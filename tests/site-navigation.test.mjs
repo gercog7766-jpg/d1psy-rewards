@@ -54,6 +54,26 @@ test('mobile page navigation uses an icon in the header and keeps all links acce
  try{w.eval(d.getElementById('dropsoSiteNavigationScript').textContent);d.dispatchEvent(new w.Event('DOMContentLoaded'));const toggle=d.getElementById('dropsoSiteMenuToggle'),details=d.querySelector('#dropsoSiteSidebar details');assert(toggle.querySelector('svg'));assert.equal(toggle.textContent,'');assert.equal(toggle.getAttribute('aria-expanded'),'false');toggle.click();assert(details.open);assert.equal(toggle.getAttribute('aria-expanded'),'true');assert(d.querySelector('#dropsoSiteSidebar a[href="/clans"]'));toggle.click();assert(!details.open)}finally{w.close()}
 });
 
+test('all sidebar pages share the account order, separated social, activity and event groups',()=>{
+ const expected=[
+  ['/account','/level','/bonuses','/statistics','/profile/customize','/referrals','/savings'],
+  ['/users','/community','/notifications'],
+  ['/shop','/upgrader','/games/battles','/games/three-doors','/games/pick','/games','/predict','/bosses','/streamers','/suggestions','/clans','/black-box','/games/red-button'],
+  ['/predict/major-pickem','/advent','/vault','/season'],
+ ];
+ for(const path of ['/vault','/bosses','/level','/users/player','/profile/customize','/notifications','/predict/major-pickem']){
+  const dom=new JSDOM(withSiteNavigation(page,path));
+  try{
+   const d=dom.window.document,groups=[...d.querySelectorAll('#dropsoSiteSidebar .dropso-nav-group')];
+   assert.deepEqual(groups.map(group=>[...group.querySelectorAll('a')].map(a=>a.getAttribute('href'))),expected,path);
+   assert.equal(d.querySelectorAll('#dropsoSiteSidebar a[aria-current="page"]').length,1,path);
+   assert.equal(d.querySelector('#dropsoSiteSidebar a[aria-current="page"]').getAttribute('href'),path==='/users/player'?'/users':path);
+   assert.equal(new Set(expected.flat()).size,expected.flat().length);
+   assert.match(d.getElementById('dropsoSiteNavigationStyle').textContent,/\.dropso-nav-group\+\.dropso-nav-group\{[^}]*border-top:/);
+  }finally{dom.window.close()}
+ }
+});
+
 test('account mobile hamburger moves to shared header and duplicate menu label is removed',()=>{
  const html=withSiteNavigation(page.replace('<main>','<main><div id="identity"><button id="mobileMenuToggle">☰</button><button id="accountLogoMenuToggle">Меню</button></div>'),'/account');
  const dom=new JSDOM(html,{runScripts:'outside-only'}),w=dom.window,d=w.document;let change;const media={matches:true,addEventListener:(_,fn)=>change=fn};w.matchMedia=()=>media;

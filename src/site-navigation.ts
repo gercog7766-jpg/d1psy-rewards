@@ -1,16 +1,13 @@
 import {brandLogoUrl} from './site-branding.js';
 import {accountFooterHtml,accountFooterStyles} from './account-footer-hotfix.js';
 
-const destinations = [
-  ['/account','Главная'], ['/level','Dropso LEVEL'], ['/bonuses','Бонусы'], ['/shop','Магазин'], ['/upgrader','Апгрейдер'],
-  ['/games','Игры'], ['/games/battles','Сражения'], ['/games/three-doors','Три двери'],
-  ['/games/pick','Pick'], ['/black-box','Чёрный ящик'], ['/games/red-button','Красная кнопка'],
-  ['/predict','Предикты'], ['/predict/major-pickem','Major Pick’em'],
-  ['/advent','Адвент-календарь'], ['/vault','THE VAULT'], ['/season','NIGHT SHIFT'], ['/clans','Кланы'], ['/bosses','Боссы'],
-  ['/users','Пользователи'], ['/community','Сообщения'], ['/streamers','Стримеры'],
-  ['/statistics','Статистика'], ['/savings','Накопления'], ['/referrals','Рефералы'],
-  ['/suggestions','Предложения'],
-] as const;
+const destinationGroups: ReadonlyArray<{label:string;links:ReadonlyArray<readonly [string,string]>}> = [
+  {label:'Аккаунт', links:[['/account','Главная'], ['/level','Dropso LEVEL'], ['/bonuses','Бонусы'], ['/statistics','Статистика'], ['/profile/customize','Оформление профиля'], ['/referrals','Рефералы'], ['/savings','Накопления']]},
+  {label:'Общение', links:[['/users','Пользователи'], ['/community','Сообщения'], ['/notifications','Уведомления']]},
+  {label:'Игры и активности', links:[['/shop','Магазин'], ['/upgrader','Апгрейдер'], ['/games/battles','Сражения'], ['/games/three-doors','Три двери'], ['/games/pick','Pick'], ['/games','Игры'], ['/predict','Предикты'], ['/bosses','Боссы'], ['/streamers','Стримеры'], ['/suggestions','Предложения'], ['/clans','Кланы'], ['/black-box','Чёрный ящик'], ['/games/red-button','Красная кнопка']]},
+  {label:'События', links:[['/predict/major-pickem','Major Pick’em'], ['/advent','Адвент-календарь'], ['/vault','THE VAULT'], ['/season','NIGHT SHIFT']]},
+];
+const destinations = destinationGroups.flatMap(group=>group.links);
 
 const styles = `<style id="dropsoSiteNavigationStyle">
 body[data-dropso-shell]{font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
@@ -23,12 +20,14 @@ body[data-dropso-shell] .dropso-site-shortcuts a{display:inline-flex;align-items
 body[data-dropso-shell] .dropso-nav-toggle{display:none;flex:none;width:44px;height:44px;align-items:center;justify-content:center;color:#f1dfff;border:1px solid #684481;border-radius:10px;background:#241431;cursor:pointer}
 body[data-dropso-shell] .dropso-nav-toggle svg,#accountLogoMenuToggle svg{width:23px;height:23px;display:block;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
 body[data-dropso-shell] .dropso-site-header a:focus-visible,body[data-dropso-shell] .dropso-site-sidebar :focus-visible{outline:2px solid #d7a4ff;outline-offset:3px}
-body[data-dropso-shell] .dropso-site-sidebar{box-sizing:border-box;margin:0 14px 12px;padding:8px;border:1px solid #70428f70;border-radius:14px;background:linear-gradient(150deg,#251535,#120c1c);color:#f2e6fc}
+body[data-dropso-shell] .dropso-site-sidebar{box-sizing:border-box;margin:0 14px 12px;padding:10px;border:1px solid #7945a360;border-radius:16px;background:linear-gradient(155deg,#251535,#120c1c 70%);box-shadow:0 16px 40px #0004;color:#f2e6fc;scrollbar-width:thin}
 body[data-dropso-shell] .dropso-site-sidebar details{display:block}
 body[data-dropso-shell] .dropso-site-sidebar summary{min-height:44px;padding:11px 12px;cursor:pointer;font-size:14px;font-weight:700}
-body[data-dropso-shell] .dropso-site-sidebar nav{display:grid;gap:3px;flex-wrap:initial}
+body[data-dropso-shell] .dropso-site-sidebar nav{display:grid;gap:6px;flex-wrap:initial}
+body[data-dropso-shell] .dropso-site-sidebar .dropso-nav-group{display:grid;gap:2px;min-width:0}
+body[data-dropso-shell] .dropso-site-sidebar .dropso-nav-group+.dropso-nav-group{padding-top:6px;border-top:1px solid #8651a94f}
 body[data-dropso-shell] .dropso-site-sidebar details:not([open])+nav{display:none}
-body[data-dropso-shell] .dropso-site-sidebar nav a{display:flex;align-items:center;min-height:40px;padding:9px 12px;border:1px solid transparent;border-radius:8px;color:#e5d5f1;background:transparent;font-size:13px;font-weight:600;line-height:1.35}
+body[data-dropso-shell] .dropso-site-sidebar nav a{display:flex;align-items:center;min-height:36px;padding:7px 9px;border:1px solid transparent;border-radius:8px;color:#f0e4fc;background:transparent;font-size:13px;font-weight:650;line-height:1.35;min-width:0;overflow-wrap:anywhere}
 body[data-dropso-shell] .dropso-site-sidebar nav a:hover,body[data-dropso-shell] .dropso-site-sidebar nav a[aria-current]{background:#7539a535;border-color:#9254bd70;color:white}
 body[data-dropso-shell] a.brand,body[data-dropso-shell] div.brand{display:none!important}
 body[data-dropso-shell] #accountLogoMenuToggle{font-size:14px;letter-spacing:0}
@@ -43,7 +42,7 @@ body[data-dropso-shell] #d1psyFooter .footer-brand{font-size:15px}
  body[data-dropso-shell] .dropso-site-sidebar details:not([open])+nav{display:grid}
  body[data-dropso-shell] .dropso-site-layout>main{box-sizing:border-box;width:100%;min-width:0;max-width:100%;margin:0;padding-inline:clamp(0px,1vw,14px)}
 }
-@media(max-width:1099px){body[data-dropso-shell] .dropso-site-sidebar nav{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:1099px){body[data-dropso-shell] .dropso-site-sidebar .dropso-nav-group{grid-template-columns:repeat(2,minmax(0,1fr))}body[data-dropso-shell] .dropso-site-sidebar nav a{min-height:44px}}
 @media(max-width:1099px){body[data-dropso-shell] .dropso-nav-toggle{display:inline-flex}body[data-dropso-shell] .dropso-site-sidebar[data-mobile-nav-ready] details{display:none}body[data-dropso-shell] .dropso-site-sidebar[data-mobile-nav-ready]:not(:has(details[open])){display:none}body[data-dropso-shell]>.dropso-site-header{min-height:60px;padding-block:8px}}
 @media(max-width:620px){body[data-dropso-shell]>.dropso-site-header #mobileMenuToggle{display:flex;margin-left:auto;flex:none}body[data-dropso-shell] .dropso-site-shortcuts:empty{display:none}body[data-dropso-shell] #accountLogoMenuToggle{display:none!important}}
 @media(max-width:420px){body[data-dropso-shell]>.dropso-site-header{gap:10px}body[data-dropso-shell] .dropso-site-shortcuts a{padding:8px 10px}body[data-dropso-shell] .dropso-home{font-size:20px!important}}
@@ -79,7 +78,7 @@ export function withSiteNavigation(html:string,path:string){
  const wide=path==='/shop'||path==='/upgrader';
  const sidebar=!wide&&path!=='/account'&&path!=='/'&&!/^\/(?:admin|privacy|rules|terms)(?:\/|$)/.test(path);
  const current=destinations.filter(([href])=>path===href||path.startsWith(href+'/')).sort((a,b)=>b[0].length-a[0].length)[0]?.[0];
- const links=destinations.map(([href,label])=>`<a href="${href}"${href===current?' aria-current="page"':''}>${label}</a>`).join('');
+ const links=destinationGroups.map(group=>`<div class="dropso-nav-group" role="group" aria-label="${group.label}">${group.links.map(([href,label])=>`<a href="${href}"${href===current?' aria-current="page"':''}>${label}</a>`).join('')}</div>`).join('');
  const menu=sidebar?`<aside id="dropsoSiteSidebar" class="dropso-site-sidebar"><details><summary>Меню Dropso</summary></details><nav aria-label="Меню Dropso">${links}</nav></aside>`:'';
  const brand=`<a class="dropso-home" href="/account" aria-label="Dropso — на главную"><img src="${brandLogoUrl}" alt="" width="32" height="32"><span>Dropso</span></a>`;
  const shortcut=path==='/shop'?'<a href="/upgrader">Апгрейдер</a>':path==='/upgrader'?'<a href="/shop">Магазин</a>':path.startsWith('/admin/bosses')?'<a href="/admin">Админка</a>':'';
