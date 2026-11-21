@@ -4,6 +4,7 @@ import {installClans} from './clans.js';
 import {installClanChatAuthorization,startClanPresencePoller} from './clan-chat-presence.js';
 import {installLiveBoost} from './live-boost.js';
 import {installLiveBoss} from './live-boss.js';
+import {installBossTwitchWebhook,installBossTwitchConnect,installBossDonationAlertsOAuth} from './live-boss-events.js';
 import {attachClanProfiles} from './clan-profile.js';
 import {installAdventAdmin} from './advent-admin.js';
 import {installAdminStatistics} from './admin-statistics.js';
@@ -43,6 +44,7 @@ const TWITCH_CHANNEL_LOGIN=(process.env.TWITCH_CHANNEL_LOGIN||'d1psy_off').toLow
 const SESSION_SECRET=process.env.SESSION_SECRET||crypto.randomBytes(32).toString('hex');
 const db=createClient(SUPABASE_URL,SUPABASE_SECRET_KEY,{auth:{persistSession:false}});
 const app=express();
+installBossTwitchWebhook(app,db,process.env.TWITCH_EVENTSUB_SECRET||'');
 app.use(eventSubRouter); app.use(express.json()); app.use(express.urlencoded({extended:false})); app.use(cookieParser());
 
 type Session={twitchUserId:string;login:string;displayName:string;exp:number};
@@ -71,6 +73,8 @@ installClanChatAuthorization(app,db,requireUser,APP_URL,TWITCH_REDIRECT_URI);
 startClanPresencePoller(db);
 installLiveBoost(app,db,requireUser);
 installLiveBoss(app,db,requireUser,requireAdmin,new URL(APP_URL).origin);
+installBossTwitchConnect(app,db,requireAdmin,{clientId:TWITCH_CLIENT_ID,clientSecret:TWITCH_CLIENT_SECRET,secret:process.env.TWITCH_EVENTSUB_SECRET||'',redirect:TWITCH_REDIRECT_URI,callback:new URL('/eventsub/boss',APP_URL).href});
+installBossDonationAlertsOAuth(app,db,requireAdmin,{clientId:process.env.BOSS_DA_CLIENT_ID||'',clientSecret:process.env.BOSS_DA_CLIENT_SECRET||'',encryptionKey:process.env.BOSS_DA_ENCRYPTION_KEY||'',redirect:new URL('/auth/boss/donationalerts',APP_URL).href});
 installAdminStatistics(app,db,requireAdmin);
 installStreamerPilot(app,requireUser,requireAdmin,subscribeToPartnerChat,partnerChatReady);
 installProfileCustomization(app,requireUser,requireAdmin);

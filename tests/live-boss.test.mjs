@@ -19,12 +19,16 @@ test('boss lifecycle, capped damage, paused cooldown, donor identity and proport
  const hit=(s,e,actor,donor=null,rub=null)=>d.query('select rewards_boss_hit($1,$2,$3,$4,$5)',[s,e,actor,donor,rub]);
  await assert.rejects(control('start',{kind:'dropsy'},'22'),/owner_required/);
  await control('start',{kind:'dropsy'});await hit('free','1','33');await assert.rejects(hit('free','2','33'),/cooldown/);
+ await assert.rejects(d.query("select rewards_boss_hit('donationalerts','old',null,'alpha',50,1,null,now()-interval '1 day')"),/event_outside_battle/);
+ await d.query("select rewards_boss_hit('donationalerts','test',null,'alpha',50,1,null,clock_timestamp(),false)");
+ const rejected=(await d.query("select id from rewards_boss_hits where event_id='test'")).rows[0].id;await control('reject_donation',{hitId:rejected});assert.equal((await d.query('select hp from rewards_boss_runs')).rows[0].hp,4960);
  await control('pause');await assert.rejects(hit('free','3','44'),/boss_inactive/);await control('resume');await assert.rejects(hit('free','4','33'),/cooldown/);
  await hit('donationalerts','a',null,'ALPHA',100);await hit('donationalerts','a',null,'ALPHA',100);
  await hit('ihaq','b',null,'unrecognized',100);const id=(await d.query("select id from rewards_boss_hits where event_id='b'")).rows[0].id;
- await control('identify',{hitId:id,login:'beta'});await hit('ihaq','c',null,'unknown',10000);
+ await control('identify',{hitId:id,login:'beta'});await d.query("select rewards_boss_hit('donationalerts','c',null,'unknown',10000,1,null,clock_timestamp(),false)");
  const b=(await d.query('select hp,status from rewards_boss_runs')).rows[0];assert.deepEqual(b,{hp:0,status:'review'});
- await control('pay');await assert.rejects(control('pay'),/no_boss/);
+ await assert.rejects(control('pay'),/donations_require_review/);
+ const review=(await d.query("select id from rewards_boss_hits where event_id='c'")).rows[0].id;await control('confirm_donation',{hitId:review});await control('pay');await assert.rejects(control('pay'),/no_boss/);
  const awards=(await d.query('select damage,coins,xp from rewards_boss_awards order by damage desc')).rows;
  assert.deepEqual(awards,[{damage:240,coins:24,xp:120},{damage:200,coins:20,xp:100}]);
  assert.equal((await d.query('select sum(bosses)::int n from rewards_live_achievement_progress')).rows[0].n,2);

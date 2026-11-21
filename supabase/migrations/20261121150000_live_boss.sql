@@ -10,7 +10,7 @@ create table public.rewards_boss_hits(
  id uuid primary key default gen_random_uuid(), run_id uuid not null references public.rewards_boss_runs(id),
  user_id uuid references public.rewards_users(id), source text not null check(source in ('free','subscription','gift','donationalerts','ihaq')),
  event_id text not null, donor text, amount_rub numeric, damage int not null check(damage>0),
- active_second bigint not null, created_at timestamptz not null default now(), unique(source,event_id)
+ active_second bigint not null, confirmed boolean not null default true, rejected boolean not null default false, created_at timestamptz not null default now(), unique(source,event_id)
 );
 create index rewards_boss_hits_run_user on public.rewards_boss_hits(run_id,user_id);
 create table public.rewards_boss_awards(
@@ -23,7 +23,8 @@ create table public.rewards_live_achievement_progress(
  last_message_at timestamptz, last_message_hash text, last_sample timestamptz
 );
 create table public.rewards_live_message_receipts(id text primary key, created_at timestamptz not null default now());
-do $$declare t text;begin foreach t in array array['rewards_boss_runs','rewards_boss_hits','rewards_boss_awards','rewards_live_achievement_progress','rewards_live_message_receipts'] loop
+create table public.rewards_boss_provider_credentials(provider text primary key check(provider='donationalerts'), ciphertext text not null, updated_at timestamptz not null default now());
+do $$declare t text;begin foreach t in array array['rewards_boss_runs','rewards_boss_hits','rewards_boss_awards','rewards_live_achievement_progress','rewards_live_message_receipts','rewards_boss_provider_credentials'] loop
  execute format('alter table public.%I enable row level security',t);
  execute format('revoke all on public.%I from public,anon,authenticated',t);
  execute format('grant select,insert,update,delete on public.%I to service_role',t);
@@ -53,8 +54,16 @@ begin
   end if;
   update public.rewards_boss_hits set user_id=target where run_id=b.id and id=(p_body->>'hitId')::uuid and source in ('donationalerts','ihaq');
   if not found then raise exception 'unknown_hit';end if;
+ elsif p_action='confirm_donation' and b.status in ('active','paused','review') then
+  update public.rewards_boss_hits set confirmed=true where run_id=b.id and id=(p_body->>'hitId')::uuid and source in ('donationalerts','ihaq') and not rejected;
+  if not found then raise exception 'unknown_hit';end if;
+ elsif p_action='reject_donation' and b.status in ('active','paused','review') then
+  update public.rewards_boss_hits set rejected=true where run_id=b.id and id=(p_body->>'hitId')::uuid and source in ('donationalerts','ihaq') and not rejected returning damage into h;
+  if not found then raise exception 'unknown_hit';end if;
+  update public.rewards_boss_runs set hp=hp+h,status=case when status='review' then 'paused' else status end where id=b.id;
  elsif p_action='pay' and b.status='review' then
-  for a in select h.user_id,sum(h.damage)::int damage from public.rewards_boss_hits h join public.rewards_users u on u.id=h.user_id where h.run_id=b.id and not coalesce(u.banned,false) and not coalesce(u.participation_restricted,false) group by h.user_id order by h.user_id loop
+  if exists(select 1 from public.rewards_boss_hits where run_id=b.id and not confirmed and not rejected) then raise exception 'donations_require_review';end if;
+  for a in select h.user_id,sum(h.damage)::int damage from public.rewards_boss_hits h join public.rewards_users u on u.id=h.user_id where h.run_id=b.id and not h.rejected and not coalesce(u.banned,false) and not coalesce(u.participation_restricted,false) group by h.user_id order by h.user_id loop
    c:=floor(b.coins::numeric*a.damage/b.max_hp);x:=floor(b.xp::numeric*a.damage/b.max_hp);
    insert into public.rewards_boss_awards values(b.id,a.user_id,a.damage,c,x);
    if c>0 then insert into public.rewards_coin_transactions(user_id,amount,transaction_type,note) values(a.user_id,c,'adjustment','LIVE BOSS · '||b.id);end if;
@@ -65,7 +74,7 @@ begin
  else raise exception 'invalid_action';end if;
  return jsonb_build_object('ok',true,'id',b.id);
 end$$;
-create function public.rewards_boss_hit(p_source text,p_event text,p_actor text,p_donor text default null,p_rub numeric default null,p_gifts int default 1,p_code uuid default null) returns jsonb
+create function public.rewards_boss_hit(p_source text,p_event text,p_actor text,p_donor text default null,p_rub numeric default null,p_gifts int default 1,p_code uuid default null,p_at timestamptz default null,p_confirmed boolean default true) returns jsonb
 language plpgsql set search_path='' as $$
 declare b public.rewards_boss_runs; u uuid; dmg int; sec bigint; stamp timestamptz:=clock_timestamp(); prev bigint;
 begin
@@ -74,6 +83,7 @@ begin
  if exists(select 1 from public.rewards_boss_hits where source=p_source and event_id=p_event) then return '{"duplicate":true}';end if;
  select * into b from public.rewards_boss_runs where status='active' for update;
  if b.id is null then raise exception 'boss_inactive';end if;
+ if p_at is not null and (p_at<b.active_since or p_at>stamp+interval '30 seconds') then raise exception 'event_outside_battle';end if;
  sec:=b.elapsed_seconds+greatest(0,floor(extract(epoch from stamp-b.active_since))::bigint);
  if p_source in ('free','subscription','gift') then
   select id into u from public.rewards_users where twitch_user_id=p_actor and not coalesce(banned,false) and not coalesce(participation_restricted,false);
@@ -91,7 +101,7 @@ begin
   dmg:=floor(p_rub*2);
  end if;
  dmg:=least(dmg,b.hp);if dmg<=0 then raise exception 'invalid_damage';end if;
- insert into public.rewards_boss_hits(run_id,user_id,source,event_id,donor,amount_rub,damage,active_second) values(b.id,u,p_source,p_event,left(p_donor,100),p_rub,dmg,sec);
+ insert into public.rewards_boss_hits(run_id,user_id,source,event_id,donor,amount_rub,damage,active_second,confirmed) values(b.id,u,p_source,p_event,left(p_donor,100),p_rub,dmg,sec,p_confirmed);
  update public.rewards_boss_runs set hp=hp-dmg,status=case when hp=dmg then 'review' else status end,elapsed_seconds=case when hp=dmg then sec else elapsed_seconds end,active_since=case when hp=dmg then null else active_since end where id=b.id;
  return jsonb_build_object('damage',dmg,'hp',b.hp-dmg);
 end$$;
@@ -114,6 +124,6 @@ begin
  on conflict(user_id) do update set seconds=rewards_live_achievement_progress.seconds+case when p_at-rewards_live_achievement_progress.last_sample between interval '1 minute' and interval '6 minutes' then least(300,floor(extract(epoch from p_at-rewards_live_achievement_progress.last_sample))::int) else 0 end,last_sample=p_at
  where rewards_live_achievement_progress.last_sample is null or p_at>rewards_live_achievement_progress.last_sample;
 end$$;
-revoke all on function public.rewards_boss_control(text,text,jsonb),public.rewards_boss_hit(text,text,text,text,numeric,int,uuid),public.rewards_live_chat_achievement(text,text,text,text,timestamptz),public.rewards_live_time_achievement(text,text[],timestamptz) from public,anon,authenticated;
-grant execute on function public.rewards_boss_control(text,text,jsonb),public.rewards_boss_hit(text,text,text,text,numeric,int,uuid),public.rewards_live_chat_achievement(text,text,text,text,timestamptz),public.rewards_live_time_achievement(text,text[],timestamptz) to service_role;
+revoke all on function public.rewards_boss_control(text,text,jsonb),public.rewards_boss_hit(text,text,text,text,numeric,int,uuid,timestamptz,boolean),public.rewards_live_chat_achievement(text,text,text,text,timestamptz),public.rewards_live_time_achievement(text,text[],timestamptz) from public,anon,authenticated;
+grant execute on function public.rewards_boss_control(text,text,jsonb),public.rewards_boss_hit(text,text,text,text,numeric,int,uuid,timestamptz,boolean),public.rewards_live_chat_achievement(text,text,text,text,timestamptz) to service_role;
 notify pgrst,'reload schema';
