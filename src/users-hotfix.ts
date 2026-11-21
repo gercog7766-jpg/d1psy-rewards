@@ -1,5 +1,6 @@
 import {majorMedals} from './major-medals.js';
 import {attachClanProfiles,clanProfileCss} from './clan-profile.js';
+import {achievementMedals} from './achievement-medals.js';
 import {resolve} from 'node:path';
 import {attachProfileStyles} from './profile-customization.js';
 import {createTwitchAvatarSync} from './twitch-avatars.js';
@@ -41,7 +42,7 @@ export function installUsers(){
     // The permanent purchase receipt is the entitlement, including all previous buyers.
     const {data:adventPurchase}=await db.from('rewards_advent_purchases').select('user_id').eq('user_id',target.id).maybeSingle();
     if(adventPurchase?.user_id===target.id)data.adventPurchaseMedal=true;
-    try{const {data:p}=await db.from('rewards_live_achievement_progress').select('messages,seconds,bosses').eq('user_id',target.id).maybeSingle();if(p){data.liveMedals=[];for(const [label,value,limits,start] of [['CHAT MASTER',Number(p.messages),[100,500,2000,5000],744],['LIVE VETERAN',Math.floor(Number(p.seconds)/3600),[5,15,50,100],748],['BOSS SLAYER',Number(p.bosses),[1,5,15,50],752]] as [string,number,number[],number][]){const tier=limits.filter(x=>value>=x).length;if(tier)data.liveMedals.push({title:label+' · '+['Bronze','Silver','Gold','Diamond'][tier-1],image:'/live-boss/'+(start+tier-1)+'.webp'})}}}catch{/* Keep profile available before migration. */}
+    try{const {data:p}=await db.from('rewards_live_achievement_progress').select('messages,seconds,bosses').eq('user_id',target.id).maybeSingle();if(p)data.achievementMedals=achievementMedals(p)}catch{/* Keep profile available before migration. */}
    }
   }if(name==='rewards_users_directory'||name==='rewards_user_profile'){try{await attachClanProfiles(db,name==='rewards_users_directory'?data.users:[data],res.locals.session.login)}catch{/* Keep profiles available if clan metadata is temporarily unavailable. */}}res.json(data)}
   function page(req:any,res:any){if(req.query.page!==undefined&&(!/^\d{1,6}$/.test(String(req.query.page))||Number(req.query.page)<1)){res.status(400).json({error:'invalid_page'});return null}return Number(req.query.page)||1}
