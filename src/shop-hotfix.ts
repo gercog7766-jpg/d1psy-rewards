@@ -49,9 +49,9 @@ export function installShopHotfix(){
     const u=await currentUser(req,res);if(!u)return;
     const [balanceResult,{data:shop,error:sErr},{data:purchases,error:pErr},{data:ftVariants,error:vErr}]=await Promise.all([
      fullCoinBalance(db,u.id).then(balance=>({balance,error:null})).catch(error=>({balance:0,error})),
-     catalogPages(()=>db.from('rewards_shop_items').select('id,name,image_url,price_coins,stock').eq('status','available').order('price_coins',{ascending:true}).order('name',{ascending:true})),
+     req.query.summary==='1'||req.query.eng?Promise.resolve({data:[],error:null}):catalogPages(()=>db.from('rewards_shop_items').select('id,name,image_url,price_coins,stock').eq('status','available').order('price_coins',{ascending:true}).order('name',{ascending:true})),
      db.from('rewards_orders').select('id,item_name,image_url,price_coins,status,created_at,sent_at').eq('user_id',u.id).eq('source_type','shop').order('created_at',{ascending:false}),
-     catalogPages(()=>db.from('rewards_shop_item_variants').select('shop_item_id,price_coins,available').eq('wear','FT').eq('variant_kind','normal'))
+     req.query.summary==='1'||req.query.eng?Promise.resolve({data:[],error:null}):catalogPages(()=>db.from('rewards_shop_item_variants').select('shop_item_id,price_coins,available').eq('wear','FT').eq('variant_kind','normal'))
     ]);
     if(balanceResult.error||sErr||pErr||vErr)return res.status(500).json({error:'shop_load_failed'});
     const balance=balanceResult.balance;
