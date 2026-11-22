@@ -119,6 +119,24 @@ test('red button charges once per day, hides holds and settles the sum of holds 
     await db.query("update rewards_red_button_rounds set ends_at=clock_timestamp() where id=$1",[fallback]);
     await call('c');await call('c');
     assert.deepEqual((await db.query("select count(*)::int as n,coalesce(sum(amount),0)::int as total from rewards_coin_transactions where note=$1",['Красная кнопка · приз · '+fallback])).rows[0],{n:1,total:15});
+    // The daily jackpot starts only after the old 48-hour round settles.
+    await db.exec('reset role');
+    const today=(await db.query("select (clock_timestamp() at time zone 'Europe/Moscow')::date::text as day")).rows[0].day;
+    const jackpotMigration=await readFile(new URL('../supabase/migrations/20261122090000_red_button_jackpot.sql',import.meta.url),'utf8');
+    await db.exec(jackpotMigration.replaceAll('2026-11-21',anchor).replaceAll('2026-11-23',today));
+    await db.exec("insert into rewards_users(twitch_user_id,twitch_login) select 'j'||n,'Jackpot '||n from generate_series(1,15) n;insert into rewards_coin_transactions select id,100,'adjustment','jackpot fixture' from rewards_users where twitch_user_id like 'j%'");
+    await db.exec('set role service_role');
+    const daily=await call('j1'),dailyId=daily.round.id;assert.deepEqual(daily.rules,{entryCost:10,cooldownMinutes:30,roundHours:24,holdMinutes:15,jackpot:true,bonusAfter:10,bonusEach:10});
+    assert.equal((await db.query('select extract(epoch from ends_at-starts_at)::int as seconds from rewards_red_button_rounds where id=$1',[dailyId])).rows[0].seconds,86400);
+    for(let n=1;n<=15;n++){const req=randomUUID(),state=await call('j'+n,dailyId,req);await call('j'+n,dailyId,req);const bonus=Math.max(0,n-10)*10;assert.equal(state.round.winnerPrize,n*8+bonus);assert.equal(state.round.nextBank,n*2+bonus);assert.equal(state.round.dropsoBonusEach,bonus);assert.equal(state.round.bank,n*10+2*bonus)}
+    assert.equal((await db.query('select count(*)::int n from rewards_coin_transactions where note=$1 and amount=-10',['Красная кнопка · вход · '+dailyId])).rows[0].n,15);
+    await db.query("update rewards_red_button_holds set started_at=now()-interval '10 minutes',ended_at=now()-interval '9 minutes' where round_id=$1 and user_id=(select id from rewards_users where twitch_user_id='j1')",[dailyId]);
+    await db.query("update rewards_red_button_rounds set day=$2::date-30,ends_at=clock_timestamp() where id=$1",[dailyId,today]);
+    const following=await call('j1');await call('j1');assert.equal(following.round.carryIn,80);assert.equal(following.round.winnerPrize,64);assert.equal(following.round.nextBank,16);
+    assert.deepEqual((await db.query('select count(*)::int n,sum(amount)::int total from rewards_coin_transactions where note=$1',['Красная кнопка · приз · '+dailyId])).rows[0],{n:1,total:170});
+    await db.query("update rewards_red_button_rounds set day=$2::date-29,ends_at=clock_timestamp() where id=$1",[following.round.id,today]);
+    const afterEmpty=await call('j1');assert.equal(afterEmpty.round.carryIn,80);assert.equal(afterEmpty.round.bank,80);
+    const nextJoined=await call('j1',afterEmpty.round.id,randomUUID());assert.equal(nextJoined.round.winnerPrize,72);assert.equal(nextJoined.round.nextBank,18);assert.equal(nextJoined.round.bank,90);
     await db.exec('reset role;set role authenticated');
     await assert.rejects(call('b'),/permission denied/);
     await assert.rejects(db.exec('select * from rewards_red_button_holds'),/permission denied/);
@@ -131,4 +149,8 @@ test('48-hour UI hides pricing and shows only personal cooldown and current priz
 test('red button shows the current server rules and confirms only the real entry amount',async()=>{
  const dom=new JSDOM(redButtonPage,{url:'https://dropso.test/games/red-button',runScripts:'outside-only'}),w=dom.window;let confirmation='',posts=0;
  try{w.fetch=async(_url,opts)=>{if(opts?.method==='POST')posts++;return Response.json({now:new Date().toISOString(),canPlay:true,rules:{entryCost:20,cooldownMinutes:60,prizeMin:50,prizeMax:200},round:{id:randomUUID(),endsAt:new Date(Date.now()+3600000).toISOString(),joined:false,holding:false},history:[]})};w.dropsoConfirm=async text=>{confirmation=text;return false};w.eval(redButtonScript);await new Promise(r=>setTimeout(r,40));const doc=w.document;assert.equal(doc.getElementById('ruleEntry').textContent,'20');assert.equal(doc.getElementById('ruleCooldown').textContent,'60');assert.equal(doc.getElementById('rulePrizeMax').textContent,'200');doc.getElementById('press').click();await new Promise(r=>setTimeout(r,10));assert.match(confirmation,/20 монет/);assert.equal(posts,0)}finally{w.close()}
+});
+test('daily jackpot shows exact bank, carryover and Dropso bonus from the eleventh entrant',async()=>{
+ const dom=new JSDOM(redButtonPage,{url:'https://dropso.test/games/red-button',runScripts:'outside-only'}),w=dom.window;
+ try{w.fetch=async()=>Response.json({now:new Date().toISOString(),canPlay:true,rules:{entryCost:10,cooldownMinutes:30,roundHours:24,holdMinutes:15,jackpot:true},round:{id:randomUUID(),endsAt:new Date(Date.now()+3600000).toISOString(),joined:false,holding:false,playerCount:11,prize:'98 монет',bank:130,winnerPrize:98,nextBank:32,carryIn:0,dropsoBonusEach:10},history:[]});w.eval(redButtonScript);await new Promise(r=>setTimeout(r,30));const d=w.document;assert.equal(d.getElementById('jackpotBank').hidden,false);assert.equal(d.getElementById('winnerPrize').textContent,'98');assert.equal(d.getElementById('nextBank').textContent,'32');assert.equal(d.getElementById('jackpotBonus').dataset.active,'true');assert.match(d.getElementById('bonusAmount').textContent,/\+10 в приз и \+10/);assert.equal(d.getElementById('ruleEntry').textContent,'10');assert.equal(d.getElementById('modernPrize').hidden,true);assert.equal(d.getElementById('jackpotRules').hidden,false)}finally{w.close()}
 });
