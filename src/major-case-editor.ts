@@ -8,6 +8,14 @@ const base='/api/admin/major-cases';
 const publicBase='/api/me/major-pickem/cases';
 const bronze={id:'bronze',name:'Бронзовый кейс',cost:1,active:true,image:null,items:bronzeCasePrizes.map((p,legacy)=>({legacy,weight:p.weight*100}))};
 const imagePath=(id:string)=>publicBase+'/'+id+'/image';
+// Read the awarded inventory snapshot, never a potentially changed catalog price.
+export async function caseAwardPrice(db:SupabaseClient,winId:unknown):Promise<number|null>{
+ if(typeof winId!=='string'||!uuid.test(winId))return null;
+ const {data,error}=await db.from('rewards_wins').select('rewards_prizes(sell_price_coins)').eq('id',winId).maybeSingle();
+ if(error||!data)return null;
+ const p:any=data.rewards_prizes,price=(Array.isArray(p)?p[0]:p)?.sell_price_coins;
+ return typeof price==='number'&&Number.isSafeInteger(price)&&price>=0?price:null;
+}
 export function installMajorCaseEditor(app:Express,db:SupabaseClient,user:RequestHandler,admin:RequestHandler,origin:string){
  const noStore:RequestHandler=(_req,res,next)=>{res.set('Cache-Control','private, no-store');next()};
  app.get('/admin/major-cases',admin,noStore,(_req,res)=>res.send(editorHtml));
@@ -41,7 +49,7 @@ export function installMajorCaseEditor(app:Express,db:SupabaseClient,user:Reques
  app.get(publicBase+'/:id/image',user,noStore,async(req,res)=>{const id=String(req.params.id);if(!idPattern.test(id))return res.sendStatus(404);const {data,error}=await db.from('rewards_major_cases').select('image').eq('id',id).maybeSingle();if(error||!data?.image)return res.sendStatus(404);return res.set({'Content-Type':'image/webp','X-Content-Type-Options':'nosniff'}).send(Buffer.from(data.image.split(',')[1],'base64'))});
  app.post(publicBase+'/:id/custom-open',user,noStore,async(req,res)=>{
   if(req.get('origin')!==origin||!req.is('application/json'))return res.sendStatus(403);const id=String(req.params.id),requestId=req.body?.requestId;if(!idPattern.test(id)||typeof requestId!=='string'||!uuid.test(requestId))return res.status(400).json({error:'invalid_request'});
-  const {data,error}=await db.rpc('rewards_major_case_open',{p_actor:res.locals.session.twitchUserId,p_request:requestId,p_id:id});if(error)return res.status(409).json({error:error.code==='P0001'?error.message:'case_unavailable'});return res.json(data);
+  const {data,error}=await db.rpc('rewards_major_case_open',{p_actor:res.locals.session.twitchUserId,p_request:requestId,p_id:id});if(error)return res.status(409).json({error:error.code==='P0001'?error.message:'case_unavailable'});return res.json({...data,price:await caseAwardPrice(db,data?.winId)});
  });
 }
 const editorHtml=String.raw`<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Кейсы Pick’em · Dropso</title><style> *{box-sizing:border-box}body{background:#100b19;color:#f4eaff;font:15px system-ui;margin:0}main{max-width:1000px;margin:auto;padding:24px}a{color:#dcb5ff}section{background:#21152f;border:1px solid #65408a;border-radius:14px;padding:18px;margin:16px 0}label{display:block;margin:10px 0}input,select,button{font:inherit;border:1px solid #79529c;background:#2d2040;color:#fff;border-radius:8px;padding:10px}button{cursor:pointer;background:#7032bc}button:disabled{opacity:.5}input[type=text],select{width:100%}#preview{max-width:200px;max-height:140px;object-fit:contain}#rows>div{display:grid;grid-template-columns:minmax(0,1fr) 100px auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid #49315d}#rows input{width:100%}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}#status{white-space:pre-wrap} </style><main><a href="/admin/major-pickem">← Major Pick’em</a><h1>Редактор кейсов</h1><section><label>Кейс<select id="cases"></select></label><button id="new">Создать кейс</button></section><section><label>Название<input id="name" type="text" maxlength="80"></label><label>Стоимость в жетонах<input id="cost" type="number" min="1" max="1000" value="1"></label><label><input id="active" type="checkbox" checked> Показывать в Pick’em</label><label>Фото с компьютера<input id="file" type="file" accept="image/png,image/jpeg,image/webp"></label><img id="preview" hidden alt="Предпросмотр"><button id="removeImage">Убрать фото</button></section><section><h2>Наполнение и шансы (%)</h2><label>Поиск по магазину<input id="search" type="text" placeholder="Название скина"></label><select id="results"><option value="">Введите название</option></select><div class="row"><button id="prev" hidden>Назад</button><button id="next" hidden>Далее</button><button id="add">Добавить скин</button></div><div id="rows"></div><p id="sum"></p><button id="save">Сохранить кейс</button><p id="status" role="status"></p></section></main><script>(function(){

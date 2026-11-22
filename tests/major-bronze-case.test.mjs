@@ -33,7 +33,7 @@ test('roulette opens even if artwork fails, uses image-only slots and inventory 
  try{
   const original=w.setTimeout.bind(w);w.setTimeout=(fn,ms,...args)=>original(fn,ms===5900||ms===60?1:ms,...args);
   w.Image=class{set src(value){this._src=value;queueMicrotask(()=>imageFailure?this.onerror?.():this.onload?.())}};
-  w.fetch=async url=>({ok:true,json:async()=>url.endsWith('/open')?(opens++,{name:catalog[5].name,image:catalog[5].image,catalog,tokens:2-opens}):{now:new Date().toISOString(),balance:0,entered:true,medal:1,tokens:2,stages:[]}});
+  w.fetch=async url=>({ok:true,json:async()=>url.endsWith('/open')?(opens++,{name:catalog[5].name,image:catalog[5].image,catalog,tokens:2-opens,price:127}):{now:new Date().toISOString(),balance:0,entered:true,medal:1,tokens:2,stages:[]}});
   w.eval(majorPickemScript);const btn=w.document.getElementById('openBronzeCase'),status=w.document.getElementById('bronzeCaseStatus');
   await until(()=>!btn.disabled);
   btn.click();await until(()=>opens===1&&!btn.disabled&&status.textContent.includes('Доступен в инвентаре.'));
@@ -41,11 +41,26 @@ test('roulette opens even if artwork fails, uses image-only slots and inventory 
   assert.equal(w.document.querySelectorAll('.bronze-slot').length,56);
   assert.equal(w.document.querySelectorAll('.bronze-slot-won').length,1);
   assert(w.document.getElementById('bronzeStrip').style.transition.includes('5800ms'));
+  assert(status.textContent.includes('127 монет'));
   assert([...w.document.querySelectorAll('.bronze-slot:not(.bronze-slot-won) img')].every(img=>img.getAttribute('src').startsWith('data:image/svg+xml,')));
   assert(!w.document.querySelector('.bronze-slot img[src="/predict/major-bronze-case.webp"]'));
   imageFailure=false;btn.click();await until(()=>opens===2&&status.textContent.includes('Доступен в инвентаре.')&&w.document.querySelectorAll('.bronze-slot').length===56);
   const slots=[...w.document.querySelectorAll('.bronze-slot')];assert.equal(slots.length,56);assert(slots.every(s=>s.children.length===1&&/^\/predict\/major-bronze-skins\/(?:[0-9]|10|11)$/.test(s.firstChild.getAttribute('src'))));
   assert.equal(slots[49].firstChild.getAttribute('src'),'/predict/major-bronze-skins/5');
   assert(w.document.getElementById('bronzeCaseStatus').textContent.includes('Доступен в инвентаре.'));
+ }finally{w.close()}
+});
+test('custom case shares bronze animation, token wording and authoritative prize price',async()=>{
+ const {JSDOM}=await import('jsdom'),{majorPickemPage,majorPickemScript}=await import('../src/major-pickem-ui.ts');
+ const {window:w}=new JSDOM(majorPickemPage,{runScripts:'outside-only',url:'https://dropso.site/predict/major-pickem'});
+ const catalog=[{name:'Custom Skin',image:'https://example.com/custom.png'},{name:'Other Skin',image:'https://example.com/other.png'}];
+ const wait=async f=>{for(let i=0;i<150;i++){if(f())return;await new Promise(r=>setTimeout(r,10))}assert(f(),'custom case timeout')};
+ try{
+  const orig=w.setTimeout.bind(w);let finish;w.setTimeout=(fn,ms,...args)=>ms===5900?(finish=()=>fn(...args),123):orig(fn,ms===60?1:ms,...args);
+  w.Image=class{set src(value){queueMicrotask(()=>this.onload?.())}};
+  w.fetch=async url=>({ok:true,json:async()=>url.endsWith('/cases')?{cases:[{id:'bronze',custom:false},{id:'silver',name:'Серебряный',cost:5,custom:true,image:'/silver.webp'}]}:url.endsWith('/custom-open')?{...catalog[0],wear:'FT',catalog,tokens:5,price:450}:{now:new Date().toISOString(),balance:0,entered:true,medal:1,tokens:10,stages:[]}});
+  w.eval(majorPickemScript);const q=s=>w.document.querySelector(s);await wait(()=>q('[data-custom-case]')&&!q('[data-custom-case]').disabled);
+  const btn=q('[data-custom-case]'),tile=btn.closest('article');assert(tile.textContent.includes('Один случайный скин CS2 в инвентарь.'));assert(tile.textContent.includes('5 жетонов'));assert.equal(tile.querySelector('.major-shop-cost img').getAttribute('src'),'/predict/major-token.webp');
+  btn.click();await wait(()=>finish);assert(tile.querySelector('.bronze-case-opening'));assert(!q('#openBronzeCase').closest('article').querySelector('.bronze-case-opening'));assert.equal(w.document.querySelectorAll('.bronze-slot').length,56);assert(q('#bronzeStrip').style.transition.includes('5800ms'));finish();await wait(()=>q('#bronzeCaseStatus').textContent.includes('450 монет'));assert.equal(q('.bronze-slot-won img').getAttribute('src'),catalog[0].image);assert(!tile.querySelector('.bronze-case-opening'));
  }finally{w.close()}
 });
