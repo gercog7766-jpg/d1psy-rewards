@@ -78,5 +78,28 @@ test('boss lifecycle, capped damage, paused cooldown, donor identity and proport
  await d.query("select rewards_live_chat_achievement('11','33','m1','hello',now())");
  await d.query("select rewards_live_chat_achievement('22','33','m2','other',now())");
  assert.equal(Number((await d.query("select messages from rewards_live_achievement_progress p join rewards_users u on p.user_id=u.id where u.twitch_user_id='33'")).rows[0].messages),1);
+ // Test the new mechanics against the existing persisted raids without resetting their HP.
+ await d.exec(`create function public.rewards_crypto_index(n int) returns int language sql as $$ select least(n-1,coalesce(nullif(current_setting(case when n=100 then 'test.roll' else 'test.damage' end,true),''),'0')::int) $$;grant execute on function public.rewards_crypto_index(int) to service_role;`);
+ await d.exec(await readFile(new URL('../supabase/migrations/20261122200000_boss_regen_critical_multishot.sql',import.meta.url),'utf8'));
+ await control('start',{kind:'titan'});const titan=(await d.query("select id from rewards_boss_runs where status='active'")).rows[0].id;
+ await sample(['33','44']);
+ const roll=async(r,v)=>{await d.query("select set_config('test.roll',$1,false),set_config('test.damage',$2,false)",[String(r),String(v)])};
+ const free=async(e,actor='33')=>(await hit('free',e,actor)).rows[0].rewards_boss_hit;
+ await roll(5,0);assert.deepEqual(await free('multi'),{damage:35,hp:24965,kind:'multishot',cooldown:0});assert.equal((await status('33',titan)).cooldown,0);
+ await roll(0,20);assert.deepEqual(await free('critical'),{damage:110,hp:24855,kind:'critical',cooldown:1800});await assert.rejects(free('blocked'),/cooldown/);
+ await roll(99,10);assert.equal((await free('normal','44')).damage,45);
+ await roll(0,150);const crit=(await hit('donationalerts','crit-donation',null,'alpha',100)).rows[0].rewards_boss_hit;assert.equal(crit.damage,400);assert.equal(crit.kind,'critical');assert.deepEqual((await hit('donationalerts','crit-donation',null,'alpha',100)).rows[0].rewards_boss_hit,{duplicate:true});
+ await roll(50,0);assert.equal((await hit('ihaq','normal-donation',null,'alpha',100)).rows[0].rewards_boss_hit.damage,200);
+ const regen=async(live=true)=>(await d.query('select rewards_boss_regen_sample($1,clock_timestamp(),$2) hp',['11',live])).rows[0].hp;
+ const back=async(seconds)=>d.query("update rewards_boss_runs set active_since=clock_timestamp()-interval '2 hours',regen_observed_at=clock_timestamp()-make_interval(secs=>$2),regen_live=true where id=$1",[titan,seconds]);
+ assert.equal(await regen(),0);await back(60);assert.equal(await regen(),1);await back(60);assert.equal(await regen(false),0);assert.equal(await regen(),0);
+ await back(60);await control('pause');assert.equal(await regen(),0);await control('resume');assert.equal(await regen(),0);
+ await back(120);assert.equal(await regen(),0,'no catch-up across missed samples');
+ await d.query('update rewards_boss_runs set hp=max_hp-1 where id=$1',[titan]);await back(60);assert.equal(await regen(),1);await back(60);assert.equal(await regen(),0,'HP cannot exceed maximum');
+ assert.equal((await d.query('select hp from rewards_boss_runs where id=$1',[titan])).rows[0].hp,25000);
+ const undone=(await d.query("select id from rewards_boss_hits where event_id='crit-donation'")).rows[0].id;await control('reject_donation',{hitId:undone});assert.equal((await d.query('select hp from rewards_boss_runs where id=$1',[titan])).rows[0].hp,25000,'refund after regen cannot overflow HP');
+ await roll(50,0);await hit('donationalerts','finish-titan',null,'alpha',20000);await control('pay');
+ const total=(await d.query('select sum(coins)::int coins,sum(xp)::int xp from rewards_boss_awards where run_id=$1',[titan])).rows[0];assert(total.coins<=2500&&total.xp<=12500,'regen does not mint extra rewards');assert.equal(await regen(),0,'defeated boss cannot regenerate');
+ await d.exec('set role anon');await assert.rejects(regen(),/permission denied/);await d.exec('reset role');
  }finally{await d.close()}
 });
