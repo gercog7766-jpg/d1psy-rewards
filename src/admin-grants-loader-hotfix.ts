@@ -1,47 +1,52 @@
 import express from 'express';
-
 export function installAdminGrantsLoaderHotfix(){
- const proto:any=(express as any).application, originalGet=proto.get;
+ const proto:any=express.application,original=proto.get;
  proto.get=function(path:any,...handlers:any[]){
-  if(path==='/admin') handlers=handlers.map((handler:any)=>function(req:any,res:any,next:any){
-   const send=res.send.bind(res);
-   res.send=(body:any)=>send(typeof body==='string'?inject(body):body);
-   return handler(req,res,next);
-  });
-  return originalGet.call(this,path,...handlers);
+  if(path==='/admin')handlers=handlers.map(h=>function(req:any,res:any,next:any){const send=res.send.bind(res);res.send=(b:any)=>send(typeof b==='string'?inject(b):b);return h(req,res,next)});
+  return original.call(this,path,...handlers);
  };
 }
-
-function inject(body:string){
+export function inject(body:string){
  if(body.includes('adminGrantOptionsLoader'))return body;
- const script=`<script id="adminGrantOptionsLoader">(function(){
- async function loadGrantOptions(){
-  var su=document.getElementById('grantSkinUser'),cu=document.getElementById('grantCoinUser'),pr=document.getElementById('grantPrize');
-  if(!su||!cu||!pr)return;
+ return body.replace('</body>',`<script id="adminGrantOptionsLoader">(function(){
+ const $=id=>document.getElementById(id),msg=$('grantMsg');
+ if(!msg)return;
+ function option(select,value,label){const o=document.createElement('option');o.value=value;o.textContent=label;select.appendChild(o)}
+ function clear(select,label){select.replaceChildren();option(select,'',label)}
+ function search(inputId,selectId,shop){
+  const input=$(inputId),select=$(selectId);let seq=0,timer,page=0;
+  async function run(p){
+   const token=++seq,q=input.value.trim();page=p;
+   clear(select,'Поиск…');if(shop){$('grantPrev').hidden=true;$('grantNext').hidden=true}
+   if(q.length<(shop?2:1)){clear(select,'Введите '+(shop?'название':'ник'));return}
+   try{
+    const r=await fetch('/api/admin/grants/'+(shop?'shop':'users')+'?q='+encodeURIComponent(q)+(shop?'&page='+p:''),{cache:'no-store'});
+    if(!r.ok)throw Error(r.status);const j=await r.json();if(token!==seq)return;
+    const items=shop?j.items:j.users;clear(select,items.length?'Выберите из результатов':'Нет совпадений');
+    items.forEach(x=>option(select,shop?x.itemId+':'+(x.variantId||''):x.id,shop?[x.name,x.wear,x.kind==='normal'||!x.kind?'':x.kind,x.price+' монет'].filter(Boolean).join(' · '):(x.twitch_display_name||x.twitch_login)+' (@'+x.twitch_login+')'));
+    if(shop){$('grantPrev').hidden=p===0;$('grantNext').hidden=!j.hasMore}
+   }catch(e){if(token===seq)clear(select,'Ошибка поиска. Повторите ввод.')}
+  }
+  input.addEventListener('input',()=>{++seq;clearTimeout(timer);clear(select,'Поиск…');if(shop){$('grantPrev').hidden=true;$('grantNext').hidden=true}timer=setTimeout(()=>run(0),250)});
+  if(shop){$('grantPrev').onclick=()=>run(Math.max(0,page-1));$('grantNext').onclick=()=>run(page+1)}
+ }
+ search('grantSkinSearch','grantSkinUser',false);search('grantCoinSearch','grantCoinUser',false);search('grantPrizeSearch','grantPrize',true);
+ let pending=null;
+ async function grant(kind){
+  const skin=kind==='skin',btn=$(skin?'grantSkin':'grantCoin'),user=$(skin?'grantSkinUser':'grantCoinUser'),pr=$('grantPrize'),amount=Number($('grantCoins').value);
+  if(btn.disabled)return;
+  if(!user.value||(skin?!pr.value:!Number.isSafeInteger(amount)||amount===0||Math.abs(amount)>100000)){msg.textContent='Выберите пользователя и проверьте данные.';return}
+  const [itemId,variantId]=pr.value.split(':'),data=skin?{userId:user.value,itemId,variantId:variantId||null}:{userId:user.value,amount};
+  const label=user.selectedOptions[0].textContent,description=skin?pr.selectedOptions[0].textContent:(amount<0?'Списать ':'Начислить ')+Math.abs(amount)+' монет';
+  btn.disabled=true;
   try{
-   var r=await fetch('/api/admin/grants/options',{cache:'no-store'});
-   if(!r.ok)throw new Error(String(r.status));
-   var j=await r.json(),users=Array.isArray(j.users)?j.users:[],prizes=Array.isArray(j.prizes)?j.prizes:[];
-   function fill(select,items,label){var old=select.value;select.innerHTML='';items.forEach(function(x){var o=document.createElement('option');o.value=x.id;o.textContent=label(x);select.appendChild(o)});if(old&&Array.prototype.some.call(select.options,function(o){return o.value===old}))select.value=old}
-   fill(su,users,function(u){return (u.twitch_display_name||u.twitch_login||'Пользователь')+' (@'+(u.twitch_login||'—')+')'});
-   fill(cu,users,function(u){return (u.twitch_display_name||u.twitch_login||'Пользователь')+' (@'+(u.twitch_login||'—')+')'});
-   fill(pr,prizes,function(p){return (p.name||'Скин')+(p.sell_price_coins!=null?' · '+p.sell_price_coins+' Монет':'')});
-  }catch(e){console.error('admin grants options load failed',e)}
+   if(!await window.dropsoConfirm(description+' — '+label+'?'))return;
+   if(skin){const key=JSON.stringify(data);if(!pending||pending.key!==key)pending={key,id:crypto.randomUUID()};data.requestId=pending.id}
+   const r=await fetch('/api/admin/grants/'+kind,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(data)}),j=await r.json().catch(()=>({}));
+   if(r.ok){if(skin)pending=null;msg.textContent='Готово. Начисление выполнено.'}
+   else{msg.textContent='Ошибка: '+(j.error||r.status)}
+  }catch(e){msg.textContent='Ошибка сети. Проверьте результат перед повтором.'}finally{btn.disabled=false}
  }
- async function doGrant(kind){
-  var su=document.getElementById('grantSkinUser'),cu=document.getElementById('grantCoinUser'),pr=document.getElementById('grantPrize'),amountEl=document.getElementById('grantCoins'),msg=document.getElementById('grantMsg');
-  if(!su||!cu||!pr||!amountEl)return;
-  var body=kind==='skin'?{userId:su.value,prizeId:pr.value}:{userId:cu.value,amount:Number(amountEl.value)};
-  if(!body.userId||(kind==='skin'&&!body.prizeId)||(kind==='coins'&&(!Number.isSafeInteger(body.amount)||body.amount===0))){if(msg)msg.textContent='Выберите пользователя и проверьте данные.';return}
-  if(!await window.dropsoConfirm(kind==='skin'?'Начислить выбранный скин пользователю?':(body.amount<0?'Списать '+Math.abs(body.amount)+' Монет у пользователя?':'Начислить '+body.amount+' Монет пользователю?')))return;
-  var btn=document.getElementById(kind==='skin'?'grantSkin':'grantCoin');if(btn)btn.disabled=true;
-  try{var r=await fetch('/api/admin/grants/'+kind,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}),j=await r.json().catch(function(){return {}});if(msg)msg.textContent=r.ok?(kind==='coins'&&body.amount<0?'Готово. Монеты списаны.':'Готово. Начисление выполнено.'):'Ошибка: '+(j.error||r.status);if(r.ok)await loadGrantOptions()}catch(e){if(msg)msg.textContent='Ошибка сети'}finally{if(btn)btn.disabled=false}
- }
- function bind(){var skin=document.getElementById('grantSkin'),coin=document.getElementById('grantCoin');if(skin&&!skin.dataset.grantBound){skin.dataset.grantBound='1';skin.addEventListener('click',function(){doGrant('skin')})}if(coin&&!coin.dataset.grantBound){coin.dataset.grantBound='1';coin.addEventListener('click',function(){doGrant('coins')})}}
- function init(){loadGrantOptions();bind()}
- document.addEventListener('DOMContentLoaded',init);
- setTimeout(init,300);
- document.addEventListener('click',function(e){var t=e.target;if(t&&t.matches&&t.matches('[data-page="grants"]'))setTimeout(init,0)});
-})();</script>`;
- return body.replace('</body>',script+'</body>');
+ $('grantSkin').onclick=()=>grant('skin');$('grantCoin').onclick=()=>grant('coins');
+})();</script></body>`);
 }
