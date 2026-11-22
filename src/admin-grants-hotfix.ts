@@ -1,13 +1,57 @@
 import express from 'express';
-import { createClient } from '@supabase/supabase-js';
-const db=createClient(process.env.SUPABASE_URL||'https://ssqjogdcynmjjgtxknng.supabase.co',process.env.SUPABASE_SECRET_KEY||'not-configured',{auth:{persistSession:false}});
+import type {SupabaseClient} from '@supabase/supabase-js';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-export function installAdminGrantsHotfix(){const proto:any=(express as any).application,og=proto.get,ol=proto.listen;let auth:any=null;
- proto.get=function(path:any,...hs:any[]){if(path==='/api/admin/state'&&hs.length>1)auth=hs[0];if(path==='/admin')hs=hs.map((h:any)=>function(req:any,res:any,next:any){const send=res.send.bind(res);res.send=(b:any)=>send(typeof b==='string'?ui(b):b);return h(req,res,next)});return og.call(this,path,...hs)};
- proto.listen=function(...args:any[]){const app:any=this;if(!app.locals.__adminGrants&&auth){app.locals.__adminGrants=true;
-  app.get('/api/admin/grants/options',auth,async(_q:any,res:any)=>{const [{data:u,error:ue},{data:p,error:pe}]=await Promise.all([db.from('rewards_users').select('id,twitch_login,twitch_display_name').order('twitch_login'),db.from('rewards_prizes').select('id,name,sell_price_coins,status').eq('status','available').order('name')]);if(ue||pe)return res.status(500).json({error:'options_failed'});res.set('Cache-Control','no-store');res.json({users:u||[],prizes:p||[]})});
-  app.post('/api/admin/grants/coins',auth,async(req:any,res:any)=>{const id=String(req.body?.userId||''),amount=Number(req.body?.amount);if(!UUID.test(id)||!Number.isSafeInteger(amount)||amount===0||amount < -100000||amount>100000)return res.status(400).json({error:'invalid_input'});const {data:u}=await db.from('rewards_users').select('id').eq('id',id).maybeSingle();if(!u)return res.status(404).json({error:'user_not_found'});const {error}=await db.from('rewards_coin_transactions').insert({user_id:id,amount,transaction_type:'adjustment',note:amount<0?'Списание администратором':'Начисление администратором'});if(error){console.error('admin coin grant failed',error.code,error.message);return res.status(500).json({error:'grant_failed'})}res.json({ok:true})});
-  app.post('/api/admin/grants/skin',auth,async(req:any,res:any)=>{const userId=String(req.body?.userId||''),prizeId=String(req.body?.prizeId||'');if(!UUID.test(userId)||!UUID.test(prizeId))return res.status(400).json({error:'invalid_input'});const [{data:u},{data:p}]=await Promise.all([db.from('rewards_users').select('id').eq('id',userId).maybeSingle(),db.from('rewards_prizes').select('id,status').eq('id',prizeId).eq('status','available').maybeSingle()]);if(!u||!p)return res.status(404).json({error:'user_or_prize_not_found'});const {data:r,error:re}=await db.from('rewards_rounds').insert({mode:'messages',status:'completed',started_at:new Date().toISOString(),ended_at:new Date().toISOString(),message_threshold:1,message_count:1,completion_reason:'admin_grant',winner_user_id:userId,prize_id:prizeId}).select('id').single();if(re||!r)return res.status(500).json({error:'grant_round_failed'});const {error:we}=await db.from('rewards_wins').insert({round_id:r.id,user_id:userId,prize_id:prizeId,delivery_status:'awaiting_choice',choice_status:'awaiting_choice'});if(we){await db.from('rewards_rounds').delete().eq('id',r.id);return res.status(500).json({error:'grant_failed'})}res.json({ok:true})});
- }return ol.apply(this,args)};
+export function installAdminGrantsHotfix(){
+ const proto=express.application, original=proto.get;
+ (proto as any).get=function(path:any,...handlers:any[]){
+  if(path==='/admin')handlers=handlers.map(h=>function(req:any,res:any,next:any){const send=res.send.bind(res);res.send=(b:any)=>send(typeof b==='string'?ui(b):b);return h(req,res,next)});
+  return (original as any).call(this,path,...handlers);
+ };
 }
-function ui(b:string){b=b.replace('<button class="tab" data-page="users">Пользователи</button>','<button class="tab" data-page="users">Пользователи</button><button class="tab" data-page="grants">Начисления</button>');b=b.replace('</style>','.grantgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.grantgrid select,.grantgrid input{width:100%;margin:6px 0 12px}@media(max-width:700px){.grantgrid{grid-template-columns:1fr}}</style>');b=b.replace('<script>(function(){','<section id="page-grants" class="page"><div class="grantgrid"><div class="card"><h2>Начислить скин</h2><label class="muted">Пользователь</label><select id="grantSkinUser"></select><label class="muted">Скин</label><select id="grantPrize"></select><button id="grantSkin" class="primary">Начислить скин</button></div><div class="card"><h2>Начислить / списать Монеты</h2><label class="muted">Пользователь</label><select id="grantCoinUser"></select><label class="muted">Количество (отрицательное — списание)</label><input id="grantCoins" type="number" min="-100000" max="100000" step="1" value="10"><button id="grantCoin" class="primary">Применить Монеты</button></div></div><p id="grantMsg" class="muted"></p></section><script>(function(){');b=b.replace("$('userSearch').oninput=renderUsers;","async function grantOptions(){let r=await fetch('/api/admin/grants/options',{cache:'no-store'});if(!r.ok)return;let j=await r.json(),uo=(j.users||[]).map(u=>'<option value=\"'+esc(u.id)+'\">'+esc(u.twitch_display_name||u.twitch_login)+' (@'+esc(u.twitch_login)+')</option>').join(''),po=(j.prizes||[]).map(p=>'<option value=\"'+esc(p.id)+'\">'+esc(p.name)+(p.sell_price_coins!=null?' · '+esc(p.sell_price_coins)+' Монет':'')+'</option>').join('');$('grantSkinUser').innerHTML=uo;$('grantCoinUser').innerHTML=uo;$('grantPrize').innerHTML=po}async function doGrant(kind){let body=kind==='skin'?{userId:$('grantSkinUser').value,prizeId:$('grantPrize').value}:{userId:$('grantCoinUser').value,amount:Number($('grantCoins').value)};if(!await window.dropsoConfirm(kind==='skin'?'Начислить выбранный скин пользователю?':(body.amount<0?'Списать '+Math.abs(body.amount)+' Монет у пользователя?':'Начислить '+body.amount+' Монет пользователю?')))return;let r=await fetch('/api/admin/grants/'+kind,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}),j=await r.json().catch(()=>({}));$('grantMsg').textContent=r.ok?(kind==='coins'&&body.amount<0?'Готово. Монеты списаны.':'Готово. Начисление выполнено.'):'Ошибка: '+(j.error||r.status);if(r.ok)await load()}$('grantSkin').onclick=()=>doGrant('skin');$('grantCoin').onclick=()=>doGrant('coins');$('userSearch').oninput=renderUsers;");b=b.replace('load();setInterval(load,5000)','grantOptions();load();setInterval(load,5000)');return b}
+export function installAdminGrantRoutes(app:express.Express,db:SupabaseClient,admin:express.RequestHandler,origin:string){
+ const guard:express.RequestHandler=(req,res,next)=>{if(req.get('origin')!==origin||!req.is('application/json')){res.status(403).json({error:'invalid_origin'});return}next()};
+ app.get('/api/admin/grants/users',admin,async(req,res)=>{
+  const q=String(req.query.q||'').trim().replace(/^@/,'');
+  if(!/^[a-z0-9_]{1,25}$/i.test(q))return res.json({users:[]});
+  const {data,error}=await db.from('rewards_users').select('id,twitch_login,twitch_display_name').ilike('twitch_login','%'+q.replace(/_/g,'\\_')+'%').order('twitch_login').limit(40);
+  res.set('Cache-Control','no-store');if(error)return res.status(500).json({error:'search_failed'});return res.json({users:data||[]});
+ });
+ app.get('/api/admin/grants/shop',admin,async(req,res)=>{
+  const q=String(req.query.q||'').trim(),page=Number(req.query.page||0);
+  if(q.length<2||q.length>100||!Number.isSafeInteger(page)||page<0||page>1000)return res.status(400).json({error:'invalid_search'});
+  const {data,error}=await db.from('rewards_shop_items').select('id,name,price_coins,stock').eq('status','available').ilike('name','%'+q.replace(/[\\%_]/g,'\\$&')+'%').order('name').order('id').range(page*30,page*30+30);
+  if(error)return res.status(500).json({error:'search_failed'});
+  const rows=(data||[]).slice(0,30),items:any[]=[];
+  if(rows.length){
+   const {data:variants,error:ve}=await db.from('rewards_shop_item_variants').select('id,shop_item_id,wear,variant_kind,price_coins,available').in('shop_item_id',rows.map(x=>x.id));
+   if(ve)return res.status(500).json({error:'search_failed'});
+   for(const row of rows){
+    if(row.stock!==null&&row.stock<=0)continue;
+    const vs=(variants||[]).filter(v=>v.shop_item_id===row.id);
+    if(!vs.length&&row.price_coins>0)items.push({itemId:row.id,variantId:null,name:row.name,price:row.price_coins});
+    for(const v of vs)if(v.available&&v.price_coins>0)items.push({itemId:row.id,variantId:v.id,name:row.name,wear:v.wear,kind:v.variant_kind,price:v.price_coins});
+   }
+  }
+  res.set('Cache-Control','no-store');return res.json({items,hasMore:(data||[]).length>30});
+ });
+ app.post('/api/admin/grants/coins',admin,guard,async(req,res)=>{
+  const id=String(req.body?.userId||''),amount=Number(req.body?.amount);
+  if(!UUID.test(id)||!Number.isSafeInteger(amount)||amount===0||amount < -100000||amount>100000)return res.status(400).json({error:'invalid_input'});
+  const {data:u}=await db.from('rewards_users').select('id').eq('id',id).maybeSingle();
+  if(!u)return res.status(404).json({error:'user_not_found'});
+  const {error}=await db.from('rewards_coin_transactions').insert({user_id:id,amount,transaction_type:'adjustment',note:amount<0?'Списание администратором':'Начисление администратором'});
+  if(error)return res.status(500).json({error:'grant_failed'});return res.json({ok:true});
+ });
+ app.post('/api/admin/grants/skin',admin,guard,async(req,res)=>{
+  const {userId,itemId,variantId,requestId}=req.body||{};
+  if(![userId,itemId,requestId].every(x=>typeof x==='string'&&UUID.test(x))||(variantId!==null&&(typeof variantId!=='string'||!UUID.test(variantId))))return res.status(400).json({error:'invalid_input'});
+  const {data,error}=await db.rpc('rewards_admin_grant_shop_skin',{p_actor:res.locals.session.twitchUserId,p_user:userId,p_item:itemId,p_variant:variantId,p_request:requestId});
+  if(error){console.error('admin_shop_grant_failed',error.code,error.message);return res.status(error.code==='P0001'?400:500).json({error:error.code==='P0001'?error.message:'grant_failed'})}
+  return res.json(data);
+ });
+}
+function ui(b:string){
+ b=b.replace('<button class="tab" data-page="users">Пользователи</button>','<button class="tab" data-page="users">Пользователи</button><button class="tab" data-page="grants">Начисления</button>');
+ b=b.replace('</style>','.grantgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.grantgrid select,.grantgrid input{width:100%;margin:6px 0 12px}@media(max-width:700px){.grantgrid{grid-template-columns:1fr}}</style>');
+ return b.replace('<script>(function(){','<section id="page-grants" class="page"><div class="grantgrid"><div class="card"><h2>Начислить скин</h2><label class="muted" for="grantSkinSearch">Пользователь</label><input id="grantSkinSearch" placeholder="Twitch-ник" autocomplete="off"><select id="grantSkinUser"><option value="">Выберите пользователя</option></select><label class="muted" for="grantPrizeSearch">Скин из магазина</label><input id="grantPrizeSearch" placeholder="Название скина или оружия" autocomplete="off"><select id="grantPrize"><option value="">Выберите скин</option></select><button id="grantPrev" type="button" hidden>Назад</button> <button id="grantNext" type="button" hidden>Далее</button><button id="grantSkin" class="primary">Начислить скин</button></div><div class="card"><h2>Начислить / списать Монеты</h2><label class="muted" for="grantCoinSearch">Пользователь</label><input id="grantCoinSearch" placeholder="Twitch-ник" autocomplete="off"><select id="grantCoinUser"><option value="">Выберите пользователя</option></select><label class="muted">Количество (отрицательное — списание)</label><input id="grantCoins" type="number" min="-100000" max="100000" step="1" value="10"><button id="grantCoin" class="primary">Применить Монеты</button></div></div><p id="grantMsg" class="muted" role="status"></p></section><script>(function(){');
+}
