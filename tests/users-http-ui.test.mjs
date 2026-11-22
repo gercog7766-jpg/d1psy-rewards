@@ -31,6 +31,10 @@ test('users app: member list, online, privacy toggle, private direct API, safe D
  }finally{await pause(100);dom?.window.close();server.kill('SIGTERM');await new Promise(r=>mock.close(r));await db.close()}
 });
 
+test('profile request completing after page closure does not update the destroyed document',async()=>{
+ const {profileHtml,usersJs}=await import('../src/users-ui.ts');for(const fail of [false,true]){const dom=new JSDOM(profileHtml,{url:'https://dropso.test/users/alpha',runScripts:'outside-only'}),w=dom.window;let finish;w.fetch=()=>new Promise((resolve,reject)=>{finish=()=>fail?reject(Error('network')):resolve({ok:true,json:async()=>({name:'Alpha'})})});w.eval(usersJs);assert(finish);w.close();finish();await new Promise(r=>setTimeout(r,10));}
+});
+
 test('presence client only reports its tab and clears it on hide without Twitch polling',async()=>{
  const d=new JSDOM('',{url:'https://example.test/games',runScripts:'outside-only'}),w=d.window,requests=[],beacons=[];let hidden=false;Object.defineProperty(w.document,'hidden',{get:()=>hidden});w.crypto.randomUUID=randomUUID;w.fetch=async(path,opts)=>{requests.push([path,JSON.parse(opts.body)]);return {status:200}};Object.defineProperty(w.navigator,'sendBeacon',{value:(path,body)=>beacons.push([path,body])});w.eval(presenceJs);await new Promise(r=>setTimeout(r,10));assert.equal(requests[0][1].online,true);assert(!Object.hasOwn(requests[0][1],'userId'));hidden=true;w.document.dispatchEvent(new w.Event('visibilitychange'));assert.equal(beacons.length,1);assert.equal(beacons[0][0],'/api/me/site-presence');d.window.close();
 });
