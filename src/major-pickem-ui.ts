@@ -310,26 +310,26 @@ export const majorPickemScript = String.raw`(() => {
   }
   let caseBusy=false,shopBusy=false;
   const caseRequests=new Map();
+  const prizeText=result=>'Выпало: '+result.name+(result.wear?' ('+result.wear+')':'')+(Number.isSafeInteger(result.price)?' · Стоимость: '+result.price.toLocaleString('ru-RU')+' монет':'')+'. Доступен в инвентаре.';
   async function openCustomCase(c,button){
     if(caseBusy||shopBusy||busy||!state?.entered||state.tokens<c.cost)return;
-    caseBusy=true;render();const status=el('bronzeCaseStatus');status.textContent='Открываем '+c.name+'…';
+    caseBusy=true;render();el('bronzeRoulette').hidden=true;const status=el('bronzeCaseStatus');status.textContent='Открываем '+c.name+'…';
     let requestId=caseRequests.get(c.id);if(!requestId){requestId=crypto.randomUUID();caseRequests.set(c.id,requestId)}
     try{
       const response=await fetch('/api/me/major-pickem/cases/'+encodeURIComponent(c.id)+'/custom-open',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId})});
       const result=await response.json();if(!response.ok){if(response.status===409)caseRequests.delete(c.id);throw Error(result.error||'case_unavailable')}
       caseRequests.delete(c.id);state.tokens=result.tokens;render();
-      const reel=el('bronzeRoulette'),strip=el('bronzeStrip'),pool=Array.isArray(result.catalog)&&result.catalog.length?result.catalog:[result];
-      reel.hidden=false;strip.replaceChildren();strip.style.transition='none';strip.style.transform='translateX(0)';
-      for(let i=0;i<32;i++){const item=i===28?result:pool[Math.floor(Math.random()*pool.length)],slot=document.createElement('div'),img=document.createElement('img');slot.className='bronze-slot';img.alt=item.name||'';if(item.image)img.src=item.image;img.referrerPolicy='no-referrer';slot.append(img);strip.append(slot)}
-      const winner=strip.children[28];await new Promise(r=>setTimeout(r,60));strip.style.transition='transform 4200ms cubic-bezier(.09,.65,.12,1)';strip.style.transform='translateX('+(-(winner.offsetLeft+winner.offsetWidth/2-reel.clientWidth/2))+'px)';await new Promise(r=>setTimeout(r,4250));winner.classList.add('bronze-slot-won');
-      status.textContent='Выпало: '+result.name+(result.wear?' · '+result.wear:'')+'. Доступен в инвентаре.';
+      status.textContent='Кейс открывается…';
+      const art=button.closest('article')?.querySelector('.bronze-case-art');
+      try{await spinBronze(result,art,false)}catch(animationError){el('bronzeRoulette').hidden=true;console.warn('major_case_animation',animationError)}finally{art?.classList.remove('bronze-case-opening')}
+      status.textContent=prizeText(result);
     }catch(e){status.textContent=({insufficient_tokens:'Недостаточно жетонов.',case_catalog_incomplete:'Один из призов недоступен. Жетоны не списаны.',case_unavailable:'Кейс недоступен.'})[e.message]||'Не удалось подтвердить открытие. Повторите запрос.'}finally{caseBusy=false;render()}
   }
   async function loadCustomCases(){
     try{const response=await fetch('/api/me/major-pickem/cases');if(!response.ok)return;const data=await response.json();if(!Array.isArray(data.cases))return;
       const grid=document.querySelector('.major-case-grid'),legacy=el('openBronzeCase').closest('article');if(!grid||!legacy)return;
       legacy.hidden=!data.cases.some(c=>c.id==='bronze'&&!c.custom);legacy.style.display=legacy.hidden?'none':'';
-      for(const c of data.cases){if(!c.custom)continue;const tile=document.createElement('article'),art=document.createElement('div'),img=document.createElement('img'),title=document.createElement('h3'),cost=document.createElement('p'),button=document.createElement('button');tile.className='major-case-tile';art.className='bronze-case-art';if(c.image){img.src=c.image;img.alt=c.name;img.loading='lazy';art.append(img)}title.textContent=c.name;cost.className='major-shop-cost';cost.textContent=c.cost+' жет.';button.className='primary';button.type='button';button.dataset.customCase=c.id;button.dataset.cost=String(c.cost);button.textContent='Открыть кейс';button.disabled=true;button.onclick=()=>openCustomCase(c,button);tile.append(art,title,cost,button);grid.append(tile)}render();
+      for(const c of data.cases){if(!c.custom)continue;const tile=document.createElement('article'),art=document.createElement('div'),img=document.createElement('img'),title=document.createElement('h3'),description=document.createElement('p'),cost=document.createElement('p'),token=document.createElement('img'),button=document.createElement('button');tile.className='major-case-tile';art.className='bronze-case-art';if(c.image){img.src=c.image;img.alt=c.name;img.loading='lazy';art.append(img)}title.textContent=c.name;description.className='muted';description.textContent='Один случайный скин CS2 в инвентарь.';cost.className='major-shop-cost';token.src='/predict/major-token.webp';token.width=19;token.height=19;token.alt='';const unit= new Intl.PluralRules('ru').select(c.cost);cost.append(token,document.createTextNode(c.cost+' '+(unit==='one'?'жетон':unit==='few'?'жетона':'жетонов')));button.className='primary';button.type='button';button.dataset.customCase=c.id;button.dataset.cost=String(c.cost);button.textContent='Открыть кейс';button.disabled=true;button.onclick=()=>openCustomCase(c,button);tile.append(art,title,description,cost,button);grid.append(tile)}render();
     }catch(e){console.warn('major_cases_load',e)}
   }
   document.querySelectorAll('.major-shop-buy').forEach(button=>button.addEventListener('click',async()=>{
@@ -359,32 +359,33 @@ export const majorPickemScript = String.raw`(() => {
   ];
   const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   const localBronzeImage=name=>'/predict/major-bronze-skins/'+caseNames.indexOf(name);
-  async function preloadBronzeArtwork(catalog){
-    const artwork=caseNames.map(name=>{const p=Array.isArray(catalog)?catalog.find(p=>p.name===name):null;return {name,image:p?.image,proxy:p?.proxy}});
+  async function preloadBronzeArtwork(artwork,legacy){
     const load=src=>new Promise((resolve,reject)=>{
       const img=new Image();const timer=setTimeout(()=>reject(Error('case_artwork_unavailable')),4500);
       function done(ok){clearTimeout(timer);ok?resolve(src):reject(Error('case_artwork_unavailable'))}
       img.referrerPolicy='no-referrer';img.onload=()=>done(true);img.onerror=()=>done(false);img.src=src;
       if(img.complete&&img.naturalWidth>0)done(true);
     });
-    return Promise.all(artwork.map(async p=>({name:p.name,image:await load(localBronzeImage(p.name)).catch(()=>p.proxy?load(p.proxy).catch(()=>p.image?load(p.image):Promise.reject(Error('case_artwork_unavailable'))):p.image?load(p.image):Promise.reject(Error('case_artwork_unavailable')))})));
+    return Promise.all(artwork.map(async p=>({key:p.key,image:await (legacy?load(localBronzeImage(p.name)):Promise.reject()).catch(()=>p.proxy?load(p.proxy).catch(()=>p.image?load(p.image):Promise.reject(Error('case_artwork_unavailable'))):p.image?load(p.image):Promise.reject(Error('case_artwork_unavailable')))})));
   }
-  async function spinBronze(result){
+  async function spinBronze(result,art=el('openBronzeCase').closest('article')?.querySelector('.bronze-case-art'),legacy=true){
     const roulette=el('bronzeRoulette'),strip=el('bronzeStrip');
     // Never show the case picture as a skin. The only emergency art is a
     // neutral question mark, and the normal reel uses locally stored skins.
     const fallback='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 160 100%22%3E%3Ctext x=%2280%22 y=%2267%22 text-anchor=%22middle%22 font-size=%2254%22 font-family=%22sans-serif%22 font-weight=%22bold%22 fill=%22%23cc9eea%22%3E%3F%3C/text%3E%3C/svg%3E';
-    const art=document.querySelector('.bronze-case-art');
     if(art){art.classList.remove('bronze-case-opening');void art.offsetWidth;art.classList.add('bronze-case-opening');}
     roulette.hidden=false;
     if(window.matchMedia?.('(max-width:700px)').matches)roulette.scrollIntoView?.({behavior:'smooth',block:'center'});
     strip.style.transition='none';strip.style.transform='translateX(0)';
-    const winner=caseNames.findIndex(name=>name===result.name);
+    const pool=legacy?caseNames.map(name=>({...(result.catalog||[]).find(p=>p.name===name),name,key:name})):(Array.isArray(result.catalog)&&result.catalog.length?result.catalog:[result]).map((p,i)=>({...p,key:String(i)}));
+    const winner=legacy?pool.find(p=>p.name===result.name):pool.find(p=>p.name===result.name&&p.image===result.image);
+    const awarded=winner||{name:result.name,image:result.image,key:'winner'};
+    if(!winner)pool.push(awarded);
     const total=56,winningSlot=49;
     strip.replaceChildren();
     const slots=[];
     for(let i=0;i<total;i++){
-      const name=caseNames[i===winningSlot&&winner>=0?winner:Math.floor(Math.random()*caseNames.length)];
+      const item=i===winningSlot?awarded:pool[Math.floor(Math.random()*pool.length)];
       const slot=document.createElement('div');
       slot.className='bronze-slot';
       const img=document.createElement('img');
@@ -392,23 +393,24 @@ export const majorPickemScript = String.raw`(() => {
       img.alt='';img.loading='eager';img.decoding='async';
       slot.append(img);
       strip.append(slot);
-      slots.push({name,img});
+      slots.push({item,img});
     }
     // Start the reel immediately. Switch all images together only after every
     // real artwork is ready, so a failed CDN image never reveals the winner.
     let finished=false,completeArtwork=false;
     const resetArtwork=()=>{completeArtwork=false;for(const {img} of slots){img.onerror=null;img.src=fallback}};
-    const loadAll=preloadBronzeArtwork(result.catalog).then(artwork=>{
+    const loadAll=preloadBronzeArtwork(pool,legacy).then(artwork=>{
       if(finished||!strip.contains(slots[0].img))return;
-      const byName=new Map(artwork.map(p=>[p.name,p.image]));
+      const byName=new Map(artwork.map(p=>[p.key,p.image]));
       completeArtwork=true;
-      for(const {name,img} of slots){img.onerror=resetArtwork;img.src=byName.get(name)||fallback}
+      for(const {item,img} of slots){img.onerror=resetArtwork;img.src=byName.get(item.key)||fallback}
     }).catch(()=>{});
     await Promise.race([loadAll,sleep(1400)]);
     await sleep(60);
     const selected=strip.children[winningSlot];
     const target=selected.offsetLeft+selected.offsetWidth/2-roulette.clientWidth/2;
     const jitter=Math.floor(Math.random()*32)-16;
+    void strip.offsetWidth;
     strip.style.transition='transform 5800ms cubic-bezier(.09,.65,.12,1)';
     strip.style.transform='translateX('+(-target+jitter)+'px)';
     await sleep(5900);
@@ -416,7 +418,7 @@ export const majorPickemScript = String.raw`(() => {
     const won=slots[winningSlot].img;
     if(!completeArtwork&&result.image){
       const actual=Array.isArray(result.catalog)?result.catalog.find(p=>p.name===result.name):null;
-      const choices=[localBronzeImage(result.name),actual?.proxy,result.image].filter(Boolean);
+      const choices=[legacy&&caseNames.includes(result.name)?localBronzeImage(result.name):null,actual?.proxy,result.image].filter(Boolean);
       let attempt=0;won.onerror=()=>{if(++attempt<choices.length){won.src=choices[attempt];return}won.onerror=null;won.src=fallback};
       won.src=choices[0];
     }
@@ -440,7 +442,7 @@ export const majorPickemScript = String.raw`(() => {
       el('tokens').textContent='Жетоны Major Dropso: '+state.tokens;
       el('bronzeCaseStatus').textContent='Кейс открывается…';
       try{await spinBronze(result);}catch(animationError){el('bronzeRoulette').hidden=true;document.querySelector('.bronze-case-art')?.classList.remove('bronze-case-opening');console.warn('major_bronze_animation',animationError);}
-      el('bronzeCaseStatus').textContent='Выпало: '+result.name+(result.wear?' ('+result.wear+')':'')+'. Доступен в инвентаре.';
+      el('bronzeCaseStatus').textContent=prizeText(result);
       el('tokens').textContent='Жетоны Major Dropso: '+state.tokens;
     }catch(error){
       el('bronzeCaseStatus').textContent=({
