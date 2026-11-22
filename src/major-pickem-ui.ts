@@ -257,6 +257,7 @@ export const majorPickemScript = String.raw`(() => {
     if(!state)return;
     el('tokens').textContent='Жетоны Major Dropso: '+state.tokens;
     el('openBronzeCase').disabled=busy || caseBusy || shopBusy || !state.entered || state.tokens<1;
+    document.querySelectorAll('[data-custom-case]').forEach(button=>{button.disabled=busy||caseBusy||shopBusy||!state.entered||state.tokens<Number(button.dataset.cost)});
     document.querySelectorAll('.major-shop-buy').forEach(button=>{
       const cost=[1,2,3,4,5,10,15,25,40][Number(button.dataset.itemIndex)];
       button.disabled=busy || caseBusy || shopBusy || !state.entered || state.tokens<cost;
@@ -308,6 +309,29 @@ export const majorPickemScript = String.raw`(() => {
     }finally{busy=false;render();}
   }
   let caseBusy=false,shopBusy=false;
+  const caseRequests=new Map();
+  async function openCustomCase(c,button){
+    if(caseBusy||shopBusy||busy||!state?.entered||state.tokens<c.cost)return;
+    caseBusy=true;render();const status=el('bronzeCaseStatus');status.textContent='Открываем '+c.name+'…';
+    let requestId=caseRequests.get(c.id);if(!requestId){requestId=crypto.randomUUID();caseRequests.set(c.id,requestId)}
+    try{
+      const response=await fetch('/api/me/major-pickem/cases/'+encodeURIComponent(c.id)+'/custom-open',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId})});
+      const result=await response.json();if(!response.ok){if(response.status===409)caseRequests.delete(c.id);throw Error(result.error||'case_unavailable')}
+      caseRequests.delete(c.id);state.tokens=result.tokens;render();
+      const reel=el('bronzeRoulette'),strip=el('bronzeStrip'),pool=Array.isArray(result.catalog)&&result.catalog.length?result.catalog:[result];
+      reel.hidden=false;strip.replaceChildren();strip.style.transition='none';strip.style.transform='translateX(0)';
+      for(let i=0;i<32;i++){const item=i===28?result:pool[Math.floor(Math.random()*pool.length)],slot=document.createElement('div'),img=document.createElement('img');slot.className='bronze-slot';img.alt=item.name||'';if(item.image)img.src=item.image;img.referrerPolicy='no-referrer';slot.append(img);strip.append(slot)}
+      const winner=strip.children[28];await new Promise(r=>setTimeout(r,60));strip.style.transition='transform 4200ms cubic-bezier(.09,.65,.12,1)';strip.style.transform='translateX('+(-(winner.offsetLeft+winner.offsetWidth/2-reel.clientWidth/2))+'px)';await new Promise(r=>setTimeout(r,4250));winner.classList.add('bronze-slot-won');
+      status.textContent='Выпало: '+result.name+(result.wear?' · '+result.wear:'')+'. Доступен в инвентаре.';
+    }catch(e){status.textContent=({insufficient_tokens:'Недостаточно жетонов.',case_catalog_incomplete:'Один из призов недоступен. Жетоны не списаны.',case_unavailable:'Кейс недоступен.'})[e.message]||'Не удалось подтвердить открытие. Повторите запрос.'}finally{caseBusy=false;render()}
+  }
+  async function loadCustomCases(){
+    try{const response=await fetch('/api/me/major-pickem/cases');if(!response.ok)return;const data=await response.json();if(!Array.isArray(data.cases))return;
+      const grid=document.querySelector('.major-case-grid'),legacy=el('openBronzeCase').closest('article');if(!grid||!legacy)return;
+      legacy.hidden=!data.cases.some(c=>c.id==='bronze'&&!c.custom);legacy.style.display=legacy.hidden?'none':'';
+      for(const c of data.cases){if(!c.custom)continue;const tile=document.createElement('article'),art=document.createElement('div'),img=document.createElement('img'),title=document.createElement('h3'),cost=document.createElement('p'),button=document.createElement('button');tile.className='major-case-tile';art.className='bronze-case-art';if(c.image){img.src=c.image;img.alt=c.name;img.loading='lazy';art.append(img)}title.textContent=c.name;cost.className='major-shop-cost';cost.textContent=c.cost+' жет.';button.className='primary';button.type='button';button.dataset.customCase=c.id;button.dataset.cost=String(c.cost);button.textContent='Открыть кейс';button.disabled=true;button.onclick=()=>openCustomCase(c,button);tile.append(art,title,cost,button);grid.append(tile)}render();
+    }catch(e){console.warn('major_cases_load',e)}
+  }
   document.querySelectorAll('.major-shop-buy').forEach(button=>button.addEventListener('click',async()=>{
     const itemIndex=Number(button.dataset.itemIndex),cost=[1,2,3,4,5,10,15,25,40][itemIndex];
     if(shopBusy||caseBusy||busy||!state?.entered||state.tokens<cost)return;
@@ -460,4 +484,5 @@ export const majorPickemScript = String.raw`(() => {
     if(!open(activeStage()) && !el('save').hidden)render();
   },1000);
   void load();
+  void loadCustomCases();
 })();`;

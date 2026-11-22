@@ -38,7 +38,7 @@ tbody th{max-width:220px;overflow-wrap:anywhere}th small{display:block;font-weig
 tr:last-child>*{border-bottom:0}.saved{color:#9de6bb}.tokens{font-weight:750;font-variant-numeric:tabular-nums}
 nav{display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin-top:16px}
 </style></head><body><main>
-<a href="/admin">← Админка</a><h1>Major Pick’em</h1>
+<a href="/admin">← Админка</a> · <a href="/admin/major-cases">Редактор кейсов</a><h1>Major Pick’em</h1>
 <p class="muted" id="participants">Участники с пропуском · сохранённые прогнозы и баланс жетонов</p>
 <div class="table-scroll" tabindex="0" role="region" aria-labelledby="participants">
 <table aria-labelledby="participants"><thead><tr><th scope="col">Игрок</th>${stages.map(stage => `<th scope="col">${stage}</th>`).join('')}<th scope="col">Жетоны</th></tr></thead>

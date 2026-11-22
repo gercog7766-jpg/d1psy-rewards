@@ -326,6 +326,12 @@ test('Major Pick’em admin lists paid players and saved stages with pagination 
     assert.equal((await fetch(url)).status,401);
     assert.equal((await fetch(url,{headers:{'x-test-role':'viewer'}})).status,403);
     const headers={'x-test-role':'admin'};
+    const editorUrl=url.replace('major-pickem','major-cases');
+    assert.equal((await fetch(editorUrl)).status,401);
+    assert.equal((await fetch(editorUrl,{headers:{'x-test-role':'viewer'}})).status,403);
+    const editor=new JSDOM(await(await fetch(editorUrl,{headers})).text());
+    assert.equal(editor.window.document.querySelector('#file').type,'file');
+    assert(editor.window.document.querySelector('#rows'));assert(editor.window.document.querySelector('#save'));editor.window.close();
     assert.equal((await fetch(url+'?page=0',{headers})).status,400);
     assert.equal(requests.length,0);
     const response=await fetch(url+'?page=2',{headers});
