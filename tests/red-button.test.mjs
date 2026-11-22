@@ -137,6 +137,14 @@ test('red button charges once per day, hides holds and settles the sum of holds 
     await db.query("update rewards_red_button_rounds set day=$2::date-29,ends_at=clock_timestamp() where id=$1",[following.round.id,today]);
     const afterEmpty=await call('j1');assert.equal(afterEmpty.round.carryIn,80);assert.equal(afterEmpty.round.bank,80);
     const nextJoined=await call('j1',afterEmpty.round.id,randomUUID());assert.equal(nextJoined.round.winnerPrize,72);assert.equal(nextJoined.round.nextBank,18);assert.equal(nextJoined.round.bank,90);
+    await db.exec('reset role');
+    await db.exec("insert into rewards_shop_items(name,image_url,status) values('Skin 70','https://example.com/70.png','available'),('Skin 79','https://example.com/79.png','available');insert into rewards_shop_item_variants select id,'normal','FT',case when name='Skin 70' then 70 else 79 end,true from rewards_shop_items where name in ('Skin 70','Skin 79')");
+    const skinMigration=await readFile(new URL('../supabase/migrations/20261122210000_red_button_skin_jackpot.sql',import.meta.url),'utf8');await db.exec(skinMigration.replaceAll('2026-11-21',anchor).replaceAll('2026-11-23',today));await db.exec('set role service_role');
+    const selected=await call('j1');assert.equal(selected.round.prize,'Skin 70');assert.equal(selected.round.price,70);assert.equal(selected.round.nextBank,20);assert.equal(selected.round.bank,90);
+    const grown=await call('j2',afterEmpty.round.id,randomUUID());assert.equal(grown.round.prize,'Skin 79');assert.equal(grown.round.winnerPrize,79);assert.equal(grown.round.nextBank,21);assert.equal(grown.round.bank,100);
+    await db.query("update rewards_red_button_rounds set day=$2::date-28,ends_at=clock_timestamp() where id=$1",[afterEmpty.round.id,today]);await call('j1');await call('j1');
+    const awarded=(await db.query('select p.name,p.sell_price_coins,w.item_wear from rewards_red_button_rounds r join rewards_wins w on w.id=r.win_id join rewards_prizes p on p.id=w.prize_id where r.id=$1',[afterEmpty.round.id])).rows[0];assert.deepEqual(awarded,{name:'Skin 79',sell_price_coins:79,item_wear:'FT'});
+    assert.equal((await db.query('select count(*)::int n from rewards_coin_transactions where note=$1',['Красная кнопка · приз · '+afterEmpty.round.id])).rows[0].n,0);
     await db.exec('reset role;set role authenticated');
     await assert.rejects(call('b'),/permission denied/);
     await assert.rejects(db.exec('select * from rewards_red_button_holds'),/permission denied/);
