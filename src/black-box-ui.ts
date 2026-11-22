@@ -56,7 +56,7 @@ export function blackBoxPage(admin: boolean) {
     <span class="clock-unit"><b id="clockMinutes">00</b><small>минуты</small></span><span class="clock-separator" aria-hidden="true">:</span>
     <span class="clock-unit"><b id="clockSeconds">00</b><small>секунды</small></span>
   </div><p id="timerStatus" role="status" hidden>Подводим итоги…</p><p id="hint" hidden></p>
-  <div id="auctionQuorum" class="auction-quorum" hidden><strong id="quorumText"></strong><progress id="quorumProgress" max="5" value="0" aria-label="Участники аукциона"></progress></div><details id="auctionSteps" class="auction-steps" hidden><summary id="currentStep" class="auction-step-now"></summary><ul id="stepList"></ul><p>Последние две минуты: новая ставка продлевает торги до двух минут, но не более 15 минут сверх основного срока.</p></details>
+  <div id="auctionQuorum" class="auction-quorum" hidden><strong id="quorumText"></strong><progress id="quorumProgress" max="5" value="0" aria-label="Участники аукциона"></progress></div><details id="auctionSteps" class="auction-steps" hidden><summary id="currentStep" class="auction-step-now"></summary><ul id="stepList"></ul><p>Если до конца торгов осталось 10 минут или меньше, каждая новая ставка добавляет 2 минуты к оставшемуся времени. Количество продлений не ограничено.</p></details>
   <div class="case" id="case" aria-hidden="true"><div class="case-body"></div><div class="case-glow"></div><div class="case-lid"></div></div>
   <p id="reveal" role="status"></p><form id="bid" hidden><label>Твоя ставка в монетах<input id="amount" type="number" required></label>
   <button id="submit">Сделать ставку</button></form><p id="notice" role="status"></p></section>

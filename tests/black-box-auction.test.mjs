@@ -12,7 +12,7 @@ test('configured auction validates duration, descending boundaries and increasin
  for(const [duration,stages] of [[60,schedule],[1440,[{untilMinutes:1,step:1}]],[1440,[{untilMinutes:5,step:2},{untilMinutes:0,step:1}]],[1440,[{untilMinutes:0,step:0}]],[1440,[{untilMinutes:0,step:1,extra:true}]],[1440,[]]])assert(!validAuctionSchedule(duration,stages));
 });
 
-test('daily configurable auction enforces progressive steps, unique quorum, capped extension and refunds atomically',async()=>{
+test('daily configurable auction enforces progressive steps, unique quorum, unlimited late extension and refunds atomically',async()=>{
  const db=new PGlite();try{
   await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;
    create table rewards_users(id uuid primary key default gen_random_uuid(),twitch_login text,twitch_display_name text,banned boolean default false,participation_restricted boolean default false);
@@ -22,7 +22,7 @@ test('daily configurable auction enforces progressive steps, unique quorum, capp
    grant select,update on rewards_users to service_role;grant select,insert on rewards_prizes,rewards_wins,rewards_coin_transactions to service_role;
    insert into rewards_users(twitch_login) select 'u'||n from generate_series(1,5)n;
    insert into rewards_coin_transactions select id,1000,'adjustment','fixture' from rewards_users;`);
-  for(const file of ['20261111233217_black_box.sql','20261115130000_black_box_90_minutes.sql','20261122100000_black_box_progressive_auction.sql'])await db.exec(await readFile(new URL('../supabase/migrations/'+file,import.meta.url),'utf8'));
+  for(const file of ['20261111233217_black_box.sql','20261115130000_black_box_90_minutes.sql','20261122100000_black_box_progressive_auction.sql','20261122190000_black_box_unlimited_extension.sql'])await db.exec(await readFile(new URL('../supabase/migrations/'+file,import.meta.url),'utf8'));
   const users=(await db.query('select id from rewards_users order by twitch_login')).rows.map(x=>x.id);
   await db.exec('set role service_role');
   const create=async(stages=schedule,duration=1440)=>(await db.query('select rewards_black_box_create_v2(10,$1,$2,null,300) id',[duration,JSON.stringify(stages)])).rows[0].id;
@@ -39,8 +39,15 @@ test('daily configurable auction enforces progressive steps, unique quorum, capp
   const second=await create();for(let i=0;i<5;i++)await bid(second,i,10+i*5);
   await db.query("update rewards_black_boxes set scheduled_ends_at=clock_timestamp()+interval '1 minute',ends_at=clock_timestamp()+interval '1 minute' where id=$1",[second]);
   await assert.rejects(bid(second,0,35),/bid_too_low/);await bid(second,0,80);
-  const timing=(await db.query('select ends_at>scheduled_ends_at as extended,ends_at<=scheduled_ends_at+interval \'15 minutes\' as capped from rewards_black_boxes where id=$1',[second])).rows[0];assert.deepEqual(timing,{extended:true,capped:true});assert.equal((await state()).current.step,50);
-  await close(second);const won=await state();assert.equal(won.closed.cancelled,false);assert.equal(won.previous.winner,'u1');assert.equal(won.previous.amount,80);
+  const timing=(await db.query('select extract(epoch from ends_at-scheduled_ends_at)::int as extra from rewards_black_boxes where id=$1',[second])).rows[0];assert.equal(timing.extra,120);assert.equal((await state()).current.step,50);
+  let amount=80;
+  for(const [remaining,expected] of [[7,120],[9,120],[11,0],[10,120],[7,120]]){
+   const before=(await db.query("update rewards_black_boxes set ends_at=clock_timestamp()+make_interval(mins=>$2),scheduled_ends_at=clock_timestamp()-interval '1 hour' where id=$1 returning ends_at",[second,remaining])).rows[0].ends_at;
+   amount+=50;await bid(second,0,amount);
+   const after=(await db.query("select ends_at,ends_at>scheduled_ends_at+interval '15 minutes' as uncapped from rewards_black_boxes where id=$1",[second])).rows[0];
+   assert.equal((new Date(after.ends_at)-new Date(before))/1000,expected);assert.equal(after.uncapped,true);
+  }
+  await close(second);const won=await state();assert.equal(won.closed.cancelled,false);assert.equal(won.previous.winner,'u1');assert.equal(won.previous.amount,amount);
   assert.deepEqual((await db.query('select count(*)::int n,sum(amount)::int total from rewards_coin_transactions where note=$1',['Чёрный ящик · приз · '+second])).rows[0],{n:1,total:300});
   // An existing old auction retains its original step and can settle with one bidder.
   const legacy=(await db.query("select rewards_black_box_create(10,2,null,null,50) id")).rows[0].id;await bid(legacy,1,10);await close(legacy);assert.equal((await state()).closed.cancelled,false);
