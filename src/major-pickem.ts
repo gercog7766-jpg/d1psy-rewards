@@ -6,11 +6,13 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Express, RequestHandler } from 'express';
 import { majorPickemPage, majorPickemScript } from './major-pickem-ui.js';
 import { BronzeArtworkCache } from './major-bronze-artwork.js';
+import {installMajorCaseEditor} from './major-case-editor.js';
 
 const known = new Set(['invalid_request','invalid_picks','user_unavailable','entry_closed','entry_required','stage_locked','insufficient_coins']);
 const outcomes = ['3:0','3:1','3:2','1:3','2:3','0:3'];
 
 export function installMajorPickem(app:Express,db:SupabaseClient,user:RequestHandler,admin:RequestHandler,origin:string) {
+  installMajorCaseEditor(app,db,user,admin,origin);
   const artwork=new BronzeArtworkCache();
   const noStore:RequestHandler = (_req,res,next) => {res.set('Cache-Control','private, no-store');next()};
   const rpc = (action:'state'|'enter'|'save'):RequestHandler => async(req,res) => {

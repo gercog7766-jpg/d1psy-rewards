@@ -105,5 +105,24 @@ test('bronze case atomically debits tokens, grants a win and replays request IDs
   const multi=(await db.query('select * from rewards_run_skin_upgrade_multi($1,$2,$3,$4,0)',[alice,[sticker.winId],[target.shop_item_id],[target.id]])).rows[0];
   assert.equal(multi.chance_bps,450);
   assert.equal((await db.query('select count(*)::int n from rewards_coin_transactions where transaction_type=\'win_sale\'')).rows[0].n,0);
+  await db.exec("create table rewards_admins(twitch_user_id text primary key); insert into rewards_admins values('owner'); grant select on rewards_admins to service_role; grant select,update on rewards_users,rewards_major_pickem_entries to service_role; grant select on rewards_shop_items,rewards_shop_item_variants to service_role; grant select,insert on rewards_prizes,rewards_wins to service_role;");
+  await db.exec(await readFile(new URL('../supabase/migrations/20261122170000_major_custom_cases.sql',import.meta.url),'utf8'));
+  await db.exec('update rewards_major_pickem_entries set tokens=10; set role service_role');
+  const config=[{itemId:target.shop_item_id,variantId:target.id,weight:10000}];
+  const save=(actor,id,items,active=true)=>db.query('select rewards_major_case_save($1,$2,$3,null,2,$4,$5)',[actor,id,'Custom',active,JSON.stringify(items)]);
+  await assert.rejects(save('alice','custom',config),/admin_required/);
+  await assert.rejects(save('owner','custom',[{...config[0],weight:9999}]),/invalid_weights/);
+  await save('owner','custom',config);await save('owner','bronze',config);
+  const customOpen=async(id,req)=>(await db.query('select rewards_major_case_open($1,$2,$3) as result',['alice',req,id])).rows[0].result;
+  const req='00000000-0000-4000-8000-000000000007';const custom=await customOpen('custom',req);
+  assert.equal(custom.tokens,8);assert.equal(custom.name,'Upgrade target');assert.equal(custom.wear,'FT');assert.equal((await customOpen('custom',req)).winId,custom.winId);
+  await assert.rejects(customOpen('bronze',req),/invalid_request/);
+  assert.equal((await open('alice','00000000-0000-4000-8000-000000000008')).name,'Upgrade target');
+  await db.exec('reset role');await db.query('update rewards_shop_item_variants set available=false where id=$1',[target.id]);await db.exec('set role service_role');
+  await assert.rejects(customOpen('custom','00000000-0000-4000-8000-000000000010'),/case_catalog_incomplete/);
+  assert.equal((await db.query('select tokens from rewards_major_pickem_entries')).rows[0].tokens,6);
+  await db.exec('reset role');await db.query('update rewards_shop_item_variants set available=true where id=$1',[target.id]);await db.exec('set role service_role');
+  await save('owner','custom',config,false);await assert.rejects(customOpen('custom','00000000-0000-4000-8000-000000000009'),/case_unavailable/);
+  await db.exec('reset role;set role anon');await assert.rejects(customOpen('custom',req),/permission denied/);
  }finally{await db.close();}
 });
