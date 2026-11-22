@@ -17,22 +17,24 @@ main{max-width:1020px;margin:auto;padding:22px 14px 52px}a{color:#e9c6ff}h1{font
 @media(prefers-reduced-motion:reduce){.press-art{transition:none}}
 #notice{color:#ffadc4}.muted{color:#d5bad7}table{border-collapse:collapse;width:100%;font-size:14px;text-align:left}td,th{border-bottom:1px solid #604263;padding:7px 4px;overflow-wrap:anywhere}th:last-child,td:last-child{text-align:right}
 .dropso-live-chat{margin:0 0 14px}@media(max-width:700px){.layout{grid-template-columns:1fr}}
+.jackpot-bank{width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:8px 0;text-align:left}.jackpot-bank>div{min-width:0;padding:10px;border:1px solid #835370;border-radius:12px;background:#31192d}.jackpot-bank span,.jackpot-bank small{display:block;color:#e1bad9;font-size:12px}.jackpot-bank strong{display:block;color:#ffe4a5;font-size:clamp(20px,4vw,29px);line-height:1.2;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.jackpot-bonus{grid-column:1/-1}.jackpot-bonus progress{width:100%;height:8px;accent-color:#f55383}.jackpot-bonus[data-active="true"]{border-color:#e19b57}
 </style></head><body><main>
 <a href="/games">← Игры</a><h1>Красная кнопка</h1>
 <div class="layout"><div>
 <section class="panel stage" aria-label="Текущий раунд">
   <p class="muted">Приз текущего раунда</p><img id="image" hidden alt=""><strong id="prize">Загрузка…</strong>
   <p id="countdown" class="clock"></p><p id="holder" class="muted"></p><p id="playerCount" class="muted"></p>
+  <div class="jackpot-bank" id="jackpotBank" hidden><div><span>Приз победителя</span><strong id="winnerPrize">—</strong></div><div><span>В следующий раунд</span><strong id="nextBank">—</strong></div><div><span>Общий банк</span><strong id="totalBank">—</strong></div><div><span>Перенесено из прошлого раунда</span><strong id="carryIn">—</strong></div><div class="jackpot-bonus" id="jackpotBonus"><span id="bonusStatus"></span><progress id="bonusProgress" max="10" value="0" aria-label="Участники до включения бонуса Dropso"></progress><small id="bonusAmount"></small></div></div>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs><clipPath id="redButtonCutout" clipPathUnits="objectBoundingBox"><path d="M .494 .181 C .602 .179 .688 .272 .711 .373 C .768 .420 .805 .520 .805 .633 C .805 .771 .661 .891 .493 .891 C .332 .890 .177 .793 .177 .645 C .177 .528 .218 .423 .277 .379 C .312 .274 .398 .181 .494 .181 Z"/></clipPath></defs></svg>
   <button type="button" id="press" class="press" disabled><span class="press-art"><img src="/games/red-button/button-v1.webp" width="768" height="512" alt=""></span><span id="pressLabel" class="press-label">Загрузка условий…</span></button>
   <p id="notice" role="status"></p>
 </section>
-<section class="panel"><h2>Как играть</h2><p>Вход в раунд стоит <b id="ruleEntry">—</b> монет. Первое нажатие оплачивает вход и передаёт кнопку тебе. После каждого успешного нажатия нужно подождать <b id="ruleCooldown">—</b> минут. <span id="holdRule">Если кнопку ещё никто не перехватил, ты продолжаешь держать её.</span></p><p id="legacyPrize">Призы: скины стоимостью от 50 до <b id="rulePrizeMax">—</b> монет.</p><p id="modernPrize" hidden>Один вход на 48 часов. Приз обновляется по мере вступления участников. Если подходящего скина нет, победитель получает монеты.</p><p>Время всех твоих удержаний за раунд складывается. Побеждает игрок с наибольшей суммой. При равенстве побеждает тот, кто раньше впервые перехватил кнопку. Время победителя появится в истории после раунда.</p></section>
+<section class="panel"><h2>Как играть</h2><p>Вход в раунд стоит <b id="ruleEntry">—</b> монет. Первое нажатие оплачивает вход и передаёт кнопку тебе. После каждого успешного нажатия нужно подождать <b id="ruleCooldown">—</b> минут. <span id="holdRule">Если кнопку ещё никто не перехватил, ты продолжаешь держать её.</span></p><p id="legacyPrize">Призы: скины стоимостью от 50 до <b id="rulePrizeMax">—</b> монет.</p><p id="modernPrize" hidden>Один вход на 48 часов. Приз обновляется по мере вступления участников. Если подходящего скина нет, победитель получает монеты.</p><p id="jackpotRules" hidden>Каждый раунд длится 24 часа. Взносы и накопления формируют банк: 80% — победителю, 20% — в следующий раунд. Начиная с 11-го участника Dropso добавляет по 10 монет в приз и ещё 10 в следующий раунд за каждого нового участника. За первых 10 бонус не начисляется. Если победителя нет, весь банк переносится дальше.</p><p>Время всех твоих удержаний за раунд складывается. Побеждает игрок с наибольшей суммой. При равенстве побеждает тот, кто раньше впервые перехватил кнопку. Время победителя появится в истории после раунда.</p></section>
 </div><div>
 <section class="dropso-live-chat" data-chat-panel="room" data-chat-moderator-write="true" data-chat-participant="false" data-room="" hidden>
   <h2>Чат раунда</h2><ol aria-label="Сообщения"></ol><form><input name="message" maxlength="140" aria-label="Сообщение" required><button type="submit">Отправить</button></form><p role="status"></p>
 </section>
-<section class="panel"><h2>Прошлые игры</h2><table><thead><tr><th>Ник</th><th>Скин</th><th>Время удержания кнопки</th></tr></thead><tbody id="history"></tbody></table><p id="noHistory" class="muted">Пока нет завершённых раундов с победителем.</p></section>
+<section class="panel"><h2>Прошлые игры</h2><table><thead><tr><th>Ник</th><th>Приз</th><th>Время удержания кнопки</th></tr></thead><tbody id="history"></tbody></table><p id="noHistory" class="muted">Пока нет завершённых раундов с победителем.</p></section>
 </div></div>
 </main><script src="/games/red-button.js" defer></script><script src="/live-chat.js" defer></script></body></html>`;
 
@@ -48,7 +50,7 @@ export const redButtonScript = String.raw`(() => {
     round_closed:'Раунд завершился. Обновляем приз.'
   };
   let state, offset = 0, pending, busy = false, loading = false;
-  const terms = () => ({entryCost:state?.rules?.entryCost===15?15:state?.rules?.entryCost===20?20:10,cooldownMinutes:state?.rules?.cooldownMinutes===30?30:state?.rules?.cooldownMinutes===60?60:20,prizeMax:state?.rules?.prizeMax===200?200:300,modern:state?.rules?.roundHours===48});
+  const terms = () => ({entryCost:state?.rules?.entryCost===15?15:state?.rules?.entryCost===20?20:10,cooldownMinutes:state?.rules?.cooldownMinutes===30?30:state?.rules?.cooldownMinutes===60?60:20,prizeMax:state?.rules?.prizeMax===200?200:300,modern:state?.rules?.roundHours===48||state?.rules?.jackpot===true,jackpot:state?.rules?.jackpot===true});
   const secondsUntil = stamp => Math.max(0, Math.ceil((Date.parse(stamp)-Date.now()-offset)/1000)) || 0;
   function duration(seconds) {
     return [Math.floor(seconds/3600),Math.floor(seconds/60)%60,seconds%60]
@@ -66,7 +68,8 @@ export const redButtonScript = String.raw`(() => {
   function render() {
     const round = state.round;
     const rules=terms();el('ruleEntry').textContent=rules.entryCost;el('ruleCooldown').textContent=rules.cooldownMinutes;el('rulePrizeMax').textContent=rules.modern?'':rules.prizeMax;
-    el('legacyPrize').hidden=rules.modern;el('modernPrize').hidden=!rules.modern;
+    el('legacyPrize').hidden=rules.modern;el('modernPrize').hidden=!rules.modern||rules.jackpot;el('jackpotRules').hidden=!rules.jackpot;el('jackpotBank').hidden=!rules.jackpot||!round;
+    if(rules.jackpot&&round){const coins=n=>Number.isSafeInteger(n)?n.toLocaleString('ru-RU'):'—';el('winnerPrize').textContent=coins(round.winnerPrize);el('nextBank').textContent=coins(round.nextBank);el('totalBank').textContent=coins(round.bank);el('carryIn').textContent=coins(round.carryIn);const n=round.playerCount||0,active=n>10;el('jackpotBonus').dataset.active=String(active);el('bonusProgress').value=Math.min(n,10);el('bonusStatus').textContent=active?'Бонус Dropso активен':n===10?'Следующий участник активирует бонус Dropso':'До бонуса Dropso: ещё '+(11-n)+' участников';el('bonusAmount').textContent=active?'+'+coins(round.dropsoBonusEach)+' в приз и +'+coins(round.dropsoBonusEach)+' в следующий раунд':'За каждого участника после 10-го: +10 / +10 монет';}
     el('holdRule').textContent=rules.modern?'Кнопка освобождается не позднее чем через 15 минут или при перехвате другим игроком.':'Если кнопку ещё никто не перехватил, ты продолжаешь держать её.';
     el('prize').textContent = round?.prize || 'Раунд пока недоступен';
     const image = el('image');

@@ -98,7 +98,7 @@ export function installAdminStatistics(app:Express,db:SupabaseClient,admin:Reque
    const button=kind==='red-button';
    const table=button?'rewards_red_button_rounds':'rewards_black_boxes';
    let query=db.from(table).select(button
-    ?'id,day,starts_at,ends_at,closed_at,prize_name,wear,price,winner,win_id,winning_ms'
+    ?'id,day,starts_at,ends_at,closed_at,prize_name,wear,price,winner,win_id,winning_ms,jackpot,carry_in,carry_out'
     :'id,starts_at,ends_at,closed_at,prize_name,prize_coins,high_bid,winner_id',{count:'exact'});
    if(from)query=query.gte('starts_at',from);
    if(to)query=query.lt('starts_at',to);

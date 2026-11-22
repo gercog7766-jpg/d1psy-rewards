@@ -75,14 +75,15 @@ export const adminStatisticsJs=String.raw`(()=>{
    $('detailTitle').textContent=(kind==='black-box'?'Чёрный ящик':'Красная кнопка')+' · '+when(round.starts_at);
    $('detailTime').textContent='Данные на '+when(data.asOf)+' · окончание '+when(round.ends_at);
    const winnerText=closed?(winner?.name||'Нет победителя'):'Раунд ещё не завершён';
-   const prizeText=closed&&winnerId?(kind==='red-button'&&!round.win_id?'Выдача приза не подтверждена':'Выигрыш: '+round.prize_name):'Приз раунда: '+round.prize_name;
+   const coinPrize=kind==='red-button'&&(round.jackpot===true||round.prize_name==='Награда монетами');
+   const prizeText=closed&&winnerId?(kind==='red-button'&&!round.win_id&&!coinPrize?'Выдача приза не подтверждена':'Выигрыш: '+round.prize_name):'Приз раунда: '+round.prize_name;
    if(kind==='black-box'){
     summary(['Победитель: '+winnerText,prizeText,'Последняя ставка: '+(round.high_bid==null?'—':money(round.high_bid))]);
     table('players',['Игрок','Число ставок','Максимальная ставка','Итоговое списание','В резерве','Результат'],data.players.map(p=>[player(p),p.bids,money(p.highest),money(p.spent),money(p.reserved),p.won?round.prize_name:closed?'Без выигрыша':p.reserved?'Лидирует':'Ставка перебита']));
     $('historyTitle').textContent='История ставок';$('historyNote').textContent='Перебитые ставки возвращаются. Порядок показан по записи ставок в базе; время каждой ставки раньше не сохранялось.';
    }else{
-    summary(['Победитель: '+winnerText,prizeText,'Стоимость приза: '+money(round.price),closed&&round.winning_ms!=null?'Победное удержание: '+duration(round.winning_ms):'Текущие результаты']);
-    table('players',['Игрок','Нажатия','Суммарное удержание','Лучшее удержание','Результат'],data.players.map(p=>[player(p),p.presses,duration(p.totalMs),duration(p.bestMs),closed&&p.userId===round.winner?(round.win_id?round.prize_name:'Выдача не подтверждена'):closed?'Без выигрыша':'Раунд идёт']));
+    summary(['Победитель: '+winnerText,prizeText,'Стоимость приза: '+money(round.price),...(round.jackpot?['Из прошлого раунда: '+money(round.carry_in),'В следующий раунд: '+money(round.carry_out)]:[]),closed&&round.winning_ms!=null?'Победное удержание: '+duration(round.winning_ms):'Текущие результаты']);
+    table('players',['Игрок','Нажатия','Суммарное удержание','Лучшее удержание','Результат'],data.players.map(p=>[player(p),p.presses,duration(p.totalMs),duration(p.bestMs),closed&&p.userId===round.winner?(round.win_id||coinPrize?round.prize_name:'Выдача не подтверждена'):closed?'Без выигрыша':'Раунд идёт']));
     $('historyTitle').textContent='Хронология удержаний';$('historyNote').textContent='Время текущего удержания посчитано на момент загрузки, в пределах окончания раунда. Победитель завершённого раунда взят из результата игры.';
    }
    history=data.history;shown=100;renderHistory();$('detail').hidden=false;$('notice').textContent='';$('detail').scrollIntoView({block:'start',behavior:'smooth'});
