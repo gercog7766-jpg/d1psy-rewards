@@ -49,6 +49,11 @@ test('active stream without chat-list authorization is not described as offline 
  try{const d=w.document;w.fetch=async()=>({ok:true,json:async()=>({boss:{name:'DROPSY',image:'/live-boss/756.webp',hp:5000,max_hp:5000,status:'active'},damage:0,cooldown:0,present:false,live:true,chatStatus:'authorization_required',streamLogin:'owner',code:'code'})});w.eval(liveBossScript);await new Promise(r=>setTimeout(r,20));assert.match(d.getElementById('cooldownStatus').textContent,/Эфир активен/);assert(d.getElementById('attack').disabled);
  }finally{w.close()}
 });
+test('multishot can attack again immediately and critical damage is highlighted',async()=>{
+ const dom=new JSDOM(liveBossPage('player'),{runScripts:'outside-only',url:'https://dropso.site/bosses'}),w=dom.window,d=w.document;
+ try{let attack=0,hit=null,cooldown=0,hp=5000;w.setInterval=()=>1;w.fetch=async(path,opts)=>({ok:true,json:async()=>{if(opts?.method==='POST'){attack++;const kind=attack===1?'multishot':'critical',damage=attack===1?40:100;cooldown=attack===1?0:1800;hp-=damage;hit={id:String(attack),kind,damage,name:'Alpha'};return {kind,damage,hp,cooldown}}return {boss:{id:'raid',name:'DROPSY',image:'/live-boss/756.webp',hp,max_hp:5000,status:'active'},hit,damage:5000-hp,cooldown,present:true,live:true,code:'code'}}});w.eval(liveBossScript);await new Promise(r=>setTimeout(r,10));const b=d.getElementById('attack');assert.equal(b.textContent,'Атаковать');assert(!b.disabled);await b.onclick();assert(!b.disabled);assert.match(d.getElementById('attackResult').textContent,/Мультишот/);assert.equal(d.getElementById('impact').dataset.kind,'multishot');await b.onclick();assert(b.disabled);assert.match(d.getElementById('attackResult').textContent,/Критический удар/);assert.equal(d.getElementById('impact').dataset.kind,'critical');
+ }finally{w.close()}
+});
 test('manual donation form has only provider, Twitch login and amount; resolves ambiguous existing hits without sending a new donation',async()=>{
  const dom=new JSDOM(bossDonationPage(),{runScripts:'outside-only',url:'https://dropso.test/admin/bosses/donation'}),w=dom.window,d=w.document;
  try{const f=d.getElementById('f'),calls=[];const hit={id:'existing-hit',donor:'Another nick',at:'2026-11-21T10:00:00Z',kind:'dropsy',damage:200,linked:false};
