@@ -32,6 +32,7 @@ li{padding:8px 0;border-bottom:1px solid #453251}ol{padding-left:23px;max-height
 .chat-meta{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:#c6afda}.chat-meta output{white-space:nowrap;font-variant-numeric:tabular-nums}
 #chatCounter[data-over="true"]{color:#ffadbd}.chat-log:focus-visible{outline:2px solid #c47fff;outline-offset:2px}
 [hidden]{display:none!important}.admin{max-width:560px;margin:auto}
+.admin{max-width:760px}.duration-fields,.schedule-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:end}.schedule-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;margin:8px 0}.schedule-row button{width:auto;padding:10px 12px}.schedule-row input{margin:0}.schedule-controls{padding:13px;border:1px solid #644183;border-radius:12px}.schedule-controls p{font-size:13px;color:#d7bce8;margin:3px 0 8px}.auction-quorum{border:1px solid #694784;border-radius:10px;padding:10px;margin:14px 0 0;background:#221433}.auction-quorum[data-ready="true"]{border-color:#569b78;color:#c8f6dc}.auction-quorum progress{display:block;width:100%;height:7px;accent-color:#b36bff;margin-top:7px}.auction-steps{margin-top:12px;text-align:left;color:#ddc4ef;font-size:13px}.auction-steps summary{cursor:pointer}.auction-steps ul{padding-left:20px;margin:8px 0}.auction-steps li{padding:4px 0}.auction-step-now{font-weight:700;color:#ffdb94}
 @media(min-width:761px){.grid>.stage,.grid>.auction-side{align-self:stretch}.auction-side{grid-template-rows:auto 1fr}.chat-panel{display:flex;flex-direction:column}.chat-log{flex-grow:1}}
 @media(max-width:760px){.grid{grid-template-columns:minmax(0,1fr)}.stage{order:-2}.auction-side{order:-1}}
 @media(prefers-reduced-motion:reduce){.case.open .case-lid,.case.open .case-glow{animation-duration:1ms}}
@@ -41,13 +42,13 @@ export function blackBoxPage(admin: boolean) {
   return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Чёрный ящик · Dropso</title><style>${styles}</style></head>
   <body data-admin="${admin}"><main><a href="${admin ? '/admin' : '/account'}">← ${admin ? 'Админка' : 'На главную'}</a>
   <h1>Чёрный ящик</h1>${admin ? `
-  <section class="panel admin"><h2>Запустить торги на 90 минут</h2>
+  <section class="panel admin"><h2>Запустить аукцион</h2><p>Торги состоятся при участии минимум 5 разных игроков. При меньшем количестве все ставки возвращаются.</p>
   <form id="create"><label>Стартовая цена<input id="start" type="number" min="1" required></label>
-  <label>Минимальный шаг<input id="step" type="number" min="1" required></label>
+  <div class="duration-fields"><label>Длительность, часов<input id="durationHours" type="number" min="0" max="168" value="24" required></label><label>Дополнительно, минут<input id="durationMinutes" type="number" min="0" max="59" value="0" required></label></div>
+  <div class="schedule-controls"><h2>Шаг ставки по периодам</h2><p>Укажи, до скольких минут до конца действует шаг. Границы идут от большей к меньшей, последняя — 0. Шаг может только расти.</p><div id="scheduleRows"></div><button id="addStage" type="button">Добавить период</button></div>
   <label>Тип приза<select id="kind"><option value="skin">Скин из каталога призов</option><option value="coins">Монеты</option></select></label>
   <label id="skinField">Скин<input id="prizeSearch" type="search" placeholder="Поиск по названию"><select id="prize"></select></label>
   <label id="coinsField" hidden>Монет в ящике<input id="coins" type="number" min="1"></label>
-  <label>Подсказка (необязательно)<textarea id="hint" maxlength="400"></textarea></label>
   <button>Запустить торги</button></form><p id="notice" role="status"></p></section>` : `
   <div class="grid"><aside class="panel"><h2>Предыдущий победитель</h2><div id="previous"></div></aside>
   <section class="panel stage"><div id="price">Загрузка…</div><div id="timer" class="auction-clock" role="timer" aria-label="До окончания торгов" hidden>
@@ -55,6 +56,7 @@ export function blackBoxPage(admin: boolean) {
     <span class="clock-unit"><b id="clockMinutes">00</b><small>минуты</small></span><span class="clock-separator" aria-hidden="true">:</span>
     <span class="clock-unit"><b id="clockSeconds">00</b><small>секунды</small></span>
   </div><p id="timerStatus" role="status" hidden>Подводим итоги…</p><p id="hint" hidden></p>
+  <div id="auctionQuorum" class="auction-quorum" hidden><strong id="quorumText"></strong><progress id="quorumProgress" max="5" value="0" aria-label="Участники аукциона"></progress></div><details id="auctionSteps" class="auction-steps" hidden><summary id="currentStep" class="auction-step-now"></summary><ul id="stepList"></ul><p>Последние две минуты: новая ставка продлевает торги до двух минут, но не более 15 минут сверх основного срока.</p></details>
   <div class="case" id="case" aria-hidden="true"><div class="case-body"></div><div class="case-glow"></div><div class="case-lid"></div></div>
   <p id="reveal" role="status"></p><form id="bid" hidden><label>Твоя ставка в монетах<input id="amount" type="number" required></label>
   <button id="submit">Сделать ставку</button></form><p id="notice" role="status"></p></section>
@@ -98,6 +100,10 @@ export const blackBoxScript = String.raw`
   }
   if (document.body.dataset.admin === 'true') {
     const kind = el('kind');
+    const rows = el('scheduleRows');
+    function addStage(minutes,step,before=null){const row=document.createElement('div');row.className='schedule-row';const limit=document.createElement('label'),cost=document.createElement('label'),a=document.createElement('input'),b=document.createElement('input'),remove=document.createElement('button');limit.textContent='До конца, мин.';cost.textContent='Шаг, монет';for(const input of [a,b]){input.type='number';input.required=true;input.step='1'}a.min='0';a.max='10079';a.value=String(minutes);a.className='stage-limit';b.min='1';b.max='1000000000';b.value=String(step);b.className='stage-step';limit.append(a);cost.append(b);remove.type='button';remove.textContent='×';remove.setAttribute('aria-label','Удалить период');remove.onclick=()=>{if(rows.children.length>1)row.remove()};row.append(limit,cost,remove);rows.insertBefore(row,before);}
+    for(const [minutes,step] of [[720,5],[360,10],[60,20],[5,30],[0,50]])addStage(minutes,step);
+    el('addStage').onclick=()=>{if(rows.children.length>=10)return;const last=rows.lastElementChild,limit=Number(last?.querySelector('.stage-limit').value)||0,step=Number(last?.querySelector('.stage-step').value)||1;addStage(limit+1,step,last)};
     let searchTimer, searchVersion = 0;
     async function loadPrizes() {
       const version = ++searchVersion;
@@ -123,8 +129,10 @@ export const blackBoxScript = String.raw`
       const button = event.submitter;
       button.disabled = true;
       try {
+        const durationMinutes=Number(el('durationHours').value)*60+Number(el('durationMinutes').value),schedule=[...rows.children].map(row=>({untilMinutes:Number(row.querySelector('.stage-limit').value),step:Number(row.querySelector('.stage-step').value)}));
+        let previous=durationMinutes,step=0;if(!Number.isInteger(durationMinutes)||durationMinutes<5||durationMinutes>10080||schedule.some(row=>{const invalid=!Number.isInteger(row.untilMinutes)||row.untilMinutes<0||row.untilMinutes>=previous||!Number.isInteger(row.step)||row.step<1||row.step<step;previous=row.untilMinutes;step=row.step;return invalid})||previous!==0){el('notice').textContent='Проверь длительность и периоды: границы должны убывать до нуля, а шаг — не уменьшаться.';return;}
         await request('/api/admin/black-box', {
-          start: Number(el('start').value), step: Number(el('step').value), hint: el('hint').value,
+          start: Number(el('start').value), durationMinutes, schedule,
           prizeId: kind.value === 'skin' ? el('prize').value : null,
           prizeCoins: kind.value === 'coins' ? Number(el('coins').value) : null
         });
@@ -335,6 +343,9 @@ export const blackBoxScript = String.raw`
       }
       el('participants').replaceChildren(list);
       el('empty').hidden = state.participants.length > 0;
+      const minimumPlayers=current?.minimumParticipants||0,hasSchedule=Array.isArray(current?.schedule)&&current.schedule.length>0;el('auctionQuorum').hidden=!minimumPlayers;el('auctionSteps').hidden=!hasSchedule;
+      if(minimumPlayers){const count=state.participants.length,ready=count>=minimumPlayers;el('quorumText').textContent='Участники: '+count+'/'+minimumPlayers+' · '+(ready?'Аукцион состоится':'Нужно ещё '+(minimumPlayers-count)+' участников');el('quorumProgress').max=minimumPlayers;el('quorumProgress').value=Math.min(count,minimumPlayers);el('auctionQuorum').dataset.ready=String(ready)}
+      if(hasSchedule){el('currentStep').textContent='Текущий минимальный шаг: '+current.step+' монет';const rows=current.schedule.map((row,i)=>{const li=document.createElement('li'),prev=i?current.schedule[i-1].untilMinutes:null;li.textContent=(prev===null?'С начала':('От '+prev+' мин.'))+' до '+row.untilMinutes+' мин. до конца · '+row.step+' мон.';return li});el('stepList').replaceChildren(...rows)}
       if (current) {
         const amount = el('amount');
         const next = minimum(current);
@@ -348,8 +359,9 @@ export const blackBoxScript = String.raw`
         el('price').textContent = 'Сейчас нет открытых торгов';
         el('timer').hidden = true;
         el('timerStatus').hidden = true;
+        if(state.closed?.cancelled){el('case').classList.remove('open');el('reveal').textContent='Аукцион не состоялся: '+state.closed.participantCount+'/'+state.closed.minimumParticipants+' участников. Все ставки возвращены.';}
       }
-      if (old && old.id !== current?.id && old.id === state.closed?.id) {
+      if (old && old.id !== current?.id && old.id === state.closed?.id && !state.closed.cancelled) {
         revealing = true;
         el('bid').hidden = true;
         el('case').classList.add('open');

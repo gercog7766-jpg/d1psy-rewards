@@ -7,6 +7,12 @@ const uuid = (value: unknown): value is string =>
   typeof value === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value);
 const coins = (value: unknown) =>
   typeof value === 'number' && Number.isInteger(value) && value > 0 && value <= 1_000_000_000;
+export function validAuctionSchedule(duration:unknown,schedule:unknown):boolean{
+  if(typeof duration!=='number'||!Number.isInteger(duration)||duration<5||duration>10080||!Array.isArray(schedule)||schedule.length<1||schedule.length>10)return false;
+  let previous=duration,step=0;
+  for(const row of schedule){if(!row||typeof row!=='object'||Array.isArray(row)||Object.keys(row).length!==2||!Number.isInteger(row.untilMinutes)||row.untilMinutes<0||row.untilMinutes>=previous||!coins(row.step)||row.step<step)return false;previous=row.untilMinutes;step=row.step}
+  return previous===0;
+}
 
 export function installBlackBox(app: Express, db: SupabaseClient, user: RequestHandler, admin: RequestHandler, origin: string) {
   const noStore: RequestHandler = (_req, res, next) => {
@@ -20,7 +26,7 @@ export function installBlackBox(app: Express, db: SupabaseClient, user: RequestH
     }
     next();
   };
-  const known = new Set(['auction_open', 'unknown_prize', 'auction_closed', 'bid_too_low', 'insufficient_coins', 'participation_restricted', 'invalid_message', 'chat_rate_limit']);
+  const known = new Set(['auction_open', 'unknown_prize', 'auction_closed', 'bid_too_low', 'insufficient_coins', 'participation_restricted', 'invalid_message', 'chat_rate_limit','invalid_request']);
   function failure(error: { message: string; code: string }) {
     if (known.has(error.message)) return error.message;
     if (error.code === '23505' && error.message.includes('rewards_black_boxes_one_open')) return 'auction_open';
@@ -82,13 +88,13 @@ export function installBlackBox(app: Express, db: SupabaseClient, user: RequestH
     return res.json(data);
   });
   app.post('/api/admin/black-box', noStore, admin, sameOrigin, async (req, res) => {
-    const { start, step, hint, prizeId, prizeCoins } = req.body ?? {};
-    if (!coins(start) || !coins(step) || typeof hint !== 'string' || hint.length > 400 ||
+    const { start, durationMinutes, schedule, prizeId, prizeCoins } = req.body ?? {};
+    if (!coins(start) || !validAuctionSchedule(durationMinutes,schedule) ||
         !(uuid(prizeId) && prizeCoins == null || prizeId == null && coins(prizeCoins))) {
       return res.status(400).json({ error: 'invalid_request' });
     }
-    const { error } = await db.rpc('rewards_black_box_create', {
-      p_start: start, p_step: step, p_hint: hint, p_prize: prizeId, p_coins: prizeCoins
+    const { error } = await db.rpc('rewards_black_box_create_v2', {
+      p_start: start, p_duration_minutes: durationMinutes, p_schedule: schedule, p_prize: prizeId, p_coins: prizeCoins
     });
     if (error) return res.status(409).json({ error: failure(error) });
     return res.json({ ok: true });
