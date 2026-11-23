@@ -23,7 +23,7 @@ main{max-width:1020px;margin:auto;padding:22px 14px 52px}a{color:#e9c6ff}h1{font
 <div class="layout"><div>
 <section class="panel stage" aria-label="Текущий раунд">
   <p class="muted">Приз текущего раунда</p><img id="image" hidden alt=""><strong id="prize">Загрузка…</strong><p id="prizeValue" hidden class="clock"></p>
-  <p id="countdown" class="clock"></p><p id="holder" class="muted"></p><p id="playerCount" class="muted"></p>
+  <p id="countdown" class="clock"></p><p id="holder" class="muted"></p><p id="playerCount" class="muted"></p><p id="pressRemaining" class="clock" hidden></p>
   <div class="jackpot-bank" id="jackpotBank" hidden><div><span>Приз победителя</span><strong id="winnerPrize">—</strong></div><div><span>В следующий раунд</span><strong id="nextBank">—</strong></div><div><span>Общий банк</span><strong id="totalBank">—</strong></div><div><span>Перенесено из прошлого раунда</span><strong id="carryIn">—</strong></div><div class="jackpot-bonus" id="jackpotBonus"><span id="bonusStatus"></span><progress id="bonusProgress" max="10" value="0" aria-label="Участники до включения бонуса Dropso"></progress><small id="bonusAmount"></small></div></div>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs><clipPath id="redButtonCutout" clipPathUnits="objectBoundingBox"><path d="M .494 .181 C .602 .179 .688 .272 .711 .373 C .768 .420 .805 .520 .805 .633 C .805 .771 .661 .891 .493 .891 C .332 .890 .177 .793 .177 .645 C .177 .528 .218 .423 .277 .379 C .312 .274 .398 .181 .494 .181 Z"/></clipPath></defs></svg>
   <button type="button" id="press" class="press" disabled><span class="press-art"><img src="/games/red-button/button-v1.webp" width="768" height="512" alt=""></span><span id="pressLabel" class="press-label">Загрузка условий…</span></button>
@@ -46,6 +46,7 @@ export const redButtonScript = String.raw`(() => {
     user_unavailable:'Для твоего аккаунта участие недоступно.',
     insufficient_coins:'Недостаточно монет для входа.',
     cooldown:'До следующего нажатия ещё нужно подождать.',
+    press_limit:'Все 6 нажатий за раунд использованы.',
     already_holding:'Кнопка уже у тебя.',
     round_closed:'Раунд завершился. Обновляем приз.'
   };
@@ -61,8 +62,12 @@ export const redButtonScript = String.raw`(() => {
     const left = secondsUntil(round?.endsAt);
     const wait = secondsUntil(round?.readyAt);
     el('countdown').textContent = round ? 'До конца раунда: ' + duration(left) : '';
-    button.disabled = !state?.canPlay || !round || !left || busy || round.holding || wait > 0;
-    el('pressLabel').textContent = !round?.joined ? 'Войти за '+terms().entryCost+' монет и нажать' : wait ? 'Нажатие через ' + duration(wait) : round.holding
+    const limit=state?.rules?.pressLimit, remaining=round?.pressesRemaining;
+    const limited=Number.isInteger(limit)&&Number.isInteger(remaining);
+    el('pressRemaining').hidden=!limited;
+    el('pressRemaining').textContent=limited?'Осталось нажатий: '+remaining+'/'+limit:'';
+    button.disabled = !state?.canPlay || !round || !left || busy || round.holding || wait > 0 || (limited&&remaining===0);
+    el('pressLabel').textContent = limited&&remaining===0 ? 'Лимит нажатий исчерпан' : !round?.joined ? 'Войти за '+terms().entryCost+' монет и нажать' : wait ? 'Нажатие через ' + duration(wait) : round.holding
       ? 'Кнопка у тебя' : round.holder ? 'Перехватить кнопку' : 'Занять кнопку';
   }
   function render() {
@@ -70,7 +75,7 @@ export const redButtonScript = String.raw`(() => {
     const rules=terms();el('ruleEntry').textContent=rules.entryCost;el('ruleCooldown').textContent=rules.cooldownMinutes;el('rulePrizeMax').textContent=rules.modern?'':rules.prizeMax;
     el('legacyPrize').hidden=rules.modern;el('modernPrize').hidden=!rules.modern||rules.jackpot;el('jackpotRules').hidden=!rules.jackpot;el('jackpotBank').hidden=!rules.jackpot||!round;
     if(rules.jackpot&&round){const coins=n=>Number.isSafeInteger(n)?n.toLocaleString('ru-RU'):'—';el('winnerPrize').textContent=coins(round.winnerPrize);el('nextBank').textContent=coins(round.nextBank);el('totalBank').textContent=coins(round.bank);el('carryIn').textContent=coins(round.carryIn);const n=round.playerCount||0,active=n>10;el('jackpotBonus').dataset.active=String(active);el('bonusProgress').value=Math.min(n,10);el('bonusStatus').textContent=active?'Бонус Dropso активен':n===10?'Следующий участник активирует бонус Dropso':'До бонуса Dropso: ещё '+(11-n)+' участников';el('bonusAmount').textContent=active?'+'+coins(round.dropsoBonusEach)+' в приз и +'+coins(round.dropsoBonusEach)+' в следующий раунд':'За каждого участника после 10-го: +10 / +10 монет';}
-    el('holdRule').textContent=rules.modern?'Кнопка освобождается не позднее чем через 15 минут или при перехвате другим игроком.':'Если кнопку ещё никто не перехватил, ты продолжаешь держать её.';
+    el('holdRule').textContent=(rules.modern?'Кнопка освобождается не позднее чем через 15 минут или при перехвате другим игроком.':'Если кнопку ещё никто не перехватил, ты продолжаешь держать её.')+(state.rules?.pressLimit?' Не более '+state.rules.pressLimit+' успешных нажатий за раунд, включая первое. Неиспользованные нажатия не переносятся.':'');
     el('prize').textContent = round?.prize ? round.prize+(round.wear?' · '+round.wear:'') : 'Раунд пока недоступен';
     el('prizeValue').hidden=!(rules.jackpot&&round?.image&&Number.isSafeInteger(round.price));
     el('prizeValue').textContent=el('prizeValue').hidden?'':round.price.toLocaleString('ru-RU')+' монет';
@@ -120,7 +125,7 @@ export const redButtonScript = String.raw`(() => {
     } finally { loading = false; }
   }
   button.addEventListener('click', async () => {
-    if (busy || loading || !state?.round) return;
+    if (busy || loading || button.disabled || !state?.round) return;
     busy = true;
     clock();
     try {

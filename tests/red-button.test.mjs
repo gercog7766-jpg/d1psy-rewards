@@ -142,7 +142,19 @@ test('red button charges once per day, hides holds and settles the sum of holds 
     const skinMigration=await readFile(new URL('../supabase/migrations/20261122210000_red_button_skin_jackpot.sql',import.meta.url),'utf8');await db.exec(skinMigration.replaceAll('2026-11-21',anchor).replaceAll('2026-11-23',today));await db.exec('set role service_role');
     const selected=await call('j1');assert.equal(selected.round.prize,'Skin 70');assert.equal(selected.round.price,70);assert.equal(selected.round.nextBank,20);assert.equal(selected.round.bank,90);
     const grown=await call('j2',afterEmpty.round.id,randomUUID());assert.equal(grown.round.prize,'Skin 79');assert.equal(grown.round.winnerPrize,79);assert.equal(grown.round.nextBank,21);assert.equal(grown.round.bank,100);
-    await db.query("update rewards_red_button_rounds set day=$2::date-28,ends_at=clock_timestamp() where id=$1",[afterEmpty.round.id,today]);await call('j1');await call('j1');
+    await db.exec('reset role');
+    const limitMigration=await readFile(new URL('../supabase/migrations/20261123120000_red_button_press_limit.sql',import.meta.url),'utf8');await db.exec(limitMigration.replaceAll('2026-11-21',anchor));await db.exec('set role service_role');
+    const limited=await call('j1');assert.equal(limited.rules.pressLimit,6);assert.equal(limited.round.pressesRemaining,5);assert.equal((await call('j3')).round.pressesRemaining,6);
+    let lastRequest;
+    for(let n=2;n<=6;n++){
+      await db.query("update rewards_red_button_members set last_press=now()-interval '31 minutes' where round_id=$1",[afterEmpty.round.id]);
+      lastRequest=randomUUID();const pressed=await call('j1',afterEmpty.round.id,lastRequest);assert.equal(pressed.round.pressesRemaining,6-n);
+      if(n<6) await call('j2',afterEmpty.round.id,randomUUID());
+    }
+    assert.equal((await call('j1',afterEmpty.round.id,lastRequest)).round.pressesRemaining,0);
+    await assert.rejects(call('j1',afterEmpty.round.id,randomUUID()),/press_limit/);
+    assert.equal((await call('j1')).round.pressesUsed,6);
+    await db.query("update rewards_red_button_rounds set day=$2::date-28,ends_at=clock_timestamp() where id=$1",[afterEmpty.round.id,today]);assert.equal((await call('j1')).round.pressesRemaining,6);await call('j1');
     const awarded=(await db.query('select p.name,p.sell_price_coins,w.item_wear from rewards_red_button_rounds r join rewards_wins w on w.id=r.win_id join rewards_prizes p on p.id=w.prize_id where r.id=$1',[afterEmpty.round.id])).rows[0];assert.deepEqual(awarded,{name:'Skin 79',sell_price_coins:79,item_wear:'FT'});
     assert.equal((await db.query('select count(*)::int n from rewards_coin_transactions where note=$1',['Красная кнопка · приз · '+afterEmpty.round.id])).rows[0].n,0);
     await db.exec('reset role;set role authenticated');
@@ -161,4 +173,8 @@ test('red button shows the current server rules and confirms only the real entry
 test('daily jackpot shows exact bank, carryover and Dropso bonus from the eleventh entrant',async()=>{
  const dom=new JSDOM(redButtonPage,{url:'https://dropso.test/games/red-button',runScripts:'outside-only'}),w=dom.window;
  try{w.fetch=async()=>Response.json({now:new Date().toISOString(),canPlay:true,rules:{entryCost:10,cooldownMinutes:30,roundHours:24,holdMinutes:15,jackpot:true},round:{id:randomUUID(),endsAt:new Date(Date.now()+3600000).toISOString(),joined:false,holding:false,playerCount:11,prize:'98 монет',bank:130,winnerPrize:98,nextBank:32,carryIn:0,dropsoBonusEach:10},history:[]});w.eval(redButtonScript);await new Promise(r=>setTimeout(r,30));const d=w.document;assert.equal(d.getElementById('jackpotBank').hidden,false);assert.equal(d.getElementById('winnerPrize').textContent,'98');assert.equal(d.getElementById('nextBank').textContent,'32');assert.equal(d.getElementById('jackpotBonus').dataset.active,'true');assert.match(d.getElementById('bonusAmount').textContent,/\+10 в приз и \+10/);assert.equal(d.getElementById('ruleEntry').textContent,'10');assert.equal(d.getElementById('modernPrize').hidden,true);assert.equal(d.getElementById('jackpotRules').hidden,false)}finally{w.close()}
+});
+test('daily press limit is shown and exhausted players cannot submit',async()=>{
+ const dom=new JSDOM(redButtonPage,{url:'https://dropso.test/games/red-button',runScripts:'outside-only'}),w=dom.window;let posts=0;
+ try{w.fetch=async(_url,opts)=>{if(opts?.method==='POST')posts++;return Response.json({now:new Date().toISOString(),canPlay:true,rules:{entryCost:10,cooldownMinutes:30,roundHours:24,holdMinutes:15,jackpot:true,pressLimit:6},round:{id:randomUUID(),endsAt:new Date(Date.now()+3600000).toISOString(),joined:true,holding:false,pressesRemaining:0},history:[]})};w.eval(redButtonScript);await new Promise(r=>setTimeout(r,40));const d=w.document;assert.equal(d.getElementById('pressRemaining').textContent,'Осталось нажатий: 0/6');assert.equal(d.getElementById('press').disabled,true);assert.equal(d.getElementById('pressLabel').textContent,'Лимит нажатий исчерпан');d.getElementById('press').click();assert.equal(posts,0)}finally{w.close()}
 });

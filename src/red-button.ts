@@ -4,7 +4,7 @@ import type { Express, RequestHandler } from 'express';
 import { redButtonPage, redButtonScript } from './red-button-ui.js';
 
 const uuid = (v:unknown) => typeof v === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(v);
-const failures = new Set(['user_unavailable','round_closed','cooldown','already_holding','insufficient_coins','invalid_request']);
+const failures = new Set(['user_unavailable','round_closed','cooldown','already_holding','insufficient_coins','invalid_request','press_limit']);
 
 export function installRedButton(app:Express,db:SupabaseClient,user:RequestHandler,origin:string) {
   const noStore:RequestHandler = (_req,res,next) => { res.set('Cache-Control','private, no-store'); next(); };
