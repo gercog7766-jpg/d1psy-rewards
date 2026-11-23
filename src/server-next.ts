@@ -3,6 +3,7 @@ import {installAdvent} from './advent.js';
 import {installClans} from './clans.js';
 import {installClanChatAuthorization,startClanPresencePoller} from './clan-chat-presence.js';
 import {installLiveBoost} from './live-boost.js';
+import {installLiveEconomy} from './live-economy.js';
 import {installLiveBoss} from './live-boss.js';
 import {installBossTwitchWebhook,installBossTwitchConnect,installBossDonationAlertsOAuth} from './live-boss-events.js';
 import {startBossIhaq} from './live-boss-ihaq.js';
@@ -68,6 +69,7 @@ function requireUser(req:express.Request,res:express.Response,next:express.NextF
  next();
 }
 async function requireAdmin(req:express.Request,res:express.Response,next:express.NextFunction){const s=readSession(req);if(!s)return res.status(401).json({error:'authentication_required'});const {data,error}=await db.from('rewards_admins').select('twitch_user_id').eq('twitch_user_id',s.twitchUserId).maybeSingle();if(error)return res.status(500).json({error:'admin_lookup_failed'});if(!data)return res.status(403).json({error:'admin_required'});res.locals.session=s;next()}
+installLiveEconomy(app,db,requireUser,requireAdmin);
 installBonuses(app,db,requireUser,new URL(APP_URL).origin);
 installAdvent(app,db,requireUser,new URL(APP_URL).origin);
 installAdventAdmin(app,db,requireAdmin);
