@@ -1,5 +1,5 @@
 import {randomInt} from 'node:crypto';
-export const DEFUSE_LEVELS={rookie:{name:'Новичок',reward:10,seconds:45,digits:4,symbols:3,signals:3},swat:{name:'Спецназ',reward:20,seconds:35,digits:5,symbols:4,signals:4},expert:{name:'Эксперт',reward:30,seconds:25,digits:6,symbols:5,signals:5}} as const;
+export const DEFUSE_LEVELS={rookie:{name:'Новичок',reward:3,seconds:45,digits:4,symbols:3,signals:3},swat:{name:'Спецназ',reward:5,seconds:35,digits:5,symbols:4,signals:4},expert:{name:'Эксперт',reward:10,seconds:25,digits:6,symbols:5,signals:5}} as const;
 export type DefuseDifficulty=keyof typeof DEFUSE_LEVELS;
 export function createDefusePuzzles(level:DefuseDifficulty){
  const config=DEFUSE_LEVELS[level];
@@ -17,5 +17,5 @@ export function publicDefuse(raw:any){
  const playing=g.status==='playing'&&Date.parse(g.deadline)>now;
  const task=playing?g.puzzles[g.stage]:null,previewing=playing&&now<Date.parse(g.ready_at);
  const challenge=task?{kind:task.kind,length:task.length||task.items?.length,items:task.kind==='symbols'?task.items:undefined,preview:previewing&&task.kind==='code'?task.preview:undefined,sequence:previewing&&task.kind==='sequence'?task.sequence:undefined}:null;
- return {serverNow:raw.serverNow,canStart:!playing&&now>=Date.parse(g.next_available_at),nextAvailableAt:g.next_available_at,game:{id:g.id,difficulty:g.difficulty,status:playing?'playing':g.status==='playing'?'lost':g.status,stage:g.stage,mistakes:g.mistakes,startedAt:g.started_at,deadline:g.deadline,stageStartedAt:g.stage_started_at,readyAt:g.ready_at,challenge,rewardCoins:g.status==='won'&&g.reward_transaction_id?DEFUSE_LEVELS[g.difficulty as DefuseDifficulty].reward:0}};
+ return {serverNow:raw.serverNow,canStart:!playing&&now>=Date.parse(g.next_available_at),nextAvailableAt:g.next_available_at,game:{id:g.id,difficulty:g.difficulty,status:playing?'playing':g.status==='playing'?'lost':g.status,stage:g.stage,mistakes:g.mistakes,startedAt:g.started_at,deadline:g.deadline,stageStartedAt:g.stage_started_at,readyAt:g.ready_at,challenge,rewardCoins:g.status==='won'&&g.reward_transaction_id?Number(g.reward_coins??({rookie:10,swat:20,expert:30}[g.difficulty as DefuseDifficulty])):0}};
 }
