@@ -26,7 +26,7 @@ test('inventory contracts: real API, 3–10 selection, confirmation, busy lock, 
 });
 test('full app contracts: auth, navigation, validation and CSRF',{timeout:15000},async()=>{
  const reserve=http.createServer();await new Promise(r=>reserve.listen(0,'127.0.0.1',r));const port=reserve.address().port;await new Promise(r=>reserve.close(r));
- const server=spawn(process.execPath,['--import','tsx','src/server-entry.ts'],{cwd:new URL('..',import.meta.url),env:{...process.env,PORT:String(port),SESSION_SECRET:'contracts-test',SUPABASE_URL:'http://127.0.0.1:1',SUPABASE_SECRET_KEY:'test-key',TWITCH_CLIENT_ID:'',TWITCH_EVENTSUB_SECRET:''},stdio:'ignore'});
+ const server=spawn(process.execPath,['--import','tsx','tests/fixtures/unpaused-server.mjs'],{cwd:new URL('..',import.meta.url),env:{...process.env,PORT:String(port),SESSION_SECRET:'contracts-test',SUPABASE_URL:'http://127.0.0.1:1',SUPABASE_SECRET_KEY:'test-key',TWITCH_CLIENT_ID:'',TWITCH_EVENTSUB_SECRET:''},stdio:'ignore'});
  const base='http://127.0.0.1:'+port,payload=Buffer.from(JSON.stringify({twitchUserId:'viewer',exp:Date.now()+120000})).toString('base64url'),cookie='rewards_session='+payload+'.'+createHmac('sha256','contracts-test').update(payload).digest('base64url');
  try{
  for(let i=0;i<100;i++){try{await fetch(base+'/contracts.js');break}catch{await new Promise(r=>setTimeout(r,40))}}
