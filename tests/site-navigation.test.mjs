@@ -22,6 +22,12 @@ test('dashboard groups real event links and live banners without replacing inter
 
 const page='<!doctype html><html><head><style>main{max-width:900px}</style></head><body><main><nav><a class="brand" href="/account">Dropso</a><a href="/account">← На главную</a></nav><button id="play">Играть</button></main><footer>Old footer</footer></body></html>';
 
+test('account dashboard does not create a duplicate horizontal navigation',async()=>{
+ const source=page.replace('<main>','<main><div id="bossAccountHero"></div>');
+ const dom=new JSDOM(withDropsoDashboard(withSiteNavigation(source,'/account'),'/account'),{url:'https://dropso.test/account',runScripts:'outside-only',pretendToBeVisual:true});
+ try{const w=dom.window,d=w.document;w.eval(d.getElementById('dropsoDashboardScript').textContent);await new Promise(r=>setTimeout(r,40));assert(d.querySelector('.dashboard-events'));assert.equal(d.querySelector('.dashboard-tabs'),null)}finally{dom.window.close()}
+});
+
 test('shared navigation preserves page nodes and actions, marks the most specific route, and is idempotent',()=>{
  const html=withSiteNavigation(page,'/games/three-doors');
  assert.equal(withSiteNavigation(html,'/games/three-doors'),html);
