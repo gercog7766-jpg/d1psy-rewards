@@ -19,7 +19,9 @@ export function persistentLogin(db:SupabaseClient,appUrl:string,read:(req:Reques
  }
  async function middleware(req:Request,res:Response,next:NextFunction){
   // Public assets and webhook traffic do not read or renew account state.
-  if(!/^\/(api\/me(?:\/|$)|api\/admin(?:\/|$)|api\/users(?:\/|$)|users(?:\/|$)|account$|referrals$|community$|app$|logout$|games(?:\/|$)|live$|predict$|shop$|season$|upgrader$|contracts$|admin(?:\/|$))/.test(req.path)||/\.(?:js|png|webp|svg)$/.test(req.path))return next();
+  const protectedPage=/^\/(?:account|referrals|community|messages|notifications|statistics|level|bonuses|savings|profile|users|games|live|predict|shop|season|upgrader|contracts|admin|bosses|streamer|streamers|clans|black-box|advent|vault|suggestions|app|logout)(?:\/|$)/.test(req.path);
+  const protectedApi=/^\/api\/(?:me|admin|users|partner-live|savings|black-box)(?:\/|$)/.test(req.path)||(/^\/api\/streamer-pilot\/(?:state|connection|apply|start|stop|promo|cancelPromo|connect|obs)(?:\/|$)/.test(req.path)&&!(req.method==='GET'&&req.path==='/api/streamer-pilot/obs'));
+  if((!protectedPage&&!protectedApi)||/\.(?:js|css|png|webp|svg|jpg|jpeg|woff2?)$/i.test(req.path)||req.path==='/streamer/obs')return next();
   const token=req.cookies?.rewards_device;
   try{
    if(token){
