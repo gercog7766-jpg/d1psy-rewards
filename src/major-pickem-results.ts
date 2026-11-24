@@ -6,5 +6,6 @@ export const majorMatchResults: Record<number, Record<string, {winner:string; sc
     '0/9z/lynn-vision': {winner:'lynn-vision',scores:{'9z':11,'lynn-vision':13}},
     '0/m80/nip': {winner:'nip',scores:{nip:13,m80:10}},
     '0/100t/chinggis': {winner:'100t',scores:{'100t':13,chinggis:6}},
+    '0/bcgame/liquid': {winner:'liquid',scores:{liquid:13,bcgame:1}},
   },
 };

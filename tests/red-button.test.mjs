@@ -123,7 +123,8 @@ test('red button charges once per day, hides holds and settles the sum of holds 
     await db.exec('reset role');
     const today=(await db.query("select (clock_timestamp() at time zone 'Europe/Moscow')::date::text as day")).rows[0].day;
     const jackpotMigration=await readFile(new URL('../supabase/migrations/20261122090000_red_button_jackpot.sql',import.meta.url),'utf8');
-    await db.exec(jackpotMigration.replaceAll('2026-11-21',anchor).replaceAll('2026-11-23',today));
+    const shiftDates=sql=>sql.replace(/2026-11-(21|23)/g,(_,day)=>day==='21'?anchor:today);
+    await db.exec(shiftDates(jackpotMigration));
     await db.exec("insert into rewards_users(twitch_user_id,twitch_login) select 'j'||n,'Jackpot '||n from generate_series(1,15) n;insert into rewards_coin_transactions select id,100,'adjustment','jackpot fixture' from rewards_users where twitch_user_id like 'j%'");
     await db.exec('set role service_role');
     const daily=await call('j1'),dailyId=daily.round.id;assert.deepEqual(daily.rules,{entryCost:10,cooldownMinutes:30,roundHours:24,holdMinutes:15,jackpot:true,bonusAfter:10,bonusEach:10});
@@ -139,7 +140,7 @@ test('red button charges once per day, hides holds and settles the sum of holds 
     const nextJoined=await call('j1',afterEmpty.round.id,randomUUID());assert.equal(nextJoined.round.winnerPrize,72);assert.equal(nextJoined.round.nextBank,18);assert.equal(nextJoined.round.bank,90);
     await db.exec('reset role');
     await db.exec("insert into rewards_shop_items(name,image_url,status) values('Skin 70','https://example.com/70.png','available'),('Skin 79','https://example.com/79.png','available');insert into rewards_shop_item_variants select id,'normal','FT',case when name='Skin 70' then 70 else 79 end,true from rewards_shop_items where name in ('Skin 70','Skin 79')");
-    const skinMigration=await readFile(new URL('../supabase/migrations/20261122210000_red_button_skin_jackpot.sql',import.meta.url),'utf8');await db.exec(skinMigration.replaceAll('2026-11-21',anchor).replaceAll('2026-11-23',today));await db.exec('set role service_role');
+    const skinMigration=await readFile(new URL('../supabase/migrations/20261122210000_red_button_skin_jackpot.sql',import.meta.url),'utf8');await db.exec(shiftDates(skinMigration));await db.exec('set role service_role');
     const selected=await call('j1');assert.equal(selected.round.prize,'Skin 70');assert.equal(selected.round.price,70);assert.equal(selected.round.nextBank,20);assert.equal(selected.round.bank,90);
     const grown=await call('j2',afterEmpty.round.id,randomUUID());assert.equal(grown.round.prize,'Skin 79');assert.equal(grown.round.winnerPrize,79);assert.equal(grown.round.nextBank,21);assert.equal(grown.round.bank,100);
     await db.exec('reset role');
