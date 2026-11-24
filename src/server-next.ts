@@ -4,6 +4,8 @@ import {installClans} from './clans.js';
 import {installClanChatAuthorization,startClanPresencePoller} from './clan-chat-presence.js';
 import {installLiveBoost} from './live-boost.js';
 import {installLiveEconomy} from './live-economy.js';
+import {installPartnerLive} from './partner-live.js';
+import {installPartnerBossWebhook,installPartnerBossProviders} from './partner-boss-providers.js';
 import {installLiveBoss} from './live-boss.js';
 import {installBossTwitchWebhook,installBossTwitchConnect,installBossDonationAlertsOAuth} from './live-boss-events.js';
 import {startBossIhaq} from './live-boss-ihaq.js';
@@ -49,6 +51,7 @@ const SESSION_SECRET=process.env.SESSION_SECRET||crypto.randomBytes(32).toString
 const db=createClient(SUPABASE_URL,SUPABASE_SECRET_KEY,{auth:{persistSession:false}});
 const app=express();
 installBossTwitchWebhook(app,db,process.env.TWITCH_EVENTSUB_SECRET||'');
+installPartnerBossWebhook(app,db,process.env.TWITCH_EVENTSUB_SECRET||'');
 app.use(eventSubRouter); app.use(express.json()); app.use(express.urlencoded({extended:false})); app.use(cookieParser());
 
 type Session={twitchUserId:string;login:string;displayName:string;exp:number};
@@ -69,6 +72,8 @@ function requireUser(req:express.Request,res:express.Response,next:express.NextF
  next();
 }
 async function requireAdmin(req:express.Request,res:express.Response,next:express.NextFunction){const s=readSession(req);if(!s)return res.status(401).json({error:'authentication_required'});const {data,error}=await db.from('rewards_admins').select('twitch_user_id').eq('twitch_user_id',s.twitchUserId).maybeSingle();if(error)return res.status(500).json({error:'admin_lookup_failed'});if(!data)return res.status(403).json({error:'admin_required'});res.locals.session=s;next()}
+installPartnerLive(app,db,requireUser,new URL(APP_URL).origin);
+installPartnerBossProviders(app,db,requireUser,{origin:new URL(APP_URL).origin,twitchRedirect:TWITCH_REDIRECT_URI,twitchClient:TWITCH_CLIENT_ID,twitchSecret:TWITCH_CLIENT_SECRET,eventSecret:process.env.TWITCH_EVENTSUB_SECRET||'',daClient:process.env.BOSS_DA_CLIENT_ID||'',daSecret:process.env.BOSS_DA_CLIENT_SECRET||'',encryptionKey:process.env.BOSS_DA_ENCRYPTION_KEY||''});
 installLiveEconomy(app,db,requireUser,requireAdmin);
 installBonuses(app,db,requireUser,new URL(APP_URL).origin);
 installAdvent(app,db,requireUser,new URL(APP_URL).origin);
