@@ -225,7 +225,7 @@ test('confirmed results are read-only and do not replace personal predictions', 
     assert.deepEqual([...doc.querySelectorAll('[data-round="0"] [aria-pressed="true"]')].map(b=>b.dataset.team).sort(),['100t','flyquest','imperial','liquid','lynn-vision','nip','parivision','wildcard']);
     assert.equal(doc.querySelector('[data-round="0"] [data-team="imperial"]').disabled,true);
     assert.equal(doc.querySelectorAll('[data-round="1"] button[data-team]').length,16);
-    assert.deepEqual([...doc.querySelectorAll('[data-round="1"] [aria-pressed="true"]')].map(b=>b.dataset.team).sort(),['heroic','nip']);
+    assert.deepEqual([...doc.querySelectorAll('[data-round="1"] [aria-pressed="true"]')].map(b=>b.dataset.team).sort(),['heroic','imperial','m80','nip']);
     assert.deepEqual(JSON.parse(window.localStorage.getItem(key)),draft);
     doc.getElementById('predictionMode').click();
     assert.equal(doc.querySelector('[data-round="0"] [data-team="heroic"]').getAttribute('aria-pressed'),'true');
