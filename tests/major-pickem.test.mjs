@@ -211,6 +211,27 @@ test('Stage 1 reproduces all five rounds and qualification records in the refere
   } finally {window.close();}
 });
 
+test('confirmed results are read-only and do not replace personal predictions', async () => {
+  const {JSDOM}=await import('jsdom');
+  const {majorPickemPage,majorPickemScript}=await import('../src/major-pickem-ui.ts');
+  const {stageOneSeeds}=await import('../src/major-pickem-swiss.ts');
+  const {window}=new JSDOM(majorPickemPage,{runScripts:'outside-only',url:'https://dropso.test'});
+  try {
+    const key='major-pickem-swiss-v1:test:1',draft={'0/heroic/imperial':'heroic'};
+    window.localStorage.setItem(key,JSON.stringify(draft));
+    window.fetch=async()=>({ok:true,json:async()=>({now:'2026-11-24T06:25:00Z',balance:500,eligible:true,entered:true,medal:1,tokens:0,draftKey:'test',stages:[{id:1,label:'Stage 1',status:'locked',lockAt:'2026-11-24T03:45:00Z',teams:stageOneSeeds.map(id=>({id,name:id})),pairs:scheduledPairs,picks:{heroic:'3:0'}}]})});
+    window.eval(majorPickemScript);await new Promise(resolve=>setImmediate(resolve));
+    const doc=window.document;
+    assert.deepEqual([...doc.querySelectorAll('[data-round="0"] [aria-pressed="true"]')].map(b=>b.dataset.team).sort(),['100t','imperial','lynn-vision','nip']);
+    assert.equal(doc.querySelector('[data-round="0"] [data-team="imperial"]').disabled,true);
+    assert.match(doc.getElementById('actualProgress').textContent,/1:0/);
+    assert.deepEqual(JSON.parse(window.localStorage.getItem(key)),draft);
+    doc.getElementById('predictionMode').click();
+    assert.equal(doc.querySelector('[data-round="0"] [data-team="heroic"]').getAttribute('aria-pressed'),'true');
+    assert.deepEqual(JSON.parse(window.localStorage.getItem(key)),draft);
+  } finally {window.close();}
+});
+
 test('Swiss bracket pairs the same record with Buchholz seeding and finishes with 16 scored teams', async () => {
   const {swissBracketScript,stageOneSeeds}=await import('../src/major-pickem-swiss.ts');
   const buildSwiss=new Function(swissBracketScript+'\nreturn buildSwiss;')();
