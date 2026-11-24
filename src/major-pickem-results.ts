@@ -16,5 +16,7 @@ export const majorMatchResults: Record<number, Record<string, {winner:string; sc
     '1/9z/m80': {winner:'m80',scores:{m80:13,'9z':8}},
     '1/dendele/eternal-fire': {winner:'eternal-fire',scores:{'eternal-fire':13,dendele:8}},
     '1/flyquest/parivision': {winner:'flyquest',scores:{parivision:9,flyquest:13}},
+    '1/bcgame/faze': {winner:'faze',scores:{faze:13,bcgame:3}},
+    '1/liquid/wildcard': {winner:'liquid',scores:{liquid:13,wildcard:8}},
   },
 };
