@@ -12,5 +12,7 @@ export const majorMatchResults: Record<number, Record<string, {winner:string; sc
     '0/eternal-fire/flyquest': {winner:'flyquest',scores:{'eternal-fire':7,flyquest:13}},
     '1/lynn-vision/nip': {winner:'nip',scores:{nip:13,'lynn-vision':10}},
     '1/chinggis/heroic': {winner:'heroic',scores:{heroic:13,chinggis:3}},
+    '1/100t/imperial': {winner:'imperial',scores:{imperial:13,'100t':11}},
+    '1/9z/m80': {winner:'m80',scores:{m80:13,'9z':8}},
   },
 };
