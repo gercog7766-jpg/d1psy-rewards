@@ -2,6 +2,15 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {JSDOM} from 'jsdom';
 import {withSiteNavigation} from '../src/site-navigation.ts';
+import {withDropsoDashboard} from '../src/dropso-dashboard.ts';
+
+test('dashboard groups real event links and live banners without replacing interactive nodes',async()=>{
+ const ids=['bossAccountHero','adventAccountHero','majorPickemBanner','vaultAccountHero','seasonAccountHero','clanAccountHero'];
+ const original='<!doctype html><html><head></head><body data-account-design="neon"><main>'+ids.map(id=>`<a id="${id}" class="seasonAccountHero" href="/bosses"><span class="seasonAccountTitle">${id}</span></a>`).join('')+'<section id="dropsoLiveEvents" hidden></section><section id="liveBoostBanner" hidden></section><b id="coinBalance">50</b><div id="inventory"></div></main></body></html>';
+ const html=withDropsoDashboard(withSiteNavigation(original,'/account'),'/account');assert.equal(withDropsoDashboard(html,'/account'),html);
+ const dom=new JSDOM(html,{url:'https://dropso.test/account',runScripts:'outside-only',pretendToBeVisual:true});const w=dom.window,d=w.document;w.matchMedia=()=>({matches:true,addEventListener(){}});
+ try{const boss=d.getElementById(ids[0]);let clicked=0;boss.addEventListener('click',e=>{e.preventDefault();clicked++});w.eval(d.getElementById('dropsoDashboardScript').textContent);await new Promise(r=>setTimeout(r,40));assert.deepEqual([...d.querySelector('.dashboard-events').children].map(n=>n.id),ids.filter(id=>id!=='majorPickemBanner'));assert.equal(d.querySelector('.dashboard-events').nextElementSibling.id,'majorPickemBanner');assert.equal(d.querySelector('.dashboard-events').firstElementChild,boss);boss.click();assert.equal(clicked,1);assert.equal(d.querySelector('.dashboard-live-strip').children.length,2);assert.match(d.querySelector('.dashboard-header-balance').textContent,/50/);d.getElementById('coinBalance').textContent='65';await Promise.resolve();assert.match(d.querySelector('.dashboard-header-balance').textContent,/65/)}finally{w.close()}
+});
 
 const page='<!doctype html><html><head><style>main{max-width:900px}</style></head><body><main><nav><a class="brand" href="/account">Dropso</a><a href="/account">← На главную</a></nav><button id="play">Играть</button></main><footer>Old footer</footer></body></html>';
 
