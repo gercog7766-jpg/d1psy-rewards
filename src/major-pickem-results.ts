@@ -7,5 +7,6 @@ export const majorMatchResults: Record<number, Record<string, {winner:string; sc
     '0/m80/nip': {winner:'nip',scores:{nip:13,m80:10}},
     '0/100t/chinggis': {winner:'100t',scores:{'100t':13,chinggis:6}},
     '0/bcgame/liquid': {winner:'liquid',scores:{liquid:13,bcgame:1}},
+    '0/dendele/parivision': {winner:'parivision',scores:{parivision:13,dendele:3}},
   },
 };

@@ -222,7 +222,7 @@ test('confirmed results are read-only and do not replace personal predictions', 
     window.fetch=async()=>({ok:true,json:async()=>({now:'2026-11-24T06:25:00Z',balance:500,eligible:true,entered:true,medal:1,tokens:0,draftKey:'test',stages:[{id:1,label:'Stage 1',status:'locked',lockAt:'2026-11-24T03:45:00Z',teams:stageOneSeeds.map(id=>({id,name:id})),pairs:scheduledPairs,picks:{heroic:'3:0'}}]})});
     window.eval(majorPickemScript);await new Promise(resolve=>setImmediate(resolve));
     const doc=window.document;
-    assert.deepEqual([...doc.querySelectorAll('[data-round="0"] [aria-pressed="true"]')].map(b=>b.dataset.team).sort(),['100t','imperial','liquid','lynn-vision','nip']);
+    assert.deepEqual([...doc.querySelectorAll('[data-round="0"] [aria-pressed="true"]')].map(b=>b.dataset.team).sort(),['100t','imperial','liquid','lynn-vision','nip','parivision']);
     assert.equal(doc.querySelector('[data-round="0"] [data-team="imperial"]').disabled,true);
     assert.match(doc.getElementById('actualProgress').textContent,/1:0/);
     assert.deepEqual(JSON.parse(window.localStorage.getItem(key)),draft);
