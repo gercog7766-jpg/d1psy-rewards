@@ -1,4 +1,5 @@
 import { swissBracketScript } from './major-pickem-swiss.js';
+import { majorMatchResults } from './major-pickem-results.js';
 import { majorMedals } from './major-medals.js';
 import { majorPickemShop, majorPickemShopCss, majorBronzeCaseSection, majorBronzeCaseCss } from './major-pickem-shop.js';
 
@@ -53,6 +54,7 @@ ${majorPickemShopCss}${majorBronzeCaseCss}</style></head><body><main>
 <section class="panel bracket-panel">
 <div class="bracket-head"><h2 id="stageTitle">Stage 1</h2><p class="muted" id="stageInfo" role="status">Загружаем сетку…</p></div>
 <p class="muted bracket-hint" id="bracketHint" hidden>Выбирай победителя в каждом матче. Пары следующего раунда появятся, когда заполнится текущий.</p>
+<div class="actions" id="resultModes" hidden><button type="button" id="actualMode">Реальные результаты</button><button type="button" id="predictionMode">Мой прогноз</button></div><div id="actualProgress" class="muted bracket-hint" hidden></div>
 <div class="round-nav" id="roundNav" role="group" aria-label="Перейти к раунду" hidden><span class="muted">Раунды</span></div>
 <div class="bracket-scroll" id="bracketScroll" tabindex="0" aria-label="Сетка матчей"><div id="grid" class="bracket"></div></div>
 <div class="actions"><button class="primary" id="save" type="button" hidden>Сохранить прогноз</button><button id="reset" type="button" hidden>Сбросить сетку</button><span id="saved" class="muted" role="status"></span></div></section>
@@ -70,6 +72,7 @@ ${majorBronzeCaseSection}
 
 export const majorPickemScript = String.raw`(() => {
   ${swissBracketScript}
+  const actualResults=${JSON.stringify(majorMatchResults)};
   const el=id=>document.getElementById(id);
   const medals=${JSON.stringify(majorMedals)};
   const errors={
@@ -83,7 +86,7 @@ export const majorPickemScript = String.raw`(() => {
   const drafts=new Map();
   const localDateTime=new Intl.DateTimeFormat('ru-RU',{dateStyle:'short',timeStyle:'short'});
   const localTime=new Intl.DateTimeFormat('ru-RU',{hour:'2-digit',minute:'2-digit'});
-  let state,stageId=1,busy=false,offset=0;
+  let state,stageId=1,busy=false,offset=0,showActual=true;
 
   const activeStage=()=>state?.stages.find(item=>item.id===stageId);
   const open=item=>item?.status==='open' && Date.parse(item.lockAt)>Date.now()+offset;
@@ -155,6 +158,14 @@ export const majorPickemScript = String.raw`(() => {
   function drawBracket(item, config){
     const grid=el('grid'),scroller=el('bracketScroll');
     const show=Boolean(config);
+    const results=actualResults[item?.id]||{};
+    const available=show&&!open(item)&&Object.keys(results).length>0;
+    const actual=available&&showActual;
+    el('resultModes').hidden=!available;
+    el('actualMode').setAttribute('aria-pressed',String(actual));
+    el('predictionMode').setAttribute('aria-pressed',String(!actual));
+    el('actualProgress').hidden=!actual;
+    el('actualProgress').replaceChildren();
     for(const id of ['bracketScroll','bracketHint','roundNav','reset'])el(id).hidden=!show;
     el('save').hidden=!config || !canSave(item);
     grid.replaceChildren();
@@ -163,24 +174,33 @@ export const majorPickemScript = String.raw`(() => {
       return;
     }
     const {participants,firstRound,seeds}=config;
-    const stored=draft(item);
+    const stored=actual?Object.fromEntries(Object.entries(results).map(([id,result])=>[id,result.winner])):draft(item);
     const simulation=buildSwiss(firstRound,seeds,stored);
     const chosenMatches=simulation.rounds.flat().filter(match=>match.winner);
     const choices=Object.fromEntries(chosenMatches.map(match=>[match.id,match.winner]));
-    if(chosenMatches.length!==Object.keys(stored).length)updateDraft(item,choices);
+    if(!actual&&chosenMatches.length!==Object.keys(stored).length)updateDraft(item,choices);
     const complete=Object.keys(simulation.terminal).length===16;
     const saved=item.picks || {};
     const same=complete && Object.keys(simulation.terminal).every(id=>saved[id]===simulation.terminal[id]);
     const includeSaved=Object.keys(saved).length>0;
     const fresh=chosenMatches.length>0;
     el('save').disabled=busy || !complete;
+    el('reset').hidden=actual;
     el('reset').disabled=busy || !fresh;
+    el('bracketHint').textContent=actual?'Подтверждённые результаты PGL. Следующие пары появятся после завершения текущего раунда.':'Выбирай победителя в каждом матче. Пары следующего раунда появятся, когда заполнится текущий.';
     el('saved').textContent=same ? 'Прогноз сохранён' : includeSaved && !fresh
       ? 'В сетке показаны сохранённые итоги. Можно собрать новый прогноз.'
       : includeSaved ? 'В сетке новый вариант. Прежний прогноз действует до сохранения.'
       : canSave(item) ? 'Выбрано матчей: '+chosenMatches.length+' из 33'
       : open(item) && state.eligible && !state.entered ? 'Для сохранения нужен пропуск.' : '';
-    const displayed=fresh ? simulation.terminal : saved;
+    if(actual){
+      el('saved').textContent='';
+      const first=simulation.rounds[0];
+      if(first?.some(match=>!match.winner))for(const [label,ids] of [['1:0',first.filter(m=>m.winner).map(m=>m.winner)],['0:1',first.filter(m=>m.winner).map(m=>m.winner===m.a?m.b:m.a)]]){
+        el('actualProgress').append(node('p',label+' — '+ids.map(id=>participants.get(id).name).join(', ')));
+      }
+    }
+    const displayed=actual?simulation.terminal:fresh ? simulation.terminal : saved;
 
     for(const [roundIndex,groups] of swissRounds.entries()){
       const round=node('section',undefined,'round');
@@ -199,21 +219,22 @@ export const majorPickemScript = String.raw`(() => {
           const match=groupMatches?.[i];
           const row=node('div',undefined,'match');
           const startsAt=match?.at ? new Date(match.at) : null;
-          const middle=node('small',startsAt ? localTime.format(startsAt) : 'VS');
+          const score=actual&&results[match?.id]?.scores;
+          const middle=node('small',score?score[match.a]+' : '+score[match.b]:startsAt ? localTime.format(startsAt) : 'VS');
           if(startsAt)middle.title=localDateTime.format(startsAt);
           for(const side of ['a','b']){
             if(side==='b')row.append(middle);
             const team=participants.get(match?.[side]);
             if(!team){row.append(node('span','—','team placeholder'));continue;}
             const button=node('button',undefined,'team');
-            button.type='button';button.disabled=busy;
+            button.type='button';button.disabled=busy||actual;
             button.dataset.match=match.id;button.dataset.team=team.id;
             button.setAttribute('aria-label','Победитель: '+team.name+' · раунд '+(roundIndex+1));
             button.setAttribute('aria-pressed',String(match.winner===team.id));
             if(match.winner && match.winner!==team.id)button.classList.add('lost');
             button.append(logo(team),node('span',team.name));
             button.onclick=()=>{
-              if(busy || match.winner===team.id)return;
+              if(busy || actual || match.winner===team.id)return;
               const next=Object.fromEntries(Object.entries(choices).filter(([key])=>Number(key.split('/')[0])<=roundIndex));
               next[match.id]=team.id;
               updateDraft(item,next);
@@ -241,6 +262,9 @@ export const majorPickemScript = String.raw`(() => {
       grid.append(round);
     }
   }
+
+  el('actualMode').onclick=()=>{showActual=true;render();};
+  el('predictionMode').onclick=()=>{showActual=false;render();};
 
   for(const roundIndex of swissRounds.keys()){
     const jump=node('button',String(roundIndex+1));
