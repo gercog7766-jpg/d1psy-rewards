@@ -1,4 +1,5 @@
 import {readSettings,updateSettings} from './settings-cache.js';
+import {pickShopDrop} from './drop-shop-catalog.js';
 import crypto from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 
@@ -14,13 +15,17 @@ async function startNextRound(){
 
   const min=Number(s.drop_min_price_coins??2),max=Number(s.drop_max_price_coins??1000);
   if(!Number.isInteger(min)||!Number.isInteger(max)||min<2||max>3000||min>max)throw new Error('invalid_saved_drop_price_range');
-  const {data:prizes,error:pErr}=await db.from('rewards_prizes').select('id,name,sell_price_coins').eq('status','available').gte('sell_price_coins',min).lte('sell_price_coins',max);
-  if(pErr) throw pErr;
-  if(!prizes?.length){
-    await db.from('rewards_audit_log').insert({action:'round_start_failed',entity_type:'rewards_rounds',details:{reason:'no_available_prizes'}});
-    return;
+  let prize=await pickShopDrop(db,min,max);
+  if(!prize){
+    const {data:prizes,error:pErr}=await db.from('rewards_prizes').select('id,name,sell_price_coins').eq('status','available').gte('sell_price_coins',min).lte('sell_price_coins',max);
+    if(pErr) throw pErr;
+    if(!prizes?.length){
+      await db.from('rewards_audit_log').insert({action:'round_start_failed',entity_type:'rewards_rounds',details:{reason:'no_available_prizes'}});
+      return;
+    }
+    prize=prizes[crypto.randomInt(prizes.length)];
   }
-  const prize=prizes[crypto.randomInt(prizes.length)];
+  if(!prize)return;
   const {data:round,error}=await db.from('rewards_rounds').insert({mode:s.mode,interval_seconds:s.interval_seconds,message_threshold:s.message_threshold,status:'active',prize_id:prize.id,weight_by_messages:s.weight_by_messages===true}).select('id').single();
   if(error) throw error;
   await updateSettings(db,{selected_prize_id:prize.id,updated_at:new Date().toISOString()});
