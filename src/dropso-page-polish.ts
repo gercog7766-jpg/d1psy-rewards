@@ -3,6 +3,7 @@
 export function dropsoPageKind(path:string):string|null {
   const p=path.replace(/\/+$/,'')||'/';
   if(/^\/(?:api|auth|obs|desktop)(?:\/|$)/.test(p)||p==='/streamer/obs'||/\.[a-z0-9]+$/i.test(p))return null;
+  if(p==='/')return 'landing';
   if(p==='/account')return 'account';
   if(p==='/shop')return 'shop';
   if(p==='/upgrader')return 'upgrader';
@@ -41,6 +42,18 @@ body[data-dropso-page] .dropso-site-header{box-shadow:0 1px 0 #ffffff06;min-widt
 body[data-dropso-page] .dropso-site-header .dropso-site-shortcuts{min-width:0;gap:8px}
 body[data-dropso-page] .dropso-site-layout{max-width:1920px!important;box-sizing:border-box;min-width:0}
 body[data-dropso-page] main{box-sizing:border-box;min-width:0}
+/* The public page already has a global header and footer. Its old 100vh
+   container and auto hero margins add a second full viewport of space. */
+body[data-dropso-page=landing]{min-height:100vh;min-height:100svh;display:flex;flex-direction:column}
+body[data-dropso-page=landing] .page{flex:1;min-height:0;background:radial-gradient(ellipse at 25% 50%,#49227c28,transparent 65%)}
+body[data-dropso-page=landing] .page>.nav{padding:20px 0 0;font-size:12px;letter-spacing:.12em;color:#afa4c4;font-weight:700}
+body[data-dropso-page=landing] main.hero{flex:0 0 auto;min-height:0;margin:0 auto;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:clamp(25px,4vw,60px);padding:clamp(32px,6vh,78px) 0}
+body[data-dropso-page=landing] .hero>section,body[data-dropso-page=landing] .hero>.panel{min-width:0}
+body[data-dropso-page=landing] .hero h1{font-size:clamp(40px,5.3vw,74px);line-height:1.04;letter-spacing:-.048em}
+body[data-dropso-page=landing] .hero .panel{border-color:#46365e;border-radius:20px;padding:clamp(18px,3vw,26px)}
+body[data-dropso-page=landing] .hero .panel h3{margin:0 0 18px;font-size:21px}
+body[data-dropso-page=landing] .hero .step{background:#21182d;border-color:#473654}
+body[data-dropso-page=landing] .login{min-height:48px;font-size:15px;font-weight:750;line-height:1.35;align-items:center}
 body[data-dropso-page] main :where(h1,h2,h3,p,li,label,summary){overflow-wrap:break-word}
 body[data-dropso-page] main>h1,body[data-dropso-page] main>.heading>h1,body[data-dropso-page] main>.intro>h1{font-size:clamp(27px,3vw,38px);line-height:1.13;letter-spacing:-.035em;font-weight:820;margin:10px 0 12px}
 body[data-dropso-page] main :where(.muted,.hint,.footnote,.local-note){color:var(--ds-muted);line-height:1.5}
@@ -104,6 +117,12 @@ body[data-dropso-page=major] .bracket-scroll{border-radius:12px}
 body[data-dropso-page=major] .tracker{gap:10px;flex-wrap:wrap}
 body[data-dropso-page=major] .tracker-item{min-width:0}
 body[data-dropso-page=major] .round-nav{gap:7px}
+/* At desktop sizes the sidebar reduces the usable bracket width by ~250px.
+   Keep round navigation visible whenever that content cannot fit. */
+@media(max-width:1280px){body[data-dropso-page=major] .round-nav:not([hidden]){display:flex}}
+body[data-dropso-page=major] .tabs button{min-width:0;overflow-wrap:anywhere;line-height:1.25}
+body[data-dropso-page=major] .major-case-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,205px),1fr));gap:12px}
+body[data-dropso-page=major] .major-case-tile{min-width:0}
 body[data-dropso-page=season] .bpRewardRow{grid-template-columns:repeat(10,minmax(118px,1fr))!important;overflow-x:auto;max-width:100%;min-width:0;overscroll-behavior-inline:contain}
 body[data-dropso-page=season] .bpRewardCard{width:104px;justify-self:center;box-shadow:none}
 body[data-dropso-page=season] .bpRewardCard.current{box-shadow:0 0 0 1px #b968ff,0 0 18px #9b5de52b}
@@ -135,8 +154,15 @@ body[data-dropso-page=legal] main h2{margin-top:24px;line-height:1.3}
  body[data-dropso-page=auction] .grid{grid-template-columns:minmax(0,1fr)!important}
  body[data-dropso-page=shop][data-market-design=cards] #grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,190px),1fr))!important}
 }
+@media(max-width:850px){
+ body[data-dropso-page=landing] main.hero{grid-template-columns:minmax(0,1fr);gap:24px;padding:32px 0 40px}
+ body[data-dropso-page=landing] .hero h1{font-size:clamp(36px,7vw,58px)}
+ body[data-dropso-page=landing] .hero .lead{font-size:16px;line-height:1.55}
+}
 @media(max-width:760px){
  body[data-dropso-page] main{min-width:0;max-width:100%;margin-inline:auto}
+ body[data-dropso-page] main :where(dialog){max-width:calc(100vw - 24px);max-height:88dvh;overflow:auto;overscroll-behavior:contain}
+ body[data-dropso-page] main :where(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=hidden]),select,textarea){min-width:0;max-width:100%}
  body[data-dropso-page] .dropso-site-header{padding-inline:12px!important;gap:9px}
  body:is([data-dropso-page=statistics],[data-dropso-page=admin],[data-dropso-page=streamer],[data-dropso-page=bonuses],[data-dropso-page=savings],[data-dropso-page=clans],[data-dropso-page=suggestions],[data-dropso-page=red-button],[data-dropso-page=major]) main :where(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=hidden]),select,textarea){font-size:16px;min-height:42px}
  body:is([data-dropso-page=statistics],[data-dropso-page=suggestions],[data-dropso-page=savings],[data-dropso-page=red-button]) :is(.split,.layout){grid-template-columns:minmax(0,1fr)!important}
@@ -146,7 +172,19 @@ body[data-dropso-page=legal] main h2{margin-top:24px;line-height:1.3}
  body[data-dropso-page=streamer] .control-layout{grid-template-columns:minmax(0,1fr)!important}
  body[data-dropso-page=streamer] .dash-nav{flex-wrap:wrap;gap:7px}
  body[data-dropso-page=major] .panel{padding:12px}
+ body[data-dropso-page=major] .round-nav button{min-height:44px}
+ body[data-dropso-page=major] .tracker-item{flex:1 1 140px;overflow-wrap:anywhere}
+ body[data-dropso-page=major] .major-case-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+ body[data-dropso-page=major] .major-case-tile{padding:10px;gap:8px}
+ body[data-dropso-page=major] .bronze-case-art{height:115px}
+ body[data-dropso-page=major] .major-case-tile h3{font-size:14px;overflow-wrap:anywhere}
+ body[data-dropso-page=major] .major-case-tile button{font-size:13px;min-height:44px;line-height:1.3}
  body[data-dropso-page=level] .roadmap{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
+@media(max-width:390px){
+ body[data-dropso-page=statistics] .wallet{grid-template-columns:minmax(0,1fr)!important}
+ body[data-dropso-page=major] .tracker-item{flex-basis:100%}
+ body[data-dropso-page=major] .major-case-tile .major-shop-cost{font-size:12px;padding-inline:6px}
 }
 @media(max-width:620px){
  body[data-dropso-page=shop][data-market-design=cards] #grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:9px!important}
