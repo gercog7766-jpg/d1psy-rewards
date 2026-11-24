@@ -3,6 +3,14 @@ import assert from 'node:assert/strict';
 import {JSDOM} from 'jsdom';
 import {withSiteNavigation} from '../src/site-navigation.ts';
 import {withDropsoDashboard} from '../src/dropso-dashboard.ts';
+import {withDropsoPagePolish,dropsoPageKind} from '../src/dropso-page-polish.ts';
+
+test('page polish is scoped to the expected route and keeps layout hooks untouched',()=>{
+ const routes=[['/account','account'],['/shop','shop'],['/upgrader','upgrader'],['/games','games'],['/games/minesweeper','game'],['/games/red-button','red-button'],['/predict/major-pickem','major'],['/predict','predict'],['/bosses/partners','boss'],['/black-box','auction'],['/vault','vault'],['/advent','advent'],['/season','season'],['/clans/one','clans'],['/streamers','streamers'],['/streamer/live','streamer'],['/users/viewer','users'],['/community','messages'],['/statistics','statistics'],['/level','level'],['/profile/customize','profile'],['/bonuses','bonuses'],['/savings','savings'],['/referrals','referrals'],['/notifications','notifications'],['/suggestions','suggestions'],['/admin/streamers','admin'],['/rules','legal']];
+ const source='<!doctype html><html><head></head><body data-dropso-shell><main><button id="apply">Применить</button><div id="grid" class="grid"></div></main><script>var source="<main>";</script></body></html>';
+ for(const [path,kind]of routes){assert.equal(dropsoPageKind(path),kind,path);const html=withDropsoPagePolish(source,path);assert.equal(withDropsoPagePolish(html,path),html);const dom=new JSDOM(html);try{const d=dom.window.document;assert.equal(d.body.dataset.dropsoPage,kind);assert.equal(d.querySelectorAll('#dropsoPagePolish').length,1);assert.equal(d.querySelector('#apply').textContent,'Применить');assert.equal(d.querySelector('#grid').className,'grid');assert.equal(d.querySelector('script').textContent,'var source="<main>";')}finally{dom.window.close()}}
+ for(const path of ['/obs','/obs/boss','/streamer/obs','/api/me','/auth/twitch','/partner-live.js'])assert.equal(withDropsoPagePolish(source,path),source,path);
+});
 
 test('dashboard groups real event links and live banners without replacing interactive nodes',async()=>{
  const ids=['bossAccountHero','adventAccountHero','majorPickemBanner','vaultAccountHero','seasonAccountHero','clanAccountHero'];
