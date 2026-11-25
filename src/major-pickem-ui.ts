@@ -1,7 +1,7 @@
 import { swissBracketScript } from './major-pickem-swiss.js';
 import { majorMatchResults } from './major-pickem-results.js';
 import { majorMedals } from './major-medals.js';
-import { majorPickemShop, majorPickemShopCss, majorBronzeCaseSection, majorBronzeCaseCss } from './major-pickem-shop.js';
+import { majorPickemShopCss, majorBronzeCaseSection, majorBronzeCaseCss } from './major-pickem-shop.js';
 
 export const majorPickemPage = `<!doctype html><html lang="ru"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -46,7 +46,7 @@ button:focus-visible,a:focus-visible{outline:2px solid white;outline-offset:3px}
 @media(max-width:1020px){.round-nav{display:flex}}
 @media(max-width:600px){.bracket{grid-template-columns:repeat(5,clamp(185px,65vw,270px));min-width:max-content;gap:12px}.round-flow{justify-content:flex-start}.bracket-head{gap:4px}}
 ${majorPickemShopCss}${majorBronzeCaseCss}</style></head><body><main>
-<nav><a href="/predict">← Предикты</a><a href="/account">Главная</a><a href="#majorShop">Магазин Pick’em</a></nav>
+<nav><a href="/predict">← Предикты</a><a href="/account">Главная</a><a href="#majorCases">Кейсы Pick’em</a></nav>
 <header class="heading"><h1>Major Pick’em</h1><p class="muted">PGL Major Singapore 2026 · три стадии швейцарки и плей-офф</p></header>
 <div class="tracker"><span class="tracker-item"><img id="tokenIcon" src="/predict/major-token.webp" width="42" height="42" alt=""><span id="tokens">Жетоны Major Dropso: —</span></span><span id="medal" class="tracker-item"><img width="42" height="42" alt="" hidden><span id="medalName">Медаль: —</span></span></div>
 <section class="panel" aria-label="Участие"><div class="actions"><button class="primary" type="button" id="enter" disabled>Войти за 250 монет</button><span id="entryStatus" class="muted"></span></div><p id="notice" role="status"></p><button type="button" id="retryPickem" hidden>Повторить загрузку</button></section>
@@ -66,7 +66,6 @@ ${majorPickemShopCss}${majorBronzeCaseCss}</style></head><body><main>
 <p>Бронза появляется в профиле сразу после покупки пропуска. Шесть верных прогнозов за стадию швейцарки повышают медаль на одну ступень. В плей-офф для следующей ступени нужны минимум два верных четвертьфинала, один полуфинал и верный победитель финала.</p>
 <p>Бронза → Серебро → Золото → Бриллиант → Бриллиант внутри.</p>
 </section>
-${majorPickemShop}
 ${majorBronzeCaseSection}
 </main><script defer src="/predict/major-pickem.js"></script></body></html>`;
 
@@ -280,12 +279,8 @@ export const majorPickemScript = String.raw`(() => {
   function render(){
     if(!state)return;
     el('tokens').textContent='Жетоны Major Dropso: '+state.tokens;
-    el('openBronzeCase').disabled=busy || caseBusy || shopBusy || !state.entered || state.tokens<1;
-    document.querySelectorAll('[data-custom-case]').forEach(button=>{button.disabled=busy||caseBusy||shopBusy||!state.entered||state.tokens<Number(button.dataset.cost)});
-    document.querySelectorAll('.major-shop-buy').forEach(button=>{
-      const cost=[1,2,3,4,5,10,15,25,40][Number(button.dataset.itemIndex)];
-      button.disabled=busy || caseBusy || shopBusy || !state.entered || state.tokens<cost;
-    });
+    el('openBronzeCase').disabled=busy || caseBusy || !state.entered || state.tokens<1;
+    document.querySelectorAll('[data-custom-case]').forEach(button=>{button.disabled=busy||caseBusy||!state.entered||state.tokens<Number(button.dataset.cost)});
     const medal=medals[state.medal],image=el('medal').querySelector('img');
     image.hidden=!medal;
     if(medal && image.getAttribute('src')!==medal.image)image.src=medal.image;
@@ -332,11 +327,11 @@ export const majorPickemScript = String.raw`(() => {
       if(!state)el('retryPickem').hidden=false;
     }finally{busy=false;render();}
   }
-  let caseBusy=false,shopBusy=false;
+  let caseBusy=false;
   const caseRequests=new Map();
   const prizeText=result=>'Выпало: '+result.name+(result.wear?' ('+result.wear+')':'')+(Number.isSafeInteger(result.price)?' · Стоимость: '+result.price.toLocaleString('ru-RU')+' монет':'')+'. Доступен в инвентаре.';
   async function openCustomCase(c,button){
-    if(caseBusy||shopBusy||busy||!state?.entered||state.tokens<c.cost)return;
+    if(caseBusy||busy||!state?.entered||state.tokens<c.cost)return;
     caseBusy=true;render();el('bronzeRoulette').hidden=true;const status=el('bronzeCaseStatus');status.textContent='Открываем '+c.name+'…';
     let requestId=caseRequests.get(c.id);if(!requestId){requestId=crypto.randomUUID();caseRequests.set(c.id,requestId)}
     try{
@@ -356,23 +351,6 @@ export const majorPickemScript = String.raw`(() => {
       for(const c of data.cases){if(!c.custom)continue;const tile=document.createElement('article'),art=document.createElement('div'),img=document.createElement('img'),title=document.createElement('h3'),description=document.createElement('p'),cost=document.createElement('p'),token=document.createElement('img'),button=document.createElement('button');tile.className='major-case-tile';art.className='bronze-case-art';if(c.image){img.src=c.image;img.alt=c.name;img.loading='lazy';art.append(img)}title.textContent=c.name;description.className='muted';description.textContent='Один случайный скин CS2 в инвентарь.';cost.className='major-shop-cost';token.src='/predict/major-token.webp';token.width=19;token.height=19;token.alt='';const unit= new Intl.PluralRules('ru').select(c.cost);cost.append(token,document.createTextNode(c.cost+' '+(unit==='one'?'жетон':unit==='few'?'жетона':'жетонов')));button.className='primary';button.type='button';button.dataset.customCase=c.id;button.dataset.cost=String(c.cost);button.textContent='Открыть кейс';button.disabled=true;button.onclick=()=>openCustomCase(c,button);tile.append(art,title,description,cost,button);grid.append(tile)}render();
     }catch(e){console.warn('major_cases_load',e)}
   }
-  document.querySelectorAll('.major-shop-buy').forEach(button=>button.addEventListener('click',async()=>{
-    const itemIndex=Number(button.dataset.itemIndex),cost=[1,2,3,4,5,10,15,25,40][itemIndex];
-    if(shopBusy||caseBusy||busy||!state?.entered||state.tokens<cost)return;
-    shopBusy=true;render();el('majorShopStatus').textContent='Покупаем предмет…';
-    try{
-      const response=await fetch('/api/me/major-pickem/shop/buy',{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({requestId:crypto.randomUUID(),itemIndex})
-      });
-      const result=await response.json().catch(()=>({}));
-      if(!response.ok)throw Error(result.error||'shop_unavailable');
-      state.tokens=result.tokens;
-      el('majorShopStatus').textContent='Куплено: '+result.name+'. Предмет добавлен в инвентарь.';
-    }catch(error){
-      el('majorShopStatus').textContent=({insufficient_tokens:'Недостаточно жетонов.',shop_item_unavailable:'Товар временно недоступен.'})[error.message]||'Не удалось подтвердить покупку. Если жетоны списались, обратись в поддержку.';
-    }finally{shopBusy=false;render();}
-  }));
   const caseNames=[
     'AK-47 | Оливковый поликамуфляж','Five-SeveN | Небесная голубизна',
     'P250 | Ледяная корка','SG 553 | Корзинные полутона',
@@ -450,7 +428,7 @@ export const majorPickemScript = String.raw`(() => {
     if(art)art.classList.remove('bronze-case-opening');
   }
   el('openBronzeCase').onclick=async()=>{
-    if(caseBusy||shopBusy||busy||!state?.entered||state.tokens<1)return;
+    if(caseBusy||busy||!state?.entered||state.tokens<1)return;
     caseBusy=true;el('openBronzeCase').disabled=true;
     el('bronzeRoulette').hidden=true;
     el('bronzeCaseStatus').textContent='Открываем кейс…';
