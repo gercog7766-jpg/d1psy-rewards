@@ -3,6 +3,7 @@ import type {SupabaseClient} from '@supabase/supabase-js';
 import {z} from 'zod';
 import {monetizationHtml,monetizationJs} from './monetization-draft-ui.js';
 import {premiumPreviewHtml,premiumPreviewJs} from './premium-preview.js';
+import {seasonTwoRewardDraft,seasonTwoRules,seasonTwoThresholds} from './season-two-draft.js';
 
 const visibility=z.enum(['hidden','admin_test']); // No public state exists in this release.
 const plan=z.object({stars:z.number().int().min(1).max(100000),visibility,coins:z.number().int().min(0).max(10000),skins:z.number().int().min(0).max(10000),title:z.string().trim().max(80),description:z.string().trim().max(600)}).strict();
@@ -11,8 +12,7 @@ const level=z.object({free:reward,premium:reward}).strict();
 export const draftSchema=z.object({lite:plan,plus:plan,battlePass:z.object({stars:z.number().int().min(1).max(100000),visibility,season:z.string().trim().min(1).max(80),days:z.number().int().min(1).max(365),levels:z.array(level).length(50)}).strict()}).strict();
 export type MonetizationDraft=z.infer<typeof draftSchema>;
 export function initialMonetizationDraft():MonetizationDraft {
- const blank=()=>({kind:'none' as const,label:'',value:0});
- return {lite:{stars:249,visibility:'hidden',coins:100,skins:150,title:'DROPSO LITE',description:'Значок подписчика, эксклюзивное оформление профиля и повышенные лимиты передачи.'},plus:{stars:399,visibility:'hidden',coins:200,skins:300,title:'DROPSO PLUS',description:'Преимущества LITE, анимированная рамка, расширенная статистика и оформление клана.'},battlePass:{stars:499,visibility:'hidden',season:'NIGHT SHIFT · Season 2',days:90,levels:Array.from({length:50},()=>({free:blank(),premium:blank()}))}};
+ return {lite:{stars:249,visibility:'hidden',coins:100,skins:150,title:'DROPSO LITE',description:'Значок подписчика, эксклюзивное оформление профиля и повышенные лимиты передачи.'},plus:{stars:399,visibility:'hidden',coins:200,skins:300,title:'DROPSO PLUS',description:'Преимущества LITE, анимированная рамка, расширенная статистика и оформление клана.'},battlePass:{stars:499,visibility:'hidden',season:'NIGHT SHIFT · Season 2',days:90,levels:seasonTwoRewardDraft()}};
 }
 
 export function installMonetizationDraft(app:Express,db:SupabaseClient,admin:RequestHandler,origin:string){
@@ -36,7 +36,10 @@ export function installMonetizationDraft(app:Express,db:SupabaseClient,admin:Req
   if(error||!data)return void r.status(503).json({error:'draft_unavailable'});
   const parsed=draftSchema.safeParse(data.config);
   if(!parsed.success&&Object.keys(data.config||{}).length)return void r.status(503).json({error:'invalid_saved_draft'});
-  r.json({revision:data.revision,config:parsed.success?parsed.data:initialMonetizationDraft(),updatedAt:data.updated_at,livePayments:false});
+  const config=parsed.success?parsed.data:initialMonetizationDraft();
+  // Old blank drafts get the proposal in preview, but saved administrator edits are never overwritten.
+  if(config.battlePass.levels.every(x=>x.free.kind==='none'&&x.premium.kind==='none'))config.battlePass.levels=seasonTwoRewardDraft();
+  r.json({revision:data.revision,config,updatedAt:data.updated_at,seasonTwo:{rules:seasonTwoRules,thresholds:seasonTwoThresholds,rewards:seasonTwoRewardDraft()},livePayments:false});
  });
  app.put('/api/admin/monetization/draft',noStore,admin,async(q,r)=>{
   if(q.get('origin')!==origin||!q.is('application/json'))return void r.sendStatus(403);
