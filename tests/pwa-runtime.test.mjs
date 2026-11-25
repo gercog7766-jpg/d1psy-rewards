@@ -1,6 +1,16 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';import {createHmac} from 'node:crypto';import {spawn} from 'node:child_process';import http from 'node:http';import {runInNewContext} from 'node:vm';
 import {validPushSubscription} from '../src/pwa-hotfix.ts';import {pwaSw,pwaManifest} from '../src/pwa-assets.ts';import {deliverJobs} from '../supabase/functions/drop-push/delivery.ts';
 import {PGlite} from '@electric-sql/pglite';import {readFile} from 'node:fs/promises';import {JSDOM} from 'jsdom';import {initialMonetizationDraft} from '../src/monetization-draft.ts';import {monetizationHtml,monetizationJs} from '../src/monetization-draft-ui.ts';import {testEntitlements,testInvoice} from '../src/monetization-test-payments.ts';import {randomUUID} from 'node:crypto';
+import {createStarsSandbox} from '../src/telegram-stars-sandbox.ts';
+
+test('Telegram sandbox uses only test API, binds a single tester and handles receipt idempotently through test ledger',async()=>{
+ const orders=[],calls=[],orderId=randomUUID();let state='pending';const db={rpc:async(_name,args)=>{orders.push(args);if(args.p_action==='precheckout'){if(args.p_body.stars!==249)return{error:{message:'amount_mismatch'}};state='approved'}if(args.p_action==='receipt')state='paid';return{data:{id:orderId,product:'lite',stars:249,days:30,state}}}};
+ const fetcher=async(url,opts)=>{calls.push({url,body:JSON.parse(opts.body)});return{ok:true,json:async()=>({ok:true,result:true})}};const bot=createStarsSandbox({token:'123:test-token',telegramId:101,actor:'owner',db,fetcher});const message=(id,text)=>({chat:{id,type:'private'},from:{id,is_bot:false},text});
+ await bot.process({update_id:1,message:message(102,'/lite')});assert.equal(calls.length,0);assert.equal(orders.length,0);
+ await bot.process({update_id:2,message:message(101,'/lite')});assert.equal(calls[0].body.currency,'XTR');assert.equal(calls[0].body.payload,'test_'+orderId);assert.equal(calls[0].body.prices[0].amount,249);assert.equal(orders[0].p_actor,'owner');const nonce=orders[0].p_body.requestId;await bot.process({update_id:2,message:message(101,'/lite')});assert.equal(orders[1].p_body.requestId,nonce);
+ const pre=(id,amount)=>({id:'q',from:{id},currency:'XTR',total_amount:amount,invoice_payload:'test_'+orderId});await bot.process({update_id:3,pre_checkout_query:pre(102,249)});assert.equal(calls.at(-1).body.ok,false);await bot.process({update_id:4,pre_checkout_query:pre(101,399)});assert.equal(calls.at(-1).body.ok,false);await bot.process({update_id:5,pre_checkout_query:pre(101,249)});assert.equal(calls.at(-1).body.ok,true);
+ const paid={...message(101,''),successful_payment:{currency:'XTR',total_amount:249,invoice_payload:'test_'+orderId,telegram_payment_charge_id:'test-provider-charge'}};await bot.process({update_id:6,message:paid});const charge=orders.at(-1).p_body.chargeId;await bot.process({update_id:6,message:paid});assert.equal(orders.at(-1).p_body.chargeId,charge);assert.match(charge,/^test_[a-f0-9]{32}$/);assert(calls.every(c=>c.url.startsWith('https://api.telegram.org/bot123:test-token/test/')));
+});
 
 test('server test payment lifecycle freezes price, rejects duplicate/foreign orders and refunds preview access',async()=>{
  const db=new PGlite();try{
