@@ -25,6 +25,9 @@ test('primary sample uses a single JSON RPC argument and a structured acknowledg
  const calls=[],at='2026-11-21T12:00:00Z';const db={rpc:async(name,args)=>{calls.push({name,args});return {data:{boss:{ok:true},boost:{ok:true},achievement:{ok:true}}}}};
  assert.equal(await recordPrimaryPresence(db,'11',true,['33','44'],at),true);assert.deepEqual(calls,[{name:'rewards_primary_presence_record',args:{p_sample:{broadcaster:'11',at,active:true,viewers:['33','44']}}}]);
 });
+test('S2 receives real Twitch stream IDs without changing the existing live channel contract',async()=>{
+ const ids=new Map();const state=await collectLiveChannels(['22'],'11',async()=>({data:[{user_id:'11',type:'live',id:'1001'},{user_id:'22',type:'live',id:'1002'},{user_id:'33',type:'live',id:'1003'}]}),ids);assert.deepEqual(state,{primaryLive:true,authorizedLive:['22']});assert.deepEqual([...ids],[['11','1001'],['22','1002']]);
+});
 
 test('only approved broadcaster can grant chat-list permission; OAuth state is single-use, bound to signed account and stores no token',async()=>{
  const app=express(),writes=[],originalFetch=globalThis.fetch;app.use(cookieParser());const db={from(table){const q={select(){return this},eq(){return this},maybeSingle(){return Promise.resolve({data:null,error:null})},then(resolve,reject){return Promise.resolve({data:table==='rewards_streamers'?[{twitch_broadcaster_id:'11'}]:table==='rewards_streamer_live_profiles'?[{broadcaster_id:'22'}]:[],error:null}).then(resolve,reject)},upsert(value){writes.push(value);return Promise.resolve({error:null})}};return q}};
