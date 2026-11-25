@@ -5,6 +5,7 @@ import {monetizationHtml,monetizationJs} from './monetization-draft-ui.js';
 import {premiumPreviewHtml,premiumPreviewJs} from './premium-preview.js';
 import {seasonTwoRewardDraft,seasonTwoRules,seasonTwoThresholds} from './season-two-draft.js';
 import {installSeasonTaskPreview} from './season-two-task-preview.js';
+import {installSeasonTest} from './season-two-test.js';
 
 const visibility=z.enum(['hidden','admin_test']); // No public state exists in this release.
 const plan=z.object({stars:z.number().int().min(1).max(100000),visibility,coins:z.number().int().min(0).max(10000),skins:z.number().int().min(0).max(10000),title:z.string().trim().max(80),description:z.string().trim().max(600)}).strict();
@@ -18,6 +19,7 @@ export function initialMonetizationDraft():MonetizationDraft {
 
 export function installMonetizationDraft(app:Express,db:SupabaseClient,admin:RequestHandler,origin:string){
  installSeasonTaskPreview(app,admin);
+ installSeasonTest(app,db,admin,origin);
  const noStore:RequestHandler=(_q,r,next)=>{r.set('Cache-Control','private, no-store');next()};
  app.get('/admin/monetization',noStore,admin,(_q,r)=>r.type('html').send(monetizationHtml));
  app.get('/admin/monetization/premium',noStore,admin,(_q,r)=>r.type('html').send(premiumPreviewHtml));
