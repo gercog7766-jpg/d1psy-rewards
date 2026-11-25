@@ -14,6 +14,31 @@ test('S2 observed tasks use completed server records, precise thresholds and dis
  const get=id=>observedTask([...dailyTasks.flat(),...weeklyTasks,...challenges].find(t=>t.id===id),d);
  assert.equal(get('cMine240').complete,false);assert.equal(get('cDef1130').complete,false);assert.equal(get('wDefMedium15').complete,true);assert.equal(get('mineEasy').complete,false);assert.equal(get('watch60').progress,59);assert.equal(get('chat100').complete,true);assert.equal(get('wRun100k').progress,10000);assert.equal(get('run10coins').complete,true);assert.equal(get('wRun10x3').progress,1);assert.equal(get('word4').complete,true);assert.equal(get('upgrade2x').complete,true);assert.equal(get('wUpgrade5x').complete,false);assert.equal(get('cUpgrade15').complete,true);assert.equal(get('draw1'),null);
  Object.assign(d,{primary:['main'],live:[{broadcaster:'main',seconds:3600,messages:0},{broadcaster:'partner',seconds:1200,messages:0}],clan:1,boss:2,xp:99,redSeconds:7200,ttt:3});assert.equal(get('partner20').complete,true);assert.equal(get('wPartner7h').progress,20);assert.equal(get('clanJoin').complete,true);assert.equal(get('boss3').progress,2);assert.equal(get('xp100').complete,false);assert.equal(get('wRed120').complete,true);assert.equal(get('ttt3').complete,true);assert.equal([...dailyTasks.flat(),...weeklyTasks,...challenges].filter(t=>observedTask(t,d)!==null).length,65);
+ Object.assign(d,{tttWon:1,extras:{buyPrice:15,withdrawPrice:50,draws:3,earned:75,checkers:1,checkersWon:0}});assert.equal(get('buy15').complete,false);assert.equal(get('withdraw50').complete,false);assert.equal(get('draw3').complete,true);assert.equal(get('earn75').complete,true);assert.equal(get('earn100').complete,false);assert.equal(get('games3').complete,true);assert.equal(get('wins3').complete,true);assert.equal(get('checkers1').complete,true);assert.equal(get('wStreams5'),null);assert.equal([...dailyTasks.flat(),...weeklyTasks,...challenges].filter(t=>observedTask(t,d)!==null).length,81);
+ d.extras.streamVisits=5;assert.equal(get('wStreams5').complete,true);assert.equal([...dailyTasks.flat(),...weeklyTasks,...challenges].filter(t=>observedTask(t,d)!==null).length,82);
+});
+
+test('S2 extra observations count only completed draws and valid orders, exclude gifts and refunds, include checkers losses',async()=>{
+ const db=new PGlite(),u=randomUUID(),peer=randomUUID(),room=randomUUID(),win=randomUUID(),shopWin=randomUUID(),round=randomUUID(),cancelled=randomUUID(),partner=randomUUID(),at='2026-11-25 12:00:00+03';
+ try{await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;
+ create table rewards_users(id uuid primary key);create table rewards_live_economy_presence(user_id uuid,broadcaster text,observed_at timestamptz);
+ create table rewards_orders(user_id uuid,source_type text,price_coins integer,created_at timestamptz,status text);
+ create table rewards_round_participants(user_id uuid,round_id uuid,eligible boolean);
+ create table rewards_rounds(id uuid,status text,winner_user_id uuid,ended_at timestamptz);
+ create table rewards_streamer_live_participants(user_id uuid,round_id uuid);
+ create table rewards_streamer_live_rounds(id uuid,status text,winner uuid,finished_at timestamptz);
+ create table rewards_wins(id uuid,user_id uuid,source_type text);
+ create table rewards_coin_transactions(user_id uuid,win_id uuid,amount int,transaction_type text,note text,created_at timestamptz);
+ create table rewards_checkers_rooms(id uuid,host_id uuid,guest_id uuid,status text,winner_id uuid);
+ grant select on all tables in schema public to service_role;`);
+ await db.exec(await readFile(new URL('../supabase/migrations/20261125210000_s2_observed_extras.sql',import.meta.url),'utf8'));
+ await db.query(`insert into rewards_orders values($1,'shop',25,$2,'pending'),($1,'shop',999,$2,'cancelled'),($1,'win',51,$2,'sent'),($1,'win',1000,$2,'cancelled')`,[u,at]);
+ await db.query(`insert into rewards_rounds values($1,'completed',$3,$4),($2,'cancelled',$3,$4)`,[round,cancelled,peer,at]);await db.query('insert into rewards_round_participants values($1,$2,true),($1,$3,true)',[u,round,cancelled]);await db.query("insert into rewards_streamer_live_rounds values($1,'completed',$2,$3)",[partner,peer,at]);await db.query('insert into rewards_streamer_live_participants values($1,$2)',[u,partner]);
+ await db.query("insert into rewards_wins values($1,$3,'drop'),($2,$3,'shop')",[win,shopWin,u]);
+ await db.query(`insert into rewards_coin_transactions values($1,null,40,'adjustment','LIVE REWARDS · эфир · 123',$2),($1,null,1000,'gift_received','gift',$2),($1,null,500,'adjustment','Чёрный ящик · возврат · abc',$2),($1,$3,30,'win_sale','',$2),($1,$4,999,'win_sale','',$2),($5,null,9,'adjustment','Шашки · выигрыш · '||$6::text,$2)`,[u,at,win,shopWin,peer,room]);
+ await db.query("insert into rewards_checkers_rooms values($1,$2,$3,'won',$3)",[room,u,peer]);await db.query('insert into rewards_users values($1),($2)',[u,peer]);await db.exec('set role service_role');const q=await db.query("select rewards_s2_observed_extras($1,'2026-11-25','2026-11-26') v",[u]);assert.deepEqual(q.rows[0].v,{buyPrice:25,withdrawPrice:51,draws:2,earned:70,checkers:1,checkersWon:0,streamVisits:null});
+ await db.exec('reset role');const stamp=new Date().toISOString();await db.query("insert into rewards_live_economy_presence values($1,'11',$2)",[u,stamp]);await db.exec('set role service_role');const sample=[{broadcaster:'11',streamId:'123'},{broadcaster:'22',streamId:'456'}];for(let i=0;i<2;i++)await db.query('select rewards_s2_record_stream_visits($1,$2::jsonb)',[stamp,JSON.stringify(sample)]);await db.query('select rewards_s2_record_stream_visits($1,$2::jsonb)',[stamp,JSON.stringify([{broadcaster:'11',streamId:'124'}])]);assert.equal((await db.query('select count(*)::int n from rewards_s2_stream_visits')).rows[0].n,2);await db.exec('reset role;set role authenticated');await assert.rejects(db.query("select rewards_s2_observed_extras($1,'2026-11-25','2026-11-26')",[u]),/permission denied/);await assert.rejects(db.query('select * from rewards_s2_stream_visits'),/permission denied/);
+ }finally{await db.close()}
 });
 
 test('S2 persistent simulator preserves assignments, credits SP once and separates reward tracks',()=>{
