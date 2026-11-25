@@ -67,13 +67,18 @@ export function seasonTwoRewardDraft(){return rows.map(([free,premium],i)=>i===4
 
 // 90 days = 12 complete 7-day windows and one 6-day closing window.
 // 8.5/9 * 13 = 110.5, rounded up to 111; each window must have >=8 tasks.
-export const seasonTwoRules={days:90,weeks:13,weeklyTasks:9,minWeeklyEach:8,minWeeklyTotal:111,challengeMonths:3,challengesPerMonth:3,spPerDailySet:100,spPerWeekly:100,spPerChallenge:1000,maxLevel:50,finalSp:29100} as const;
-export const seasonTwoCosts=Array.from({length:50},(_,i)=>[250,400,600,750,910][Math.floor(i/10)]);
+export const seasonTwoRules={days:90,weeks:13,weeklyTasks:9,minWeeklyEach:8,minWeeklyTotal:111,challengeMonths:3,challengesPerMonth:3,spDaily:[100,125,150],spPerDailySet:375,spPerWeekly:600,spChallenges:[1500,2000,3000],maxLevel:50,finalSp:119850} as const;
+export const seasonTwoCosts=Array.from({length:50},(_,i)=>i===49?4650:[1000,1700,2400,3000,3800][Math.floor(i/10)]);
 export const seasonTwoThresholds=seasonTwoCosts.map((_,i)=>seasonTwoCosts.slice(0,i+1).reduce((a,b)=>a+b,0));
-export function seasonTwoProgress(dailyCompleted:number,weeklyCompleted:number[],challengesCompleted:number[]){
- if(!Number.isInteger(dailyCompleted)||dailyCompleted<0||dailyCompleted>90||weeklyCompleted.length!==13||weeklyCompleted.some(x=>!Number.isInteger(x)||x<0||x>9)||challengesCompleted.length!==3||challengesCompleted.some(x=>!Number.isInteger(x)||x<0||x>3))throw Error('invalid_s2_progress');
- const weekly=weeklyCompleted.reduce((a,b)=>a+b,0),challenges=challengesCompleted.reduce((a,b)=>a+b,0),sp=dailyCompleted*100+weekly*100+challenges*1000;
- const eligible=dailyCompleted===90&&weekly>=111&&weeklyCompleted.every(x=>x>=8)&&challengesCompleted.every(x=>x===3);
+// Each daily/monthly mask records which individual tasks were completed (bits 0–2).
+// Partial days and challenges still award their own SP but never satisfy the final gate.
+export function seasonTwoProgress(dailyMasks:number[],weeklyCompleted:number[],challengeMasks:number[]){
+ const invalidMask=(x:number)=>!Number.isInteger(x)||x<0||x>7;
+ if(dailyMasks.length!==90||dailyMasks.some(invalidMask)||weeklyCompleted.length!==13||weeklyCompleted.some(x=>!Number.isInteger(x)||x<0||x>9)||challengeMasks.length!==3||challengeMasks.some(invalidMask))throw Error('invalid_s2_progress');
+ const dailyCompleted=dailyMasks.filter(x=>x===7).length;
+ const tally=(masks:number[],values:readonly number[])=>masks.reduce((sum,mask)=>sum+values.reduce((value,sp,i)=>value+((mask&(1<<i))?sp:0),0),0);
+ const weekly=weeklyCompleted.reduce((a,b)=>a+b,0),challenges=tally(challengeMasks,[1,1,1]),sp=tally(dailyMasks,seasonTwoRules.spDaily)+weekly*seasonTwoRules.spPerWeekly+tally(challengeMasks,seasonTwoRules.spChallenges);
+ const eligible=dailyCompleted===90&&weekly>=111&&weeklyCompleted.every(x=>x>=8)&&challengeMasks.every(x=>x===7);
  const rawLevel=seasonTwoThresholds.filter(x=>x<=sp).length,level=eligible?rawLevel:Math.min(rawLevel,49);
  return {sp,level,eligible,weekly,challenges,remainingDaily:90-dailyCompleted,remainingWeekly:Math.max(0,111-weekly),remainingChallenges:9-challenges};
 }
