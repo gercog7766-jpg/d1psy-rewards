@@ -3,6 +3,13 @@ import {validPushSubscription} from '../src/pwa-hotfix.ts';import {pwaSw,pwaMani
 import {PGlite} from '@electric-sql/pglite';import {readFile} from 'node:fs/promises';import {JSDOM} from 'jsdom';import {initialMonetizationDraft} from '../src/monetization-draft.ts';import {monetizationHtml,monetizationJs} from '../src/monetization-draft-ui.ts';import {testEntitlements,testInvoice} from '../src/monetization-test-payments.ts';import {randomUUID} from 'node:crypto';
 import {createStarsSandbox} from '../src/telegram-stars-sandbox.ts';
 import {premiumPreviewHtml,premiumPreviewJs} from '../src/premium-preview.ts';
+import {seasonTwoRewardDraft,seasonTwoThresholds,seasonTwoProgress,seasonTwoRules} from '../src/season-two-draft.ts';
+
+test('S2 requires all daily sets and challenges, at least 8 weekly tasks per window and 111 total',()=>{
+ const weeks=[...Array(7).fill(9),...Array(6).fill(8)];assert.equal(seasonTwoRules.days,90);assert.equal(seasonTwoThresholds.length,50);assert.equal(seasonTwoThresholds.at(-1),29100);assert.deepEqual(seasonTwoProgress(90,weeks,[3,3,3]),{sp:29100,level:50,eligible:true,weekly:111,challenges:9,remainingDaily:0,remainingWeekly:0,remainingChallenges:0});
+ assert.equal(seasonTwoProgress(89,Array(13).fill(9),[3,3,3]).level,49);assert.equal(seasonTwoProgress(90,Array(13).fill(9),[3,3,2]).eligible,false);assert.equal(seasonTwoProgress(90,[7,...Array(12).fill(9)],[3,3,3]).level,49);assert.equal(seasonTwoProgress(90,[...Array(6).fill(9),...Array(7).fill(8)],[3,3,3]).eligible,false);assert.throws(()=>seasonTwoProgress(91,weeks,[3,3,3]),/invalid_s2_progress/);
+ const rewards=seasonTwoRewardDraft();assert.equal(rewards.length,50);assert(rewards.every(x=>x.free.kind&&x.premium.kind));assert.equal(rewards[49].free.value,550);assert.equal(rewards[49].premium.value,2500);assert.match(rewards[49].premium.label,/перчатки/);assert(rewards.slice(0,49).every(x=>x.free.value<=100&&x.premium.value<=165));assert.deepEqual(initialMonetizationDraft().battlePass.levels,rewards);assert.equal(rewards.reduce((a,x)=>a+x.free.value,0),1618);assert.equal(rewards.reduce((a,x)=>a+x.premium.value,0),4101);
+});
 
 test('premium preview shows saved limits, permits only test purchase and prioritizes PLUS',async()=>{
  const dom=new JSDOM(premiumPreviewHtml,{url:'https://dropso.test/admin/monetization/premium',runScripts:'outside-only'}),w=dom.window,d=w.document,cfg=initialMonetizationDraft(),calls=[];w.crypto.randomUUID=randomUUID;cfg.plus.visibility='admin_test';cfg.plus.stars=425;cfg.plus.coins=210;let active=false;const orderId=randomUUID();
