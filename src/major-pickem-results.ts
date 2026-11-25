@@ -1,4 +1,4 @@
-// Confirmed PGL Stage 1 results from the HLTV results screenshot, 24 November.
+// Confirmed PGL Stage 1 results from the supplied results screenshots, 24–25 November.
 // Scores are keyed by the same round and sorted team IDs as the Swiss bracket.
 export const majorMatchResults: Record<number, Record<string, {winner:string; scores:Record<string,number>}>> = {
   1: {
@@ -18,5 +18,13 @@ export const majorMatchResults: Record<number, Record<string, {winner:string; sc
     '1/flyquest/parivision': {winner:'flyquest',scores:{parivision:9,flyquest:13}},
     '1/bcgame/faze': {winner:'faze',scores:{faze:13,bcgame:3}},
     '1/liquid/wildcard': {winner:'liquid',scores:{liquid:13,wildcard:8}},
+    '2/bcgame/chinggis': {winner:'chinggis',scores:{bcgame:1,chinggis:2}},
+    '2/liquid/nip': {winner:'nip',scores:{nip:2,liquid:0}},
+    '2/flyquest/imperial': {winner:'flyquest',scores:{imperial:0,flyquest:2}},
+    '2/9z/dendele': {winner:'9z',scores:{'9z':2,dendele:0}},
+    '2/faze/parivision': {winner:'parivision',scores:{parivision:13,faze:10}},
+    '2/lynn-vision/wildcard': {winner:'lynn-vision',scores:{wildcard:8,'lynn-vision':13}},
+    '2/heroic/m80': {winner:'m80',scores:{heroic:10,m80:13}},
+    '2/100t/eternal-fire': {winner:'eternal-fire',scores:{'eternal-fire':13,'100t':6}},
   },
 };
