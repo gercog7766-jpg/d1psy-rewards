@@ -227,6 +227,10 @@ test('confirmed results are read-only and do not replace personal predictions', 
     assert.equal(doc.querySelectorAll('[data-round="1"] button[data-team]').length,16);
     assert.deepEqual([...doc.querySelectorAll('[data-round="1"] [aria-pressed="true"]')].map(b=>b.dataset.team).sort(),['eternal-fire','faze','flyquest','heroic','imperial','liquid','m80','nip']);
     assert.equal(doc.querySelectorAll('[data-round="2"] button[data-team]').length,16);
+    assert.deepEqual([...doc.querySelectorAll('[data-round="2"] [aria-pressed="true"]')].map(b=>b.dataset.team).sort(),['9z','chinggis','eternal-fire','flyquest','lynn-vision','m80','nip','parivision']);
+    assert.equal(doc.querySelectorAll('[data-round="3"] button[data-team]').length,12);
+    assert.equal(doc.querySelector('#majorShop'),null);
+    assert(doc.querySelector('#majorCases'));
     assert.deepEqual(JSON.parse(window.localStorage.getItem(key)),draft);
     doc.getElementById('predictionMode').click();
     assert.equal(doc.querySelector('[data-round="0"] [data-team="heroic"]').getAttribute('aria-pressed'),'true');

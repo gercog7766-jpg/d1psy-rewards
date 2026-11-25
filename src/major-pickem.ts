@@ -121,24 +121,8 @@ export function installMajorPickem(app:Express,db:SupabaseClient,user:RequestHan
     }
     res.json({settled:data});
   });
-  app.post('/api/me/major-pickem/shop/buy',noStore,user,async(req,res) => {
-    if(req.get('origin')!==origin || !req.is('application/json')){res.sendStatus(403);return;}
-    const {requestId,itemIndex}=req.body??{};
-    if(!req.body || Object.keys(req.body).length!==2 ||
-       typeof requestId!=='string' || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(requestId) ||
-       !Number.isInteger(itemIndex) || itemIndex<0 || itemIndex>8){
-      res.status(400).json({error:'invalid_request'});return;
-    }
-    const {data,error}=await db.rpc('rewards_major_shop_buy',{
-      p_actor:res.locals.session.twitchUserId,p_request:requestId,p_item:itemIndex
-    });
-    if(error){
-      const reason=['invalid_request','user_unavailable','entry_required','insufficient_tokens','shop_item_unavailable'].find(x=>error.message.includes(x));
-      if(!reason)console.error('major_shop_buy_failed',error.code);
-      res.status(reason?409:503).json({error:reason||'shop_unavailable'});return;
-    }
-    res.json(data);
-  });
+  // Retire direct shop purchases without deleting historical orders or inventory.
+  app.post('/api/me/major-pickem/shop/buy',noStore,user,(_req,res)=>{res.status(410).json({error:'shop_closed'});});
   app.post('/api/me/major-pickem/cases/bronze/open',noStore,user,async(req,res) => {
     if(req.get('origin')!==origin || !req.is('application/json')){res.sendStatus(403);return;}
     const requestId=req.body?.requestId;
