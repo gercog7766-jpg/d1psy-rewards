@@ -2,6 +2,7 @@ import type {Express,RequestHandler} from 'express';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {z} from 'zod';
 import {monetizationHtml,monetizationJs} from './monetization-draft-ui.js';
+import {premiumPreviewHtml,premiumPreviewJs} from './premium-preview.js';
 
 const visibility=z.enum(['hidden','admin_test']); // No public state exists in this release.
 const plan=z.object({stars:z.number().int().min(1).max(100000),visibility,coins:z.number().int().min(0).max(10000),skins:z.number().int().min(0).max(10000),title:z.string().trim().max(80),description:z.string().trim().max(600)}).strict();
@@ -17,6 +18,8 @@ export function initialMonetizationDraft():MonetizationDraft {
 export function installMonetizationDraft(app:Express,db:SupabaseClient,admin:RequestHandler,origin:string){
  const noStore:RequestHandler=(_q,r,next)=>{r.set('Cache-Control','private, no-store');next()};
  app.get('/admin/monetization',noStore,admin,(_q,r)=>r.type('html').send(monetizationHtml));
+ app.get('/admin/monetization/premium',noStore,admin,(_q,r)=>r.type('html').send(premiumPreviewHtml));
+ app.get('/api/admin/monetization/premium-script',noStore,admin,(_q,r)=>r.type('application/javascript').send(premiumPreviewJs));
  app.get('/api/admin/monetization/script',noStore,admin,(_q,r)=>r.type('application/javascript').send(monetizationJs));
  app.get('/api/admin/monetization/access',noStore,admin,(_q,r)=>r.json({allowed:true}));
  app.get('/api/admin/monetization/telegram',noStore,admin,async(_q,r)=>{
