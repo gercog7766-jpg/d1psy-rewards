@@ -13,6 +13,7 @@ import {attachClanProfiles} from './clan-profile.js';
 import {installAdventAdmin} from './advent-admin.js';
 import {installAdminStatistics} from './admin-statistics.js';
 import {installMonetizationDraft} from './monetization-draft.js';
+import {installMonetizationTestPayments} from './monetization-test-payments.js';
 import {installMajorPickem} from './major-pickem.js';
 import {installRedButton} from './red-button.js';
 import {installCheckers} from './checkers.js';
@@ -90,6 +91,7 @@ installBossDonationAlertsOAuth(app,db,requireAdmin,{clientId:process.env.BOSS_DA
 startBossIhaq(db);
 installAdminStatistics(app,db,requireAdmin);
 installMonetizationDraft(app,db,requireAdmin,new URL(APP_URL).origin);
+installMonetizationTestPayments(app,db,requireAdmin,new URL(APP_URL).origin);
 installStreamerPilot(app,requireUser,requireAdmin,subscribeToPartnerChat,partnerChatReady);
 installProfileCustomization(app,requireUser,requireAdmin);
 installAdminRoleControls(app,db,requireUser,requireAdmin,new URL(APP_URL).origin);
