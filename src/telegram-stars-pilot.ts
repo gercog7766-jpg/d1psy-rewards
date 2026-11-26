@@ -56,7 +56,7 @@ export function installStarsPilot(app:Express,db:SupabaseClient,admin:RequestHan
   if(action==='create'){
    if(data.state!=='pending'||Date.parse(data.expires_at)<=Date.now())return void r.status(409).json({error:'order_not_payable'});
    const title=data.product==='lite'?'DROPSO LITE':data.product==='plus'?'DROPSO PLUS':'DROPSO Battle Pass';
-   return void r.json({ok:true,invoice:{title,description:`${title} · ${data.product==='battlePass'?'до конца сезона':data.days+' дней'}. Реальная оплата Telegram Stars.`,payload:`stars_${data.id}`,currency:'XTR',prices:[{label:title,amount:data.stars}],start_parameter:`stars_${data.product}`}});
+   return void r.json({ok:true,invoice:{title,description:`${title} · ${data.product==='battlePass'?'до конца сезона':data.days+' дней'}. ${data.discount_percent>0?'Скидка '+data.discount_percent+'% по подписке. ':''}Реальная оплата Telegram Stars.`,payload:`stars_${data.id}`,currency:'XTR',prices:[{label:title,amount:data.stars}],start_parameter:`stars_${data.product}`}});
   }
   r.json({ok:true,order:{id:data.id,state:data.state,stars:data.stars,currency:data.currency,...(action==='prepare_refund'?{charge_id:data.charge_id}:{})}});
  });
