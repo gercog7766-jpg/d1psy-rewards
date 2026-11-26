@@ -37,7 +37,7 @@ const script=String.raw`(()=>{const $=id=>document.getElementById(id),node=(tag,
 export function installSeasonTest(app:Express,db:SupabaseClient,admin:RequestHandler,origin:string){
  installObservedSeason(app,db,admin);
  const privateGet:RequestHandler=(_q,r,n)=>{r.set('Cache-Control','private,no-store');n()};
- app.get('/admin/monetization/s2-progress',privateGet,admin,(_q,r)=>r.type('html').send(html.replace('<h1>','<p><a href="/admin/monetization/s2-observed">Реальные события · проверка прогресса ↗</a></p><h1>')));
+ app.get('/admin/monetization/s2-progress',privateGet,admin,(_q,r)=>r.type('html').send(html.replace('<h1>','<p><a href="/admin/monetization/s2-real">Battle Pass S2 · реальный прогресс (TEST) ↗</a> · <a href="/admin/monetization/s2-observed">Реальные события · проверка прогресса ↗</a></p><h1>')));
  app.get(path+'-script',privateGet,admin,(_q,r)=>r.type('application/javascript').send(script));
  const read=(actor:string,sample:number)=>db.from('rewards_s2_test_profiles').select('revision,state').eq('actor',actor).eq('sample',sample).maybeSingle();
  app.get(path,privateGet,admin,async(q,r)=>{const sample=sampleSchema.safeParse(Number(q.query.sample));if(!sample.success)return void r.sendStatus(400);const {data,error}=await read(r.locals.session.twitchUserId,sample.data);if(error)return void r.status(503).json({error:'test_storage_unavailable'});r.json({sample:sample.data,revision:data?.revision??-1,testOnly:true})});
