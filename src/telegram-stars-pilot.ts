@@ -37,7 +37,7 @@ export function installStarsPilot(app:Express,db:SupabaseClient,admin:RequestHan
    return void r.json({ok:true,url:data?.support_url||null});
   }
   const {data,error}=await db.rpc('rewards_stars_pilot_action',{p_telegram_id:telegramId,p_action:action,p_body:body});
-  if(error){const known=['admin_required','pilot_disabled','product_not_in_test','order_already_exists','order_not_found','order_not_payable','amount_mismatch','request_conflict','rate_limit','refund_pending','order_not_paid','order_not_approved','invalid_receipt','season_not_open'];return void r.status(error.code==='P0001'&&known.includes(error.message)?409:503).json({error:known.includes(error.message)?error.message:'stars_unavailable'})}
+  if(error){const known=['admin_required','pilot_disabled','product_not_in_test','order_already_exists','order_not_found','order_not_payable','amount_mismatch','request_conflict','rate_limit','refund_pending','order_not_paid','order_not_approved','invalid_receipt','season_not_open','season_not_ready'];return void r.status(error.code==='P0001'&&known.includes(error.message)?409:503).json({error:known.includes(error.message)?error.message:'stars_unavailable'})}
   if(action==='create'){
    if(data.state!=='pending'||Date.parse(data.expires_at)<=Date.now())return void r.status(409).json({error:'order_not_payable'});
    const title=data.product==='lite'?'DROPSO LITE':data.product==='plus'?'DROPSO PLUS':'DROPSO Battle Pass';
