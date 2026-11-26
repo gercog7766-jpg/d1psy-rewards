@@ -190,3 +190,45 @@ test('real rights follow verified receipts, renewals, PLUS priority, refund, exp
   await db.exec('reset role;set role anon');await assert.rejects(rights(),/permission denied/);
  }finally{await db.close()}
 });
+
+
+test('membership preview reflects live entitlements and only opens explicitly enabled administrator checkout',async()=>{
+ const {membershipPageHtml,membershipPageJs}=await import('../src/membership-page.ts');
+ const {JSDOM}=await import('jsdom');
+ for(const scenario of [
+  {tier:'free'},
+  {tier:'lite'},
+  {tier:'plus'},
+  {tier:'lite',visibility:'hidden'},
+  {tier:'free',linked:false},
+  {tier:'free',enabled:false},
+  {tier:'free',fulfillment:false},
+  {tier:'free',relay:false},
+  {tier:'free',demo:true}
+ ]){
+  const dom=new JSDOM(membershipPageHtml,{url:'https://dropso.site/admin/monetization/membership-page',runScripts:'outside-only'});
+  try{
+   const w=dom.window,d=w.document;
+   const draft={config:{lite:{stars:249,visibility:scenario.visibility??'admin_test'},plus:{stars:399,visibility:scenario.visibility??'admin_test'}}};
+   const stars={entitlements:{tier:scenario.tier,expiresAt:new Date(Date.now()+30*86400000).toISOString()},control:{enabled:scenario.enabled??true,fulfillment_ready:scenario.fulfillment??true,support_url:'https://t.me/dropso_cs2'},linked:scenario.linked??true,relayConfigured:scenario.relay??true,botUsername:'dropso_test_bot'};
+   w.fetch=async url=>({ok:true,json:async()=>url.endsWith('/draft')?draft:stars});
+   if(scenario.demo)w.__DROPSO_MEMBERSHIP_DEMO__={draft,stars};
+   w.eval(membershipPageJs);
+   await new Promise(resolve=>setImmediate(resolve));
+   const el=id=>d.getElementById(id);
+   assert.equal(el('currentTier').textContent,scenario.tier==='free'?'FREE':'DROPSO '+scenario.tier.toUpperCase());
+   assert.equal(el('currentActions').hidden,scenario.tier==='free');
+   assert.equal(el('cta-lite').disabled,scenario.tier==='plus');
+   if(scenario.tier!=='free'){
+    assert.equal(el('renew').dataset.buy,scenario.tier);
+    assert.equal(el('upgrade').hidden,scenario.tier==='plus');
+   }
+   el('cta-plus').click();
+   const ready=!scenario.demo&&scenario.visibility!=='hidden'&&scenario.linked!==false&&scenario.enabled!==false&&scenario.fulfillment!==false&&scenario.relay!==false;
+   assert.equal(el('telegramCheckout').hidden,!ready);
+   assert.equal(el('telegramCheckout').getAttribute('href'),ready?'https://t.me/dropso_test_bot?start=stars_plus':null);
+   if(scenario.tier==='lite')assert.match(el('dialogCopy').textContent,/оставшийся срок LITE не отменяется/);
+   if(scenario.tier==='plus')assert.match(el('dialogCopy').textContent,/Продление добавляет 30 дней/);
+  }finally{dom.window.close()}
+ }
+});
