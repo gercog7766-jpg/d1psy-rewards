@@ -27,7 +27,7 @@ export function installMonetizationDraft(app:Express,db:SupabaseClient,admin:Req
  installRealSeason(app,db,admin,origin);
  installTestMembership(app,db,admin,origin,value=>{const parsed=draftSchema.safeParse(value);return parsed.success?parsed.data:value&&Object.keys(value as object).length?null:initialMonetizationDraft()});
  const noStore:RequestHandler=(_q,r,next)=>{r.set('Cache-Control','private, no-store');next()};
- app.get('/admin/monetization',noStore,admin,(_q,r)=>r.type('html').send(monetizationHtml.replace('<h1>','<p><a href="/admin/monetization/s2-real">NIGHT SHIFT S2 · Battle Pass с реальным прогрессом (ADMIN TEST) ↗</a> · <a href="/admin/monetization/stars">Telegram Stars · ADMIN TEST ↗</a></p><h1>')));
+ app.get('/admin/monetization',noStore,admin,(_q,r)=>r.type('html').send(monetizationHtml.replace('<h1>','<p><a href="/admin/monetization/s2-real">NIGHT SHIFT S2 · Battle Pass с реальным прогрессом (ADMIN TEST) ↗</a> · <a href="/admin/monetization/stars">Telegram Stars · ADMIN TEST ↗</a> · <a href="/admin/monetization/cosmetics">Подписочная косметика ↗</a></p><h1>')));
  app.get('/admin/monetization/premium',noStore,admin,(_q,r)=>r.type('html').send(premiumPreviewHtml.replace('<main>','<main><p><a href="/admin/monetization/membership">Проверка прав и лимитов подписки (ADMIN TEST) ↗</a></p>')));
  app.get('/api/admin/monetization/premium-script',noStore,admin,(_q,r)=>r.type('application/javascript').send(premiumPreviewJs));
  app.get('/api/admin/monetization/script',noStore,admin,(_q,r)=>r.type('application/javascript').send(monetizationJs));

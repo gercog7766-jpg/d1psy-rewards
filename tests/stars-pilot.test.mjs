@@ -5,6 +5,19 @@ import {readFile} from 'node:fs/promises';
 import {randomUUID} from 'node:crypto';
 import {createRelay} from '../scripts/telegram-relay.mjs';
 
+test('closed real cosmetics editor validates ownership on the server and previews approved IDs safely',async()=>{
+ const {default:express}=await import('express'),{JSDOM}=await import('jsdom'),{installStarsProfileCosmetics}=await import('../src/stars-profile-cosmetics.ts');
+ const app=express();app.use(express.json());const calls=[];let state={tier:'plus',equipment:{frame:null,background:null,badge:null,title:null}};
+ const db={rpc:async(name,body)=>{calls.push({name,body});if(body.p_action==='save')state={...state,equipment:body.p_body};return {data:state,error:null}}};
+ const admin=(q,r,next)=>{if(q.get('x-admin')!=='yes')return r.sendStatus(403);r.locals.session={twitchUserId:'owner'};next()};const origin=(q,r,n)=>q.get('origin')==='https://test.local'?n():r.sendStatus(403);installStarsProfileCosmetics(app,db,admin,origin);
+ const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));const base='http://127.0.0.1:'+server.address().port,route='/api/admin/monetization/cosmetics',headers={'x-admin':'yes'};
+ try{assert.equal((await fetch(base+route)).status,403);assert.equal((await fetch(base+'/admin/monetization/cosmetics')).status,403);
+  const page=await (await fetch(base+'/admin/monetization/cosmetics',{headers})).text(),script=await (await fetch(base+route+'-script',{headers})).text();const dom=new JSDOM(page,{url:'https://test.local/admin/monetization/cosmetics',runScripts:'outside-only'}),w=dom.window;
+  try{w.fetch=async(url,opts)=>fetch(base+url,{...opts,headers:{...headers,...opts?.headers,Origin:'https://test.local'}});w.eval(script);for(let i=0;i<100&&!w.document.getElementById('frame');i++)await new Promise(r=>setTimeout(r,10));const frame=w.document.getElementById('frame');assert(frame);frame.value='plus_frame';frame.dispatchEvent(new w.Event('change'));assert.equal(w.document.getElementById('face').dataset.starsFrame,'plus_frame');const badge=w.document.getElementById('badge');badge.value='plus_badge';badge.dispatchEvent(new w.Event('change'));assert.match(w.document.getElementById('labels').textContent,/PLUS/);w.document.getElementById('form').dispatchEvent(new w.Event('submit',{cancelable:true}));for(let i=0;i<100&&!calls.some(c=>c.body.p_action==='save');i++)await new Promise(r=>setTimeout(r,10));assert.equal(calls.find(c=>c.body.p_action==='save').body.p_actor,'owner');assert.equal(state.equipment.frame,'plus_frame');}finally{w.close()}
+  const invalid=await fetch(base+route,{method:'POST',headers:{...headers,Origin:'https://test.local','Content-Type':'application/json'},body:JSON.stringify({...state.equipment,frame:'<script>'})});assert.equal(invalid.status,400);
+ }finally{await new Promise(r=>server.close(r))}
+});
+
 test('paid transfer limits preserve free limits, snapshot skin prices and reject exhausted daily budgets',async()=>{
  const db=new PGlite();try{
   await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;
@@ -19,7 +32,7 @@ test('paid transfer limits preserve free limits, snapshot skin prices and reject
    create function rewards_social_peer(uuid,text) returns uuid language sql as 'select id from public.rewards_users where twitch_login=$2 and id<>$1';create function rewards_social_blocked(uuid,uuid) returns boolean language sql as 'select false';
    insert into rewards_users(twitch_user_id,twitch_login) values('admin','alpha'),('player','bravo');insert into rewards_admins values('admin');insert into rewards_bonus_telegram_links select id,'123' from rewards_users where twitch_user_id='admin';
    insert into rewards_monetization_draft values(true,'{"lite":{"stars":249,"visibility":"admin_test"},"plus":{"stars":399,"visibility":"admin_test"}}');insert into rewards_coin_transactions(user_id,amount) select id,500 from rewards_users;grant select,insert,update on all tables in schema public to service_role;`);
-  for(const m of ['20261126180000_stars_pilot.sql','20261126190000_stars_entitlements.sql','20261126200000_stars_gift_limits.sql'])await db.exec(await readFile(new URL('../supabase/migrations/'+m,import.meta.url),'utf8'));
+  for(const m of ['20261126180000_stars_pilot.sql','20261126190000_stars_entitlements.sql','20261126200000_stars_gift_limits.sql','20261126210000_stars_profile_cosmetics.sql'])await db.exec(await readFile(new URL('../supabase/migrations/'+m,import.meta.url),'utf8'));
   const q=async(sql,params=[])=> (await db.query(sql,params)).rows;const a=(await q("select id from rewards_users where twitch_login='alpha'"))[0].id,b=(await q("select id from rewards_users where twitch_login='bravo'"))[0].id;
   const call=async(n,args)=>(await q('select rewards_'+n+'('+args.map((_,i)=>'$'+(i+1)).join(',')+') r',args))[0].r;
   const gift=(user,peer,amount,key=randomUUID())=>call('send_coin_gift',[user,peer,amount,key]);const skin=(win=null,key=null)=>call('skin_gift',['admin','bravo',win,key]);
@@ -27,10 +40,15 @@ test('paid transfer limits preserve free limits, snapshot skin prices and reject
   await assert.rejects(gift(a,'bravo',21),/gift_daily_limit/);await gift(a,'bravo',20);await assert.rejects(gift(a,'bravo',1),/gift_daily_limit/);
   async function pay(product){const c=(action,body)=>call('stars_pilot_action',['123',action,body]);const o=await c('create',{product,requestId:randomUUID()});const proof={orderId:o.id,stars:o.stars,currency:'XTR'};await c('precheckout',{...proof,precheckoutId:o.id});await c('receipt',{...proof,chargeId:o.id});return {...proof,chargeId:o.id}}
   const lite=await pay('lite');assert.equal((await call('social_profile',[a,'bravo'])).giftRemaining,80);await gift(a,'bravo',80);await assert.rejects(gift(a,'bravo',1),/gift_daily_limit/);await assert.rejects(gift(b,'alpha',21),/gift_daily_limit/);
+  const style=(action,body={})=>call('stars_profile_style',['admin',action,body]);const equip={frame:'lite_frame',background:'lite_background',badge:'lite_badge',title:'lite_title'};
+  assert.equal((await style('state')).tier,'lite');await assert.rejects(style('save',{...equip,frame:'plus_frame'}),/cosmetic_not_owned/);assert.deepEqual((await style('save',equip)).equipment,equip);await assert.rejects(call('stars_profile_style',['player','save',equip]),/admin_required/);
+  const visible=(viewer)=>call('stars_profile_styles',[viewer,['alpha']]);assert.deepEqual((await visible('admin'))[0].equipment,equip);assert.deepEqual(await visible('player'),[]);
   const items=[];for(const price of [70,80,50]){const p=(await q('insert into rewards_prizes(name,sell_price_coins) values($1,$2) returning id',['skin',price]))[0].id;items.push((await q("insert into rewards_wins(user_id,prize_id,choice_status,delivery_status) values($1,$2,'awaiting_choice','pending') returning id",[a,p]))[0].id)}
   assert.equal((await skin()).remaining,150);const key=randomUUID();await skin(items[0],key);await skin(items[0],key);await skin(items[1],randomUUID());assert.equal((await skin()).remaining,0);await assert.rejects(skin(items[2],randomUUID()),/skin_gift_limit/);
   const plus=await pay('plus');assert.equal((await skin()).remaining,150);await skin(items[2],randomUUID());assert.equal((await skin()).remaining,100);await gift(a,'bravo',100);await assert.rejects(gift(a,'bravo',1),/gift_daily_limit/);
+  assert.equal((await style('save',{...equip,frame:'plus_frame'})).equipment.frame,'plus_frame');assert.equal((await visible('admin'))[0].equipment.frame,'plus_frame');
   await call('stars_pilot_action',['123','refund',plus]);assert.equal((await skin()).remaining,0);await call('stars_pilot_action',['123','refund',lite]);assert.equal((await call('social_profile',[a,'bravo'])).giftRemaining,0);assert.equal((await skin()).used,true);
+  assert.deepEqual(await visible('admin'),[]);assert.equal((await style('state')).equipment.frame,null);await assert.rejects(style('save',equip),/cosmetic_not_owned/);
   assert.equal((await q('select sum(price_coins)::int n from rewards_skin_gifts'))[0].n,200);assert.equal((await q('select sum(amount)::int n from rewards_coin_transactions'))[0].n,1000);
   const freePrize=(await q("insert into rewards_prizes(name,sell_price_coins) values('free',10) returning id"))[0].id;const freeItems=[];for(let i=0;i<2;i++)freeItems.push((await q("insert into rewards_wins(user_id,prize_id,choice_status,delivery_status) values($1,$2,'awaiting_choice','pending') returning id",[b,freePrize]))[0].id);
   await call('skin_gift',['player','alpha',freeItems[0],randomUUID()]);await assert.rejects(call('skin_gift',['player','alpha',freeItems[1],randomUUID()]),/skin_gift_limit/);
