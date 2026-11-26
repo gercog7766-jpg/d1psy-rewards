@@ -5,6 +5,39 @@ import {readFile} from 'node:fs/promises';
 import {randomUUID} from 'node:crypto';
 import {createRelay} from '../scripts/telegram-relay.mjs';
 
+test('paid transfer limits preserve free limits, snapshot skin prices and reject exhausted daily budgets',async()=>{
+ const db=new PGlite();try{
+  await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;
+   create table rewards_users(id uuid primary key default gen_random_uuid(),twitch_user_id text,twitch_login text,twitch_display_name text,banned boolean default false);
+   create table rewards_admins(twitch_user_id text);create table rewards_bonus_telegram_links(user_id uuid,telegram_id text);create table rewards_monetization_draft(id boolean,config jsonb);
+   create table rewards_coin_transactions(id uuid primary key default gen_random_uuid(),user_id uuid,amount integer,transaction_type text,note text,created_at timestamptz default now());
+   create table rewards_coin_gifts(id uuid primary key default gen_random_uuid(),sender_id uuid,recipient_id uuid,request_id uuid,amount integer check(amount between 1 and 20),gift_day date,sender_transaction uuid,recipient_transaction uuid,created_at timestamptz,unique(sender_id,request_id));
+   create table rewards_friendships(user_low uuid,user_high uuid,status text,requested_by uuid);create table rewards_social_blocks(user_id uuid,blocked_id uuid);
+   create table rewards_prizes(id uuid primary key default gen_random_uuid(),name text,sell_price_coins integer);
+   create table rewards_wins(id uuid primary key default gen_random_uuid(),user_id uuid,prize_id uuid,source_type text,delivery_status text,choice_status text,item_wear text,item_variant_kind text,won_at timestamptz default now(),choice_at timestamptz);
+   create table rewards_skin_gifts(sender_id uuid,recipient_id uuid,gift_day date,request_id uuid,source_win uuid unique,received_win uuid unique,primary key(sender_id,gift_day),unique(sender_id,request_id));
+   create function rewards_social_peer(uuid,text) returns uuid language sql as 'select id from public.rewards_users where twitch_login=$2 and id<>$1';create function rewards_social_blocked(uuid,uuid) returns boolean language sql as 'select false';
+   insert into rewards_users(twitch_user_id,twitch_login) values('admin','alpha'),('player','bravo');insert into rewards_admins values('admin');insert into rewards_bonus_telegram_links select id,'123' from rewards_users where twitch_user_id='admin';
+   insert into rewards_monetization_draft values(true,'{"lite":{"stars":249,"visibility":"admin_test"},"plus":{"stars":399,"visibility":"admin_test"}}');insert into rewards_coin_transactions(user_id,amount) select id,500 from rewards_users;grant select,insert,update on all tables in schema public to service_role;`);
+  for(const m of ['20261126180000_stars_pilot.sql','20261126190000_stars_entitlements.sql','20261126200000_stars_gift_limits.sql'])await db.exec(await readFile(new URL('../supabase/migrations/'+m,import.meta.url),'utf8'));
+  const q=async(sql,params=[])=> (await db.query(sql,params)).rows;const a=(await q("select id from rewards_users where twitch_login='alpha'"))[0].id,b=(await q("select id from rewards_users where twitch_login='bravo'"))[0].id;
+  const call=async(n,args)=>(await q('select rewards_'+n+'('+args.map((_,i)=>'$'+(i+1)).join(',')+') r',args))[0].r;
+  const gift=(user,peer,amount,key=randomUUID())=>call('send_coin_gift',[user,peer,amount,key]);const skin=(win=null,key=null)=>call('skin_gift',['admin','bravo',win,key]);
+  await db.exec("update rewards_stars_pilot_control set enabled=true,fulfillment_ready=true,support_url='https://example.test/support';set role service_role");
+  await assert.rejects(gift(a,'bravo',21),/gift_daily_limit/);await gift(a,'bravo',20);await assert.rejects(gift(a,'bravo',1),/gift_daily_limit/);
+  async function pay(product){const c=(action,body)=>call('stars_pilot_action',['123',action,body]);const o=await c('create',{product,requestId:randomUUID()});const proof={orderId:o.id,stars:o.stars,currency:'XTR'};await c('precheckout',{...proof,precheckoutId:o.id});await c('receipt',{...proof,chargeId:o.id});return {...proof,chargeId:o.id}}
+  const lite=await pay('lite');assert.equal((await call('social_profile',[a,'bravo'])).giftRemaining,80);await gift(a,'bravo',80);await assert.rejects(gift(a,'bravo',1),/gift_daily_limit/);await assert.rejects(gift(b,'alpha',21),/gift_daily_limit/);
+  const items=[];for(const price of [70,80,50]){const p=(await q('insert into rewards_prizes(name,sell_price_coins) values($1,$2) returning id',['skin',price]))[0].id;items.push((await q("insert into rewards_wins(user_id,prize_id,choice_status,delivery_status) values($1,$2,'awaiting_choice','pending') returning id",[a,p]))[0].id)}
+  assert.equal((await skin()).remaining,150);const key=randomUUID();await skin(items[0],key);await skin(items[0],key);await skin(items[1],randomUUID());assert.equal((await skin()).remaining,0);await assert.rejects(skin(items[2],randomUUID()),/skin_gift_limit/);
+  const plus=await pay('plus');assert.equal((await skin()).remaining,150);await skin(items[2],randomUUID());assert.equal((await skin()).remaining,100);await gift(a,'bravo',100);await assert.rejects(gift(a,'bravo',1),/gift_daily_limit/);
+  await call('stars_pilot_action',['123','refund',plus]);assert.equal((await skin()).remaining,0);await call('stars_pilot_action',['123','refund',lite]);assert.equal((await call('social_profile',[a,'bravo'])).giftRemaining,0);assert.equal((await skin()).used,true);
+  assert.equal((await q('select sum(price_coins)::int n from rewards_skin_gifts'))[0].n,200);assert.equal((await q('select sum(amount)::int n from rewards_coin_transactions'))[0].n,1000);
+  const freePrize=(await q("insert into rewards_prizes(name,sell_price_coins) values('free',10) returning id"))[0].id;const freeItems=[];for(let i=0;i<2;i++)freeItems.push((await q("insert into rewards_wins(user_id,prize_id,choice_status,delivery_status) values($1,$2,'awaiting_choice','pending') returning id",[b,freePrize]))[0].id);
+  await call('skin_gift',['player','alpha',freeItems[0],randomUUID()]);await assert.rejects(call('skin_gift',['player','alpha',freeItems[1],randomUUID()]),/skin_gift_limit/);
+  await db.exec('reset role;set role anon');await assert.rejects(call('stars_gift_tier',[a]),/permission denied/);
+ }finally{await db.close()}
+});
+
 test('real Stars pilot is closed by default and records only exact approved receipts, independently of wallet',async()=>{
  const db=new PGlite();try{
   await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;create table rewards_users(id uuid primary key default gen_random_uuid(),twitch_user_id text,banned boolean default false);create table rewards_admins(twitch_user_id text);create table rewards_bonus_telegram_links(user_id uuid,telegram_id text);create table rewards_monetization_draft(id boolean,config jsonb);insert into rewards_users(twitch_user_id) values('admin'),('player');insert into rewards_admins values('admin');insert into rewards_bonus_telegram_links select id,case twitch_user_id when 'admin' then '123' else '456' end from rewards_users;insert into rewards_monetization_draft values(true,'{"lite":{"stars":249,"visibility":"admin_test"}}');grant select on all tables in schema public to service_role;`);
