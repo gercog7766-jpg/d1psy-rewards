@@ -190,3 +190,41 @@ test('real rights follow verified receipts, renewals, PLUS priority, refund, exp
   await db.exec('reset role;set role anon');await assert.rejects(rights(),/permission denied/);
  }finally{await db.close()}
 });
+
+
+test('S2 design preview reads saved catalog, displays actual rewards and uses only TEST claims',async()=>{
+ const {s2DesignHtml,s2DesignJs,installS2Design}=await import('../src/s2-design-preview.ts');
+ const {JSDOM}=await import('jsdom');
+ const routes=[];installS2Design({get:(path,...handlers)=>routes.push({path,handlers})},{},()=>{});
+ assert.deepEqual(routes.map(x=>x.path),['/admin/monetization/s2-design','/api/admin/monetization/s2-design-script','/api/admin/monetization/s2-design']);
+ assert(routes.every(x=>x.handlers.length===3));
+ const rows=Array.from({length:50},(_,i)=>['free','premium'].map(track=>({level:i+1,track,kind:'skin',label:'Saved '+track+' '+(i+1),value:i===49?(track==='free'?550:2527):10,image:'https://example.test/skin.png'}))).flat();
+ const catalog={testOnly:true,rows,thresholds:Array.from({length:50},(_,i)=>(i+1)*1000),startsAt:'2026-12-14T21:00:00Z',endsAt:'2027-03-14T21:00:00Z',tier:'plus',prices:{free:499,lite:489,plus:474}};
+ const task={label:'Mission',sp:100,target:3,unit:'count'},group={tasks:[task],mask:0,replaced:false};
+ const state={testOnly:true,revision:3,day:1,premium:true,progress:{level:1,sp:1325,weekly:2,challenges:0,remainingDaily:90,remainingWeekly:109,remainingChallenges:9},state:{receipts:[],days:{1:group},weeks:{1:{...group,mask:1}},months:[group],metrics:{d1:[{progress:1}],w1:[{progress:3}],m1:[{progress:0}]}}};
+ const dom=new JSDOM(s2DesignHtml,{url:'https://dropso.site/admin/monetization/s2-design',runScripts:'outside-only'}),w=dom.window,d=w.document,actions=[];
+ try{
+  w.setInterval=()=>0;
+  w.fetch=async(url,options)=>{
+   if(url==='/api/admin/monetization/s2-design')return {ok:true,json:async()=>catalog};
+   assert.equal(url,'/api/admin/monetization/s2-real');
+   const action=JSON.parse(options.body);actions.push(action);
+   if(action.action==='claim')state.state.receipts.push({level:action.level,track:action.track});
+   return {ok:true,json:async()=>state};
+  };
+  const flush=()=>new Promise(resolve=>setImmediate(resolve));w.eval(s2DesignJs);await flush();
+  assert.equal(d.querySelectorAll('#levels .level').length,50);
+  assert.equal(d.querySelectorAll('#levels .reward').length,100);
+  assert.match(d.querySelector('#heroCta').textContent,/474/);
+  assert.equal(d.querySelector('#heroArt img').getAttribute('src'),'https://example.test/skin.png');
+  assert.match(d.querySelector('#final').textContent,/Saved premium 50/);
+  assert(d.querySelector('[data-level="1"] .premium button').disabled);
+  d.querySelector('#sync').click();await flush();
+  assert.equal(d.querySelector('.level.current').dataset.level,'1');
+  d.querySelector('[data-group="weekly"]').click();assert.equal(d.querySelectorAll('.task.done').length,1);
+  d.querySelector('[data-level="1"] .premium button').click();await flush();
+  assert.deepEqual(actions.at(-1),{action:'claim',track:'premium',level:1,revision:3});
+  assert(d.querySelector('[data-level="1"] .premium.claimed'));
+  assert(d.querySelector('[data-level="2"] .premium button').disabled);
+ }finally{dom.window.close()}
+});
