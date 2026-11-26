@@ -2,6 +2,8 @@ import crypto from 'node:crypto';
 import express from 'express';
 import { createClient } from '@supabase/supabase-js';
 import { fullCoinBalance } from './coin-ledger-paged.js';
+import {z} from 'zod';
+const cartInput=z.object({requestId:z.string().uuid(),expectedTotal:z.number().int().min(1).max(2147483647),items:z.array(z.object({itemId:z.string().uuid(),variantId:z.string().uuid().nullable(),qty:z.number().int().min(1).max(99),expectedPrice:z.number().int().positive().max(2147483647)}).strict()).min(1).max(100)}).strict();
 
 const db=createClient(process.env.SUPABASE_URL||'https://ssqjogdcynmjjgtxknng.supabase.co',process.env.SUPABASE_SECRET_KEY||'not-configured',{auth:{persistSession:false}});
 const HIDE_NAMES=new Set(['Glock-18 | Кролик в тени','CZ75-Auto | Фреймворк','AUG | Жуть','USP-S | Silent Shot','XM1014 | Ирэдзуми','M4A4 | Эолова тьма','M4A4 | Стальной каркас','Zeus x27 | Пиксельный камуфляж «Болото»','Tec-9 | Лимонная кислота','SCAR-20 | Песчаная сетка','P90 | Песчаное напыление','P250 | Ледяная корка','MAC-10 | Грозовой камуфляж','M249 | Ледяная корка','Наклейка | Париж-2023','Запечатанный граффити','Автомат «Галиль» | Серый дым']);
@@ -58,7 +60,13 @@ export function installShopHotfix(){
     const ftPriceByItem=new Map((ftVariants||[]).filter((v:any)=>v.available&&v.price_coins!=null).map((v:any)=>[String(v.shop_item_id),Number(v.price_coins)]));
     const visibleShop=(shop||[]).filter((x:any)=>!HIDE_NAMES.has(String(x.name||''))).map((x:any)=>{const ft=ftPriceByItem.get(String(x.id));return ft==null?x:{...x,price_coins:ft}});
     res.set('Cache-Control','no-store');
-    return res.json({balance,currency:'Монета',shop:visibleShop,purchases:purchases||[]});
+    let shopDiscount=0;if(req.query.summary!=='1'&&!req.query.eng){try{const result=await db.rpc('rewards_stars_discount_percent',{p_user:u.id,p_kind:'shop'});if(!result.error&&[1,2].includes(result.data))shopDiscount=result.data}catch{/* Existing shop works without optional migration. */}}
+    return res.json({balance,currency:'Монета',shop:visibleShop,purchases:purchases||[],shopDiscount});
+   });
+   app.post('/api/me/shop/cart/checkout',async(req:any,res:any)=>{
+    res.set('Cache-Control','private,no-store');const expected=new URL(process.env.APP_URL||'http://localhost:'+String(process.env.PORT||10000)).origin;if(req.get('origin')!==expected||!req.is('application/json'))return res.sendStatus(403);
+    const u=await currentUser(req,res);if(!u)return;if(!u.steam_trade_url_valid)return res.status(409).json({error:'trade_url_required'});const p=cartInput.safeParse(req.body);if(!p.success||p.data.items.reduce((n,x)=>n+x.qty,0)>100)return res.status(400).json({error:'invalid_request'});
+    const {data,error}=await db.rpc('rewards_stars_purchase_cart',{p_user:u.id,p_request:p.data.requestId,p_items:p.data.items.map(x=>({item_id:x.itemId,variant_id:x.variantId,qty:x.qty,expected_price:x.expectedPrice})),p_expected_total:p.data.expectedTotal});if(error){const known=['discount_unavailable','price_changed','insufficient_coins','out_of_stock','item_not_available','variant_not_available','request_conflict','invalid_request'];return res.status(409).json({error:known.includes(error.message)?error.message:'purchase_failed'})}return res.json(data);
    });
    app.post('/api/me/shop/:id/buy',async(req:any,res:any)=>{
     const u=await currentUser(req,res);if(!u)return;
