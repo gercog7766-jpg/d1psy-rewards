@@ -21,7 +21,7 @@ async function currentUser(req:any,res:any){
 
 const isUuid=(value:unknown):value is string=>typeof value==='string'&&/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(value);
 const validGroup=(ids:unknown)=>Array.isArray(ids)&&ids.length>=1&&ids.length<=4&&ids.every(isUuid)&&new Set(ids.map(id=>id.toLowerCase())).size===ids.length;
-const upgradeErrors=['source_not_found','source_not_available','source_has_no_value','source_already_used','target_not_available','target_variant_not_available','target_must_be_more_expensive','chance_too_low','invalid_extra_coins','insufficient_coins'];
+const upgradeErrors=['source_not_found','source_not_available','source_has_no_value','source_already_used','target_not_available','target_variant_not_available','target_must_be_more_expensive','chance_too_low','invalid_extra_coins','insufficient_coins','request_conflict','streak_reward_unavailable'];
 function payload(x:any){return {ok:true,result:x.result,chanceBps:Number(x.chance_bps),rollBps:Number(x.roll_bps),upgradeId:x.id||x.upgrade_id,rewardWinId:x.reward_win_id||null}}
 
 export function installUpgraderRunFixHotfix(){
@@ -40,11 +40,20 @@ export function installUpgraderRunFixHotfix(){
     const u=await currentUser(req,res);if(!u)return;
     let {sourceWinId,targetShopItemId,targetVariantId}=req.body||{};
     const extraCoins=req.body?.extraCoins??0;
+    const requestId=req.body?.requestId;
+    if(requestId!==undefined&&!isUuid(requestId))return res.status(400).json({error:'invalid_request'});
     if(!Number.isSafeInteger(extraCoins)||extraCoins<0||extraCoins>2147483647)return res.status(400).json({error:'invalid_extra_coins'});
     const {sourceWinIds,targets}=req.body||{};
     if(sourceWinIds!==undefined||targets!==undefined){
      if(!validGroup(sourceWinIds)||!Array.isArray(targets)||!validGroup(targets.map(target=>target?.variantId))||!targets.every(target=>isUuid(target.itemId))){
       return res.status(400).json({error:'invalid_request'});
+     }
+     if(requestId){
+      const streak=await db.rpc('rewards_run_skin_upgrade_streak',{p_user_id:u.id,p_request_id:requestId,p_source_ids:sourceWinIds,p_target_ids:targets.map(target=>target.itemId),p_variant_ids:targets.map(target=>target.variantId),p_extra:extraCoins});
+      if(!streak.error){if(!streak.data||!['won','lost'].includes(streak.data.result))return res.status(500).json({error:'invalid_upgrade_result'});return res.json(streak.data)}
+      // Only the explicit missing-function error is safe to fall back from
+      // while the VPS migration has not yet been applied.
+      if(streak.error.code!=='PGRST202')return res.status(409).json({error:upgradeErrors.find(code=>streak.error.message.includes(code))||'upgrade_failed'});
      }
      if(sourceWinIds.length!==1||targets.length!==1){
       const {data,error}=await db.rpc('rewards_run_skin_upgrade_multi',{
