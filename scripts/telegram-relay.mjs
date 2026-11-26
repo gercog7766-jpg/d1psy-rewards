@@ -11,9 +11,9 @@ const idOk=id=>Number.isSafeInteger(id)&&id>0;
 
 export function createRelay({token='',webhookSecret='',relaySecret='',webhookUrl='',fetcher=fetch,log=console}={}){
  const configured=/^\d+:[A-Za-z0-9_-]+$/.test(token)&&webhookSecret.length>=32&&relaySecret.length>=32&&/^https:\/\/[a-z0-9.-]+\.onrender\.com\/telegram-webhook$/.test(webhookUrl);
- const health={ok:true,configured,dropsoReachable:null,telegramReachable:null,webhookReady:false};
- async function tg(method,body={}){
-  const response=await fetcher('https://api.telegram.org/bot'+token+'/'+method,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(8000),redirect:'error'});
+ const health={ok:true,configured,dropsoReachable:null,telegramReachable:null,webhookReady:false,starsProtocol:'stars-v1',starsReachable:null,starsWebhookReady:false};
+ async function tg(method,body={},timeout=8000){
+  const response=await fetcher('https://api.telegram.org/bot'+token+'/'+method,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(timeout),redirect:'error'});
   const data=await response.json();if(!response.ok||!data.ok)throw Error('telegram_api_failed');return data.result;
  }
  async function probe(){
@@ -27,11 +27,13 @@ export function createRelay({token='',webhookSecret='',relaySecret='',webhookUrl
    const previous=await tg('getWebhookInfo');
    if(previous.url&&previous.url!==webhookUrl&&previous.url!==DROPSO+'/api/bonuses/telegram/webhook'){log.warn('relay_webhook_conflict');return}
    // Replacing this integration's previous endpoint is intentional. Never replace unrelated webhooks.
-   await tg('setWebhook',{url:webhookUrl,secret_token:webhookSecret,allowed_updates:['message','callback_query']});
-   health.webhookReady=(await tg('getWebhookInfo')).url===webhookUrl;
+   await tg('setWebhook',{url:webhookUrl,secret_token:webhookSecret,allowed_updates:['message','callback_query','pre_checkout_query']});
+   const info=await tg('getWebhookInfo');health.webhookReady=info.url===webhookUrl;health.starsWebhookReady=health.webhookReady&&Array.isArray(info.allowed_updates)&&info.allowed_updates.includes('pre_checkout_query');
    log.info('relay_webhook_ready',health.webhookReady);
   }catch{log.warn('relay_webhook_setup_failed')}
+  await probeStars();
  }
+ async function probeStars(){try{const response=await fetcher(DROPSO+'/api/monetization/stars/relay',{method:'POST',headers:{'Content-Type':'application/json','X-Dropso-Relay-Secret':relaySecret},body:JSON.stringify({action:'probe'}),signal:AbortSignal.timeout(6000),redirect:'error'});const data=await response.json();health.starsReachable=response.ok&&data.ok===true&&data.protocol==='stars-v1'}catch{health.starsReachable=false}log.info('relay_stars_ready',{server:health.starsReachable,webhook:health.starsWebhookReady});}
  async function check(nonce,telegramId){
   const member=await tg('getChatMember',{chat_id:CHANNEL,user_id:telegramId});
   if(!['member','administrator','creator'].includes(member.status)&&!(member.status==='restricted'&&member.is_member))return 'not_subscribed';
@@ -41,7 +43,40 @@ export function createRelay({token='',webhookSecret='',relaySecret='',webhookUrl
   if(response.status===409&&['link_expired','telegram_already_used','user_unavailable'].includes(result.error))return result.error;
   throw Error('dropso_relay_failed');
  }
+ const orderId=payload=>typeof payload==='string'&&/^stars_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(payload)?payload.slice(6):null;
+ async function stars(action,id,body={},timeout=5000){
+  const response=await fetcher(DROPSO+'/api/monetization/stars/relay',{method:'POST',headers:{'Content-Type':'application/json','X-Dropso-Relay-Secret':relaySecret},body:JSON.stringify({action,telegramId:String(id),...body}),signal:AbortSignal.timeout(timeout),redirect:'error'});
+  const data=await response.json();if(response.ok&&data.ok)return data;if(response.status===409)return data;throw Error('stars_unavailable');
+ }
+ async function starsUpdate(update){
+  const p=update?.pre_checkout_query;
+  if(p){const id=orderId(p.invoice_payload);if(!id)return false;let ok=false;
+   if(idOk(p.from?.id)&&!p.from.is_bot&&p.currency==='XTR'&&Number.isInteger(p.total_amount))try{ok=Boolean((await stars('precheckout',p.from.id,{orderId:id,precheckoutId:p.id,stars:p.total_amount,currency:p.currency},3000)).ok)}catch{}
+   await tg('answerPreCheckoutQuery',{pre_checkout_query_id:p.id,ok,...(!ok?{error_message:'Оплата недоступна. Открой новый счёт в Dropso.'}:{})},4000);return true;
+  }
+  const m=update?.message;if(m?.chat?.type!=='private'||!idOk(m.chat.id))return false;
+  const payment=m.successful_payment||m.refunded_payment;
+  if(payment){const id=orderId(payment.invoice_payload);if(!id)return false;
+   if(m.successful_payment&&m.from?.id!==m.chat.id)throw Error('invalid_payer');
+   const result=await stars(m.refunded_payment?'refund':'receipt',m.chat.id,{orderId:id,chargeId:payment.telegram_payment_charge_id,stars:payment.total_amount,currency:payment.currency});if(!result.ok)throw Error('receipt_not_recorded');return true;
+  }
+  if(m.from?.is_bot||m.from?.id!==m.chat.id||typeof m.text!=='string')return false;
+  if(/^\/start(?:@[A-Za-z0-9_]+)? stars_check$/.test(m.text)){
+   const result=await stars('check',m.chat.id).catch(()=>null);const text=result?.ok?'Dropso: связь со Stars работает. Аккаунт администратора привязан. '+(result.enabled?'Пилот включён.':'Оплаты закрыты.')+' '+(result.supportConfigured?'Поддержка настроена.':'Поддержка платежей ещё не настроена.')+' Звёзды не списывались.':result?.error==='admin_required'?'Проверка доступна только привязанному администратору Dropso.':'Не удалось проверить связь. Попробуй позднее.';await tg('sendMessage',{chat_id:m.chat.id,text});return true;
+  }
+  const cmd=/^\/start(?:@[A-Za-z0-9_]+)? stars_(lite|plus|battlePass)$/.exec(m.text);
+  if(cmd){if(!Number.isSafeInteger(update.update_id))return true;const h=hash('stars:'+m.chat.id+':'+update.update_id);const requestId=[h.slice(0,8),h.slice(8,12),'4'+h.slice(13,16),'8'+h.slice(17,20),h.slice(20,32)].join('-');
+   const result=await stars('create',m.chat.id,{product:cmd[1],requestId});if(result.ok)await tg('sendInvoice',{chat_id:m.chat.id,...result.invoice});else await tg('sendMessage',{chat_id:m.chat.id,text:'Оплата пока недоступна или счёт уже открыт.'});return true;
+  }
+  if(/^\/paysupport(?:@[A-Za-z0-9_]+)?$/.test(m.text)){const result=await stars('support',m.chat.id).catch(()=>null);await tg('sendMessage',{chat_id:m.chat.id,text:'Поддержка платежей Dropso: '+(result?.url||DROPSO)});return true;}
+  const refund=/^\/refund_stars ([0-9a-f-]{36})$/i.exec(m.text);
+  if(refund&&orderId('stars_'+refund[1])){const result=await stars('prepare_refund',m.chat.id,{orderId:refund[1]});if(!result.ok||result.order.state==='refunded'){await tg('sendMessage',{chat_id:m.chat.id,text:'Возврат недоступен или уже выполнен.'});return true;}
+   const o=result.order;await tg('refundStarPayment',{user_id:m.chat.id,telegram_payment_charge_id:o.charge_id});const saved=await stars('refund',m.chat.id,{orderId:o.id,chargeId:o.charge_id,stars:o.stars,currency:o.currency});if(!saved.ok)throw Error('refund_not_recorded');return true;
+  }
+  return false;
+ }
  async function process(update){
+  if(await starsUpdate(update))return;
   const message=update?.message,callback=update?.callback_query;
   let nonce,id,chat;
   if(message?.chat?.type==='private'&&!message.from?.is_bot&&idOk(message.from?.id)&&message.chat.id===message.from.id){
@@ -66,11 +101,11 @@ export function createRelay({token='',webhookSecret='',relaySecret='',webhookUrl
   let update;try{update=JSON.parse(raw)}catch{return send(res,400,{error:'invalid_request'})}
   try{await process(update);send(res,200,{ok:true})}catch{log.warn('relay_update_failed');send(res,503,{error:'temporarily_unavailable'})}
  });
- return {server,health,setup,process};
+ return {server,health,setup,process,probeStars};
 }
 
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
  const relay=createRelay({token:process.env.TELEGRAM_BOT_TOKEN,webhookSecret:process.env.TELEGRAM_WEBHOOK_SECRET,relaySecret:process.env.DROPSO_RELAY_SECRET,webhookUrl:process.env.TELEGRAM_WEBHOOK_URL});
- relay.server.listen(Number(process.env.PORT||10000),'0.0.0.0',()=>{console.info('telegram_relay_listening');void relay.setup()});
+ relay.server.listen(Number(process.env.PORT||10000),'0.0.0.0',()=>{console.info('telegram_relay_listening');void relay.setup();if(relay.health.configured)setInterval(()=>void relay.probeStars(),300000).unref()});
  process.on('SIGTERM',()=>relay.server.close());
 }
