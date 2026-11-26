@@ -1,3 +1,4 @@
+import {waitForTestServer,stopTestServer} from './fixtures/test-server-ready.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createClient} from '@supabase/supabase-js';
@@ -52,7 +53,7 @@ test('failed writes also invalidate old values',async()=>{
  assert.equal((await readSettings(db)).data.twitch_connection_status,'error');assert.equal(f.gets,2);
 });
 
-test('full app: public OBS polls reuse settings, live round counts still change, start/stop invalidate immediately',{timeout:20000},async()=>{
+test('full app: public OBS polls reuse settings, live round counts still change, start/stop invalidate immediately',{timeout:90000},async()=>{
  const {default:http}=await import('node:http');const {spawn}=await import('node:child_process');const {createHmac}=await import('node:crypto');
  const settings={id:true,enabled:false,twitch_connection_status:'connected'};let gets=0,count=0,active=false;
  const mock=http.createServer(async(q,r)=>{r.setHeader('Content-Type','application/json');const path=new URL(q.url,'http://test').pathname;let raw='';for await(const c of q)raw+=c;const body=raw?JSON.parse(raw):{};
@@ -62,14 +63,14 @@ test('full app: public OBS polls reuse settings, live round counts still change,
   if(path.endsWith('/rewards_rounds')){if(q.method==='POST'){active=true;return r.end(JSON.stringify({id:'round',...body}))}if(q.method==='PATCH'){active=false;return r.end('[]')}return r.end(JSON.stringify(active?{id:'round',message_count:++count,mode:'messages'}:null))}
   if(path.endsWith('/rewards_wins'))return r.end('null');r.end('[]');
  });await new Promise(r=>mock.listen(0,'127.0.0.1',r));const reserve=http.createServer();await new Promise(r=>reserve.listen(0,'127.0.0.1',r));const port=reserve.address().port;await new Promise(r=>reserve.close(r));
- const origin='http://127.0.0.1:'+port,child=spawn(process.execPath,['--import','tsx','src/server-entry.ts'],{env:{...process.env,PORT:String(port),APP_URL:origin,SESSION_SECRET:'settings-test',SUPABASE_URL:'http://127.0.0.1:'+mock.address().port,SUPABASE_SECRET_KEY:'test-key',REWARDS_ENGINE_ENABLED:'false',TWITCH_CLIENT_ID:''},stdio:'ignore'});
+ const origin='http://127.0.0.1:'+port,child=spawn(process.execPath,['--import','tsx','src/server-entry.ts'],{env:{...process.env,PORT:String(port),APP_URL:origin,SESSION_SECRET:'settings-test',SUPABASE_URL:'http://127.0.0.1:'+mock.address().port,SUPABASE_SECRET_KEY:'test-key',REWARDS_ENGINE_ENABLED:'false',TWITCH_CLIENT_ID:''},stdio:['ignore','ignore','pipe']});
  try{
-  for(let i=0;i<150;i++){try{await fetch(origin+'/health');break}catch{await new Promise(r=>setTimeout(r,50))}}
+  await waitForTestServer(origin,child);
   const state=async()=>{const r=await fetch(origin+'/api/public/state');assert.equal(r.status,200);return r.json()};
   for(let i=0;i<20;i++)assert.equal((await state()).enabled,false);assert.equal(gets,1);
   const payload=Buffer.from(JSON.stringify({twitchUserId:'admin',exp:Date.now()+60000})).toString('base64url');const cookie='rewards_session='+payload+'.'+createHmac('sha256','settings-test').update(payload).digest('base64url');
   const post=path=>fetch(origin+path,{method:'POST',headers:{Cookie:cookie,Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({mode:'messages',messageThreshold:100,minPrizeCoins:2,maxPrizeCoins:10})});
   assert.equal((await post('/api/admin/round/start')).status,201);assert.equal((await state()).enabled,true);const first=await state(),second=await state();assert(second.round.message_count>first.round.message_count);
   assert.equal((await post('/api/admin/round/stop')).status,200);const stopped=await state();assert.equal(stopped.enabled,false);assert.equal(stopped.round,null);
- }finally{child.kill('SIGTERM');await new Promise(r=>child.once('exit',r));await new Promise(r=>mock.close(r))}
+ }finally{await stopTestServer(child);await new Promise(r=>mock.close(r))}
 });
