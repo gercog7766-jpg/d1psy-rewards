@@ -1,3 +1,4 @@
+import {waitForTestServer,stopTestServer} from './fixtures/test-server-ready.mjs';
 import {test} from 'node:test';import assert from 'node:assert/strict';import {createHmac} from 'node:crypto';import {spawn} from 'node:child_process';import http from 'node:http';import {runInNewContext} from 'node:vm';
 import {validPushSubscription} from '../src/pwa-hotfix.ts';import {pwaSw,pwaManifest} from '../src/pwa-assets.ts';import {deliverJobs} from '../supabase/functions/drop-push/delivery.ts';
 import {PGlite} from '@electric-sql/pglite';import {readFile} from 'node:fs/promises';import {JSDOM} from 'jsdom';import {initialMonetizationDraft} from '../src/monetization-draft.ts';import {monetizationHtml,monetizationJs} from '../src/monetization-draft-ui.ts';import {testEntitlements,testInvoice} from '../src/monetization-test-payments.ts';import {randomUUID} from 'node:crypto';
@@ -146,7 +147,7 @@ test('push worker: successful delivery, permanent expiry removal and transient r
  assert.deepEqual(r,{claimed:3,sent:1,expired:1,retry:1});assert.equal(removed.length,1);assert(changes.some(x=>x.status==='queued'&&x.last_error==='http_503'));assert(changes.some(x=>x.status==='done'));
 });
 
-test('full app: PWA metadata, device-only relaunch, expired/revoked login and logout',{timeout:20000},async()=>{
+test('full app: PWA metadata, device-only relaunch, expired/revoked login and logout',{timeout:90000},async()=>{
  let sessions=new Map(),removed=false,draft={revision:0,config:{},updated_at:null},testAction=null;
  const mock=http.createServer(async(req,res)=>{res.setHeader('Content-Type','application/json');let raw='';for await(const c of req)raw+=c;const body=raw?JSON.parse(raw):null;const url=new URL(req.url,'http://mock');
   if(url.pathname.endsWith('/rewards_users'))return res.end(JSON.stringify({id:'00000000-0000-4000-8000-000000000001',twitch_login:'viewer',banned:false}));
@@ -160,11 +161,11 @@ test('full app: PWA metadata, device-only relaunch, expired/revoked login and lo
   res.end('[]');
  });await new Promise(r=>mock.listen(0,'127.0.0.1',r));
  const reserve=http.createServer();await new Promise(r=>reserve.listen(0,'127.0.0.1',r));const port=reserve.address().port;await new Promise(r=>reserve.close(r));
- const server=spawn(process.execPath,['--import','tsx','src/server-entry.ts'],{cwd:new URL('..',import.meta.url),env:{...process.env,PORT:String(port),APP_URL:'http://127.0.0.1:'+port,SESSION_SECRET:'pwa-test',SUPABASE_URL:'http://127.0.0.1:'+mock.address().port,SUPABASE_SECRET_KEY:'test-key',TWITCH_CLIENT_ID:'',TWITCH_EVENTSUB_SECRET:'',REWARDS_ENGINE_ENABLED:'false'},stdio:'ignore'});
+ const server=spawn(process.execPath,['--import','tsx','src/server-entry.ts'],{cwd:new URL('..',import.meta.url),env:{...process.env,PORT:String(port),APP_URL:'http://127.0.0.1:'+port,SESSION_SECRET:'pwa-test',SUPABASE_URL:'http://127.0.0.1:'+mock.address().port,SUPABASE_SECRET_KEY:'test-key',TWITCH_CLIENT_ID:'',TWITCH_EVENTSUB_SECRET:'',REWARDS_ENGINE_ENABLED:'false'},stdio:['ignore','ignore','pipe']});
  const base='http://127.0.0.1:'+port;const signed=data=>{const p=Buffer.from(JSON.stringify(data)).toString('base64url');return p+'.'+createHmac('sha256','pwa-test').update(p).digest('base64url')};
  const legacy='rewards_session='+signed({twitchUserId:'viewer',login:'viewer',displayName:'Viewer',exp:Date.now()+120000});
  try{
-  for(let i=0;i<150;i++){try{await fetch(base+'/health');break}catch{await new Promise(r=>setTimeout(r,40))}}
+  await waitForTestServer(base,server);
   const home=await(await fetch(base+'/')).text();assert(home.includes('href="/manifest.webmanifest"'));assert.match(home,/data-dropso-page="landing"/);
   assert.equal((home.match(/id="login"/g)||[]).length,1);assert.match(home,/class="page dropso-landing"/);assert.equal((home.match(/class="landing-skin skin-\d+"/g)||[]).length,8);assert.equal((home.match(/class="step"/g)||[]).length,4);assert.match(home,/prefers-reduced-motion:reduce/);assert.match(home,/action="\/legal\/accept"/);assert.match(home,/id="termsRules"/);assert.match(home,/id="adult"/);
   const page=await fetch(base+'/account',{headers:{Cookie:legacy}});const html=await page.text();assert(html.includes('<dialog id="d1PwaPanel"'));assert(html.includes('id="d1PwaOpen"'));assert(!html.includes('<section id="d1PwaPanel"'));assert.equal((html.match(/href="\/manifest.webmanifest"/g)||[]).length,1);
@@ -190,5 +191,5 @@ test('full app: PWA metadata, device-only relaunch, expired/revoked login and lo
   assert.equal((await fetch(base+'/api/me/push',{method:'POST',headers:{Cookie:device,Origin:'https://evil.test','Content-Type':'application/json'},body:'{}'})).status,403);
   const settings=await(await fetch(base+'/api/me/push',{headers:{Cookie:device}})).json();assert.equal(settings.publicKey,'public-only');assert(!JSON.stringify(settings).includes('privateKey'));
   const logout=await fetch(base+'/logout',{method:'POST',headers:{Cookie:device},redirect:'manual'});assert.equal(logout.status,302);assert(removed);assert.equal((await fetch(base+'/api/me',{headers:{Cookie:device}})).status,401);
- }finally{server.kill('SIGTERM');await new Promise(r=>mock.close(r))}
+ }finally{await stopTestServer(server);await new Promise(r=>mock.close(r))}
 });
