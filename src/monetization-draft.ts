@@ -11,6 +11,7 @@ import {installTestMembership} from './monetization-membership.js';
 import {installStarsPilot} from './telegram-stars-pilot.js';
 import {installStarsPlusPerks} from './stars-plus-perks.js';
 import {installLiveSeason} from './season-two-live.js';
+import {installSeasonSetup} from './season-two-setup.js';
 
 const visibility=z.enum(['hidden','admin_test']); // No public state exists in this release.
 const plan=z.object({stars:z.number().int().min(1).max(100000),visibility,coins:z.number().int().min(0).max(10000),skins:z.number().int().min(0).max(10000),title:z.string().trim().max(80),description:z.string().trim().max(600)}).strict();
@@ -26,12 +27,13 @@ export function installMonetizationDraft(app:Express,db:SupabaseClient,admin:Req
  installStarsPilot(app,db,admin);
  installStarsPlusPerks(app,db,admin);
  installLiveSeason(app,db,admin,origin);
+ installSeasonSetup(app,db,admin,origin,value=>{const parsed=draftSchema.safeParse(value);return parsed.success?parsed.data:value&&Object.keys(value as object).length?null:initialMonetizationDraft()});
  installSeasonTaskPreview(app,admin);
  installSeasonTest(app,db,admin,origin);
  installRealSeason(app,db,admin,origin);
  installTestMembership(app,db,admin,origin,value=>{const parsed=draftSchema.safeParse(value);return parsed.success?parsed.data:value&&Object.keys(value as object).length?null:initialMonetizationDraft()});
  const noStore:RequestHandler=(_q,r,next)=>{r.set('Cache-Control','private, no-store');next()};
- app.get('/admin/monetization',noStore,admin,(_q,r)=>r.type('html').send(monetizationHtml.replace('<h1>','<p><a href="/admin/monetization/s2-real">NIGHT SHIFT S2 · Battle Pass с реальным прогрессом (ADMIN TEST) ↗</a> · <a href="/admin/monetization/stars">Telegram Stars · ADMIN TEST ↗</a> · <a href="/admin/monetization/cosmetics">Подписочная косметика ↗</a> · <a href="/admin/monetization/plus/statistics">Статистика PLUS ↗</a> · <a href="/admin/monetization/s2-live">S2 · Реальный сезон (закрыт) ↗</a></p><h1>')));
+ app.get('/admin/monetization',noStore,admin,(_q,r)=>r.type('html').send(monetizationHtml.replace('<h1>','<p><a href="/admin/monetization/s2-real">NIGHT SHIFT S2 · Battle Pass с реальным прогрессом (ADMIN TEST) ↗</a> · <a href="/admin/monetization/stars">Telegram Stars · ADMIN TEST ↗</a> · <a href="/admin/monetization/cosmetics">Подписочная косметика ↗</a> · <a href="/admin/monetization/plus/statistics">Статистика PLUS ↗</a> · <a href="/admin/monetization/s2-live">S2 · Реальный сезон (закрыт) ↗</a> · <a href="/admin/monetization/s2-setup">Настройка S2 · награды и даты ↗</a></p><h1>')));
  app.get('/admin/monetization/premium',noStore,admin,(_q,r)=>r.type('html').send(premiumPreviewHtml.replace('<main>','<main><p><a href="/admin/monetization/membership">Проверка прав и лимитов подписки (ADMIN TEST) ↗</a></p>')));
  app.get('/api/admin/monetization/premium-script',noStore,admin,(_q,r)=>r.type('application/javascript').send(premiumPreviewJs));
  app.get('/api/admin/monetization/script',noStore,admin,(_q,r)=>r.type('application/javascript').send(monetizationJs));
