@@ -3,10 +3,17 @@ import assert from 'node:assert/strict';
 import {mkdtemp,writeFile,mkdir,symlink,readFile,readlink,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
-import {spawnSync} from 'node:child_process';
+import {spawn,spawnSync} from 'node:child_process';
+import http from 'node:http';
+import {waitForTestServer,stopTestServer} from './fixtures/test-server-ready.mjs';
 import {readDeploymentRelease} from '../src/deployment-release.ts';
 import {testArguments,pausedLegacyCases} from '../scripts/deploy/checks.mjs';
 const script=resolve('scripts/deploy/update.sh'),sha='a'.repeat(40);
+test('HTTP readiness waits for actual health and reports a child startup failure without running test assertions',async()=>{
+ let calls=0;const app=http.createServer((_q,r)=>{calls++;r.statusCode=calls<3?503:200;r.setHeader('Content-Type','application/json');r.end(JSON.stringify({ok:calls>=3,service:'d1psy-rewards'}))});await new Promise(r=>app.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+app.address().port,child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:['ignore','ignore','pipe']});
+ try{await waitForTestServer(base,child,{timeout:2000});assert.equal(calls,3)}finally{await stopTestServer(child);await new Promise(r=>app.close(r))}
+ const failed=spawn(process.execPath,['-e','console.error("fixture startup failure");process.exit(17)'],{stdio:['ignore','ignore','pipe']});try{await assert.rejects(waitForTestServer(base,failed,{timeout:2000}),/exit=17[\s\S]*fixture startup failure/)}finally{await stopTestServer(failed)}
+});
 test('deployment gate runs the repository suite serially and excludes only named paused legacy cases',async()=>{
  const pkg=JSON.parse(await readFile('package.json','utf8')),args=testArguments(pkg.scripts.test);
  assert(args.includes('--test-concurrency=1'));assert(args.includes('tests/paused-features.test.mjs'));assert(args.includes('tests/vps-autodeploy.test.mjs'));
