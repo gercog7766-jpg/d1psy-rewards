@@ -77,9 +77,11 @@ export function installUsers(){
    if(!login(req.params.login))return res.sendStatus(404);const b=req.body||{};let params:any;
    if(action==='friend'&&['request','accept','remove','decline','block','unblock'].includes(b.action)&&Object.keys(b).every(k=>k==='action'))params={p_action:b.action};
    if(action==='message'&&typeof b.text==='string'&&b.text.trim().length>=1&&b.text.length<=2000&&uuid(b.requestId)&&Object.keys(b).every(k=>['text','requestId'].includes(k)))params={p_body:b.text,p_request:b.requestId};
-   if(action==='gift'&&Number.isInteger(b.amount)&&b.amount>=1&&b.amount<=20&&uuid(b.requestId)&&Object.keys(b).every(k=>['amount','requestId'].includes(k)))params={p_amount:b.amount,p_request:b.requestId};
+   if(action==='gift'&&Number.isInteger(b.amount)&&b.amount>=1&&b.amount<=200&&uuid(b.requestId)&&Object.keys(b).every(k=>['amount','requestId'].includes(k)))params={p_amount:b.amount,p_request:b.requestId};
    if(action==='read'&&Number.isSafeInteger(b.through)&&b.through>0&&Object.keys(b).every(k=>k==='through'))params={p_through:Number(b.through)};
-   if(!params)return res.status(400).json({error:'invalid_request'});const id=await user(res);if(id)await rpc(res,({friend:'rewards_friend_action',message:'rewards_send_message',read:'rewards_social_read',gift:'rewards_send_coin_gift'} as any)[action],{p_user:id,p_login:req.params.login,...params});
+   if(!params)return res.status(400).json({error:'invalid_request'});const id=await user(res);if(!id)return;
+   if(action==='gift'&&b.amount>20){const tier=await db.rpc('rewards_stars_gift_tier',{p_user:id});const cap=tier.data==='plus'?200:tier.data==='lite'?100:20;if(b.amount>cap)return res.status(400).json({error:'invalid_request'});}
+   await rpc(res,({friend:'rewards_friend_action',message:'rewards_send_message',read:'rewards_social_read',gift:'rewards_send_coin_gift'} as any)[action],{p_user:id,p_login:req.params.login,...params});
   });
   app.get('/users',auth,(_req:any,res:any)=>res.set('Cache-Control','no-store').send(usersHtml));
   app.get('/users/:login',auth,(req:any,res:any)=>{if(!login(req.params.login))return res.sendStatus(404);res.set('Cache-Control','no-store').send(profileHtml)});
