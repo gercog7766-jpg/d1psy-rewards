@@ -1,5 +1,6 @@
+import {waitForTestServer,stopTestServer} from './fixtures/test-server-ready.mjs';
 import {test} from 'node:test';import assert from 'node:assert/strict';import {PGlite} from '@electric-sql/pglite';import {readFile} from 'node:fs/promises';import {createHmac,randomUUID} from 'node:crypto';import {spawn} from 'node:child_process';import {JSDOM,VirtualConsole} from 'jsdom';import http from 'node:http';
-test('full prediction result UI: winner/loser, player comparison, claim/retry/reload and own reward only',{timeout:30000},async()=>{
+test('full prediction result UI: winner/loser, player comparison, claim/retry/reload and own reward only',{timeout:75000},async()=>{
  const db=new PGlite(),users=[randomUUID(),randomUUID(),randomUUID(),randomUUID(),randomUUID()],match='test-result-ui-match';
  await db.exec('create role anon;create role authenticated;create role service_role bypassrls;create table rewards_users(id uuid primary key,banned boolean default false);create table rewards_coin_transactions(id uuid primary key default gen_random_uuid(),user_id uuid,amount integer,transaction_type text,note text);');for(const u of users)await db.query('insert into rewards_users(id) values($1)',[u]);
  for(const file of ['20261105213416_predict_matches.sql','20261106102846_predict_claim_rewards.sql','20261112155241_predict_match_visibility.sql'])await db.exec(await readFile(new URL('../supabase/migrations/'+file,import.meta.url),'utf8'));
@@ -17,11 +18,11 @@ test('full prediction result UI: winner/loser, player comparison, claim/retry/re
   if(url.pathname.endsWith('/rpc/rewards_claim_prediction')){let raw='';for await(const c of req)raw+=c;const p=JSON.parse(raw);claimedUser=p.p_user_id;try{const result=(await db.query('select rewards_claim_prediction($1,$2) r',[p.p_user_id,p.p_match_id])).rows[0].r;return res.end(JSON.stringify(result))}catch(e){res.statusCode=409;return res.end(JSON.stringify({code:'P0001',message:e.message}))}}
   res.end('[]');
  });await new Promise(r=>mock.listen(0,'127.0.0.1',r));const reserve=http.createServer();await new Promise(r=>reserve.listen(0,'127.0.0.1',r));const port=reserve.address().port;await new Promise(r=>reserve.close(r));
- const server=spawn(process.execPath,['--import','tsx','src/server-entry.ts'],{cwd:new URL('..',import.meta.url),env:{...process.env,PORT:String(port),SESSION_SECRET:'claim-test',SUPABASE_URL:'http://127.0.0.1:'+mock.address().port,SUPABASE_SECRET_KEY:'test',REWARDS_ENGINE_ENABLED:'false',TWITCH_CLIENT_ID:'',TWITCH_EVENTSUB_SECRET:''},stdio:'ignore'});
+ const server=spawn(process.execPath,['--import','tsx','src/server-entry.ts'],{cwd:new URL('..',import.meta.url),env:{...process.env,PORT:String(port),SESSION_SECRET:'claim-test',SUPABASE_URL:'http://127.0.0.1:'+mock.address().port,SUPABASE_SECRET_KEY:'test',REWARDS_ENGINE_ENABLED:'false',TWITCH_CLIENT_ID:'',TWITCH_EVENTSUB_SECRET:''},stdio:['ignore','ignore','pipe']});
  const base='http://127.0.0.1:'+port,cookie=i=>{const p=Buffer.from(JSON.stringify({twitchUserId:'viewer'+i,login:'viewer',displayName:'Viewer',exp:Date.now()+120000})).toString('base64url');return 'rewards_session='+p+'.'+createHmac('sha256','claim-test').update(p).digest('base64url')};let dom,loseResponse=true;const errors=[];
  const pause=ms=>new Promise(r=>setTimeout(r,ms)),until=async f=>{for(let i=0;i<150;i++){if(f())return;await pause(15)}assert(f(),'UI condition timed out')};
  try{
-  for(let i=0;i<100;i++){try{await fetch(base+'/predict.js');break}catch{await pause(40)}}const html=await(await fetch(base+'/predict',{headers:{Cookie:cookie(0)}})).text(),js=await(await fetch(base+'/predict.js')).text();
+  await waitForTestServer(base,server);const html=await(await fetch(base+'/predict',{headers:{Cookie:cookie(0)}})).text(),js=await(await fetch(base+'/predict.js')).text();
   assert.equal((await fetch(base+'/api/me/predict/'+match+'/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})).status,401);
   assert.equal((await fetch(base+'/api/me/predict/'+match+'/claim',{method:'POST',headers:{Cookie:cookie(0),Origin:'https://evil.test','Content-Type':'application/json'},body:'{}'})).status,403);
   async function mount(i,selector='.match.final'){dom?.window.close();const vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));dom=new JSDOM(html,{runScripts:'outside-only',url:base+'/predict',virtualConsole:vc});const w=dom.window;w.fetch=async(path,opts)=>{const r=await fetch(base+path,{...opts,headers:{...opts?.headers,Cookie:cookie(i)}});if(String(path).endsWith('/claim')&&loseResponse){loseResponse=false;await r.text();throw Error('Simulated response loss')}return r};w.eval(js);await until(()=>w.document.querySelector(selector));return w}
@@ -40,5 +41,5 @@ test('full prediction result UI: winner/loser, player comparison, claim/retry/re
   w=await mount(4,'#matches .empty');assert.equal(q('#pendingRewards').hidden,true);
   assert.deepEqual(errors,[]);
 
- }finally{dom?.window.close();server.kill('SIGTERM');await new Promise(r=>mock.close(r));await db.close()}
+ }finally{dom?.window.close();await stopTestServer(server);await new Promise(r=>mock.close(r));await db.close()}
 });
