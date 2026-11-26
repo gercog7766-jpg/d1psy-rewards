@@ -8,13 +8,14 @@ import {JSDOM,VirtualConsole} from 'jsdom';
 
 test('full shop UI: variant favorites, goal, budget/quality filters, sort, persistence and existing cart purchase',{timeout:75000},async()=>{
  const user=randomUUID(),item=randomUUID(),fixed=randomUUID(),ft=randomUUID(),st=randomUUID(),fn=randomUUID(),bs=randomUUID();
- let balance=80,goal=null,favorites=[],rpcParams,buyRequests=[];
+ let balance=80,goal=null,favorites=[],rpcParams,buyRequests=[],shopDiscount=0,cartRequests=[];
  const products=[{id:item,name:'AK-47 | Test',image_url:'/test.png',price_coins:90,stock:null},{id:fixed,name:'Sticker | Test',image_url:'/sticker.png',price_coins:30,stock:null}];
  const variants=[{id:ft,wear:'FT',variant_kind:'normal',price_coins:100,available:true},{id:st,wear:'FN',variant_kind:'stattrak',price_coins:200,available:true},{id:fn,wear:'FN',variant_kind:'normal',price_coins:150,available:true},{id:bs,wear:'BS',variant_kind:'normal',price_coins:60,available:true}];
  function data(){return {balance,goalFavoriteId:goal,favorites:favorites.map(f=>{const p=products.find(x=>x.id===f.itemId),v=variants.find(x=>x.id===f.variantId);return {...f,name:p.name,image:p.image_url,wear:v?.wear||null,kind:v?.variant_kind||'normal',price:v?v.price_coins:p.price_coins,available:p.stock!==0&&(!v||v.available)}})}}
  const mock=http.createServer(async(req,res)=>{
   res.setHeader('Content-Type','application/json');const url=new URL(req.url,'http://test');
   if(url.pathname.endsWith('/rewards_users'))return res.end(JSON.stringify({id:user,twitch_login:'viewer',steam_trade_url_valid:true}));
+  if(url.pathname.endsWith('/rpc/rewards_stars_purchase_cart')){let raw='';for await(const c of req)raw+=c;const b=JSON.parse(raw);assert.equal(b.p_user,user);assert.equal(b.p_expected_total,98);return res.end(JSON.stringify({ok:true,paid:98,discount:2,count:2}));}
   if(url.pathname.includes('/rpc/rewards_market_')){let raw='';for await(const c of req)raw+=c;rpcParams=JSON.parse(raw);assert.equal(rpcParams.p_user,user);
    if(url.pathname.endsWith('_set')){const key=String(rpcParams.p_item)+'|'+String(rpcParams.p_variant),found=favorites.find(f=>f.itemId+'|'+f.variantId===key);
     if(rpcParams.p_action==='clear_goal')goal=null;
@@ -26,13 +27,14 @@ test('full shop UI: variant favorites, goal, budget/quality filters, sort, persi
  });
  await new Promise(r=>mock.listen(0,'127.0.0.1',r));const mockPort=mock.address().port;
  const reserve=http.createServer();await new Promise(r=>reserve.listen(0,'127.0.0.1',r));const port=reserve.address().port;await new Promise(r=>reserve.close(r));
- const server=spawn(process.execPath,['--import','tsx','src/server-entry.ts'],{cwd:new URL('..',import.meta.url),env:{...process.env,PORT:String(port),SESSION_SECRET:'market-ui-test',SUPABASE_URL:'http://127.0.0.1:'+mockPort,SUPABASE_SECRET_KEY:'test-key',TWITCH_CLIENT_ID:'',TWITCH_EVENTSUB_SECRET:''},stdio:['ignore','ignore','pipe']});
+ const server=spawn(process.execPath,['--import','tsx','src/server-entry.ts'],{cwd:new URL('..',import.meta.url),env:{...process.env,PORT:String(port),APP_URL:'http://127.0.0.1:'+port,SESSION_SECRET:'market-ui-test',SUPABASE_URL:'http://127.0.0.1:'+mockPort,SUPABASE_SECRET_KEY:'test-key',TWITCH_CLIENT_ID:'',TWITCH_EVENTSUB_SECRET:''},stdio:['ignore','ignore','pipe']});
  const base='http://127.0.0.1:'+port,payload=Buffer.from(JSON.stringify({twitchUserId:'viewer',exp:Date.now()+120000})).toString('base64url'),cookie='rewards_session='+payload+'.'+createHmac('sha256','market-ui-test').update(payload).digest('base64url');
  let dom;
  const pause=ms=>new Promise(r=>setTimeout(r,ms));
  async function until(fn){for(let i=0;i<150;i++){if(fn())return;await pause(20)}assert(fn(),'UI condition timed out')}
  try{
   await waitForTestServer(base,server);
+  const checkout={requestId:randomUUID(),expectedTotal:98,items:[{itemId:item,variantId:ft,qty:2,expectedPrice:50}]};const sendCart=(body,headers={})=>fetch(base+'/api/me/shop/cart/checkout',{method:'POST',headers:{Cookie:cookie,'Content-Type':'application/json',Origin:base,...headers},body:JSON.stringify(body)});assert.equal((await sendCart({...checkout,user_id:randomUUID()})).status,400);assert.equal((await sendCart(checkout,{Origin:'https://evil.test'})).status,403);assert.equal((await sendCart(checkout)).status,200);
   assert.equal((await fetch(base+'/api/me/market')).status,401);
   const spoof=await fetch(base+'/api/me/market',{method:'POST',headers:{Cookie:cookie,'Content-Type':'application/json'},body:JSON.stringify({action:'clear_goal',user_id:randomUUID()})});assert.equal(spoof.status,200);assert.equal(rpcParams.p_user,user);
   const invalid=await fetch(base+'/api/me/market',{method:'POST',headers:{Cookie:cookie,'Content-Type':'application/json'},body:JSON.stringify({action:'favorite',itemId:item,variantId:'bad'})});assert.equal(invalid.status,400);
@@ -45,9 +47,10 @@ test('full shop UI: variant favorites, goal, budget/quality filters, sort, persi
    w.HTMLDialogElement.prototype.showModal=function(){this.open=true};
    w.HTMLDialogElement.prototype.close=function(value){this.returnValue=value;this.open=false;this.dispatchEvent(new w.Event('close'))};
    w.fetch=async(url,opts)=>{
-    if(String(url).startsWith('/api/me/economy'))return new Response(JSON.stringify({balance,shop:products}),{status:200});
+    if(String(url).startsWith('/api/me/economy'))return new Response(JSON.stringify({balance,shop:products,shopDiscount}),{status:200});
     if(String(url).startsWith('/api/me/shop-variant-test'))return new Response(JSON.stringify({items:[{itemId:item,name:products[0].name,variants}],balance,hiddenNames:[]}),{status:200});
     if(String(url).startsWith('/api/me/market'))return fetch(base+url,{...opts,headers:{...opts?.headers,Cookie:cookie}});
+    if(String(url)==='/api/me/shop/cart/checkout'){const b=JSON.parse(opts.body);cartRequests.push(b);const total=b.items.reduce((n,x)=>n+x.qty*x.expectedPrice,0),discount=Math.floor(total*shopDiscount/100);assert.equal(b.expectedTotal,total-discount);balance-=b.expectedTotal;return new Response(JSON.stringify({ok:true,discount,paid:b.expectedTotal}),{status:200})}
     if(String(url).includes('/buy')){buyRequests.push(String(url));const fixedBought=products.find(p=>String(url).includes('/shop/'+p.id+'/buy'));const price=fixedBought?Number(fixedBought.price_coins):String(url).includes(st)?variants.find(v=>v.id===st).price_coins:100;if(balance<price)return new Response(JSON.stringify({error:'insufficient_coins'}),{status:409});balance-=price;return new Response(JSON.stringify({ok:true}),{status:200})}
     return new Response('{}',{status:200});
    };
@@ -101,6 +104,7 @@ test('full shop UI: variant favorites, goal, budget/quality filters, sort, persi
   await until(()=>cards().find(c=>c.textContent.includes('Sticker'))?.querySelector('.mkt-open-card'));cards().find(c=>c.textContent.includes('Sticker')).querySelector('.mkt-open-card').click();q('#qtyPlus').click();q('#mb').click();closeDropsoDialog();await until(()=>buyRequests.length===beforeFixed+8);await until(()=>q('#bal').textContent.includes('810')&&q('#dropso-dialog[open]'));closeDropsoDialog();assert(!q('#modal').classList.contains('on'));
   await until(()=>cards().find(c=>c.textContent.includes('AK-47'))?.querySelector('.mkt-open-card'));cards().find(c=>c.textContent.includes('AK-47')).querySelector('.mkt-open-card').click();assert.equal(q('#tabs').hidden,false);assert.equal(q('#wears').hidden,false);assert.equal(q('#shopQty').textContent,'1');q('#close').click();
   await pause(150);await until(()=>q('#marketGoal').getAttribute('aria-busy')!=='true');
+  shopDiscount=2;balance=1000;w=await mount();const beforePaid=buyRequests.length;for(const name of ['Sticker','Агент']){cards().find(c=>c.textContent.includes(name)).querySelector('.mkt-open-card').click();q('#qtyPlus').click();q('#addCart').click()}q('#cartTop').click();assert.match(q('#cartPanelTotal').textContent,/98 Монет/);assert.match(q('#cartPanelTotal').textContent,/2%/);q('#cartBuy').click();closeDropsoDialog();await until(()=>cartRequests.length===1&&q('#bal').textContent.includes('902')&&q('#dropso-dialog[open]'));closeDropsoDialog();assert.equal(cartRequests[0].expectedTotal,98);assert.equal(buyRequests.length,beforePaid);shopDiscount=0;
   // A six-column catalog must contain complete rows and keep every product reachable.
   for(let i=1;i<=71;i++)products.push({id:randomUUID(),name:'Sticker | Page '+String(i).padStart(2,'0'),image_url:'/sticker.png',price_coins:30,stock:null});
   w=await mount();w.document.querySelector('#grid').style.gridTemplateColumns='repeat(6,minmax(0,1fr))';w.dispatchEvent(new w.Event('resize'));await pause(180);await until(()=>cards().length===24);
