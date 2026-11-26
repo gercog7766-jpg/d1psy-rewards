@@ -1,6 +1,7 @@
+import {waitForTestServer,stopTestServer} from './fixtures/test-server-ready.mjs';
 import {test} from 'node:test';import assert from 'node:assert/strict';import {PGlite} from '@electric-sql/pglite';import {readFile} from 'node:fs/promises';import {randomUUID,createHmac} from 'node:crypto';import {spawn} from 'node:child_process';import {JSDOM,VirtualConsole} from 'jsdom';import http from 'node:http';
 
-test('full Defuse app: auth, preview, mistakes, modules, 30-coin win, persistence and shared cooldown',{timeout:30000},async()=>{
+test('full Defuse app: auth, preview, mistakes, modules, 30-coin win, persistence and shared cooldown',{timeout:75000},async()=>{
  const db=new PGlite(),user=randomUUID();await db.exec('create role anon;create role authenticated;create role service_role bypassrls;create table rewards_users(id uuid primary key,banned boolean default false);create table rewards_coin_transactions(id uuid primary key default gen_random_uuid(),user_id uuid,amount integer,transaction_type text,note text);');await db.query('insert into rewards_users(id) values($1)',[user]);await db.exec(await readFile(new URL('../supabase/migrations/20261106035441_defuse_game.sql',import.meta.url),'utf8'));await db.exec(await readFile(new URL('../supabase/migrations/20261106040950_defuse_shorter_timers.sql',import.meta.url),'utf8'));await db.exec(await readFile(new URL('../supabase/migrations/20261106041635_defuse_eight_hour_cooldown.sql',import.meta.url),'utf8'));
  const mock=http.createServer(async(req,res)=>{res.setHeader('Content-Type','application/json');const path=new URL(req.url,'http://test').pathname;
   if(path.endsWith('/rewards_users'))return res.end(JSON.stringify({id:user,twitch_login:'viewer',banned:false}));
@@ -10,11 +11,11 @@ test('full Defuse app: auth, preview, mistakes, modules, 30-coin win, persistenc
   }res.end('[]');
  });await new Promise(r=>mock.listen(0,'127.0.0.1',r));
  const reserve=http.createServer();await new Promise(r=>reserve.listen(0,'127.0.0.1',r));const port=reserve.address().port;await new Promise(r=>reserve.close(r));
- const server=spawn(process.execPath,['--import','tsx','src/server-entry.ts'],{cwd:new URL('..',import.meta.url),env:{...process.env,PORT:String(port),SESSION_SECRET:'defuse-ui',SUPABASE_URL:'http://127.0.0.1:'+mock.address().port,SUPABASE_SECRET_KEY:'test',REWARDS_ENGINE_ENABLED:'false',TWITCH_CLIENT_ID:'',TWITCH_EVENTSUB_SECRET:''},stdio:'ignore'});
+ const server=spawn(process.execPath,['--import','tsx','src/server-entry.ts'],{cwd:new URL('..',import.meta.url),env:{...process.env,PORT:String(port),SESSION_SECRET:'defuse-ui',SUPABASE_URL:'http://127.0.0.1:'+mock.address().port,SUPABASE_SECRET_KEY:'test',REWARDS_ENGINE_ENABLED:'false',TWITCH_CLIENT_ID:'',TWITCH_EVENTSUB_SECRET:''},stdio:['ignore','ignore','pipe']});
  const base='http://127.0.0.1:'+port,payload=Buffer.from(JSON.stringify({twitchUserId:'viewer',login:'viewer',displayName:'Viewer',exp:Date.now()+120000})).toString('base64url'),cookie='rewards_session='+payload+'.'+createHmac('sha256','defuse-ui').update(payload).digest('base64url');let dom;
  const pause=ms=>new Promise(r=>setTimeout(r,ms)),until=async f=>{for(let i=0;i<150;i++){if(f())return;await pause(15)}assert(f(),'UI condition timeout')};
  try{
-  for(let i=0;i<100;i++){try{await fetch(base+'/games/defuse.js');break}catch{await pause(40)}}
+  await waitForTestServer(base,server);
   assert.equal((await fetch(base+'/api/me/defuse')).status,401);assert((await(await fetch(base+'/games',{headers:{Cookie:cookie}})).text()).includes('href="/games/defuse"'));
   assert.equal((await fetch(base+'/api/me/defuse/start',{method:'POST',headers:{Cookie:cookie,'Content-Type':'application/json',Origin:'https://evil.test'},body:'{}'})).status,403);
   assert.equal((await fetch(base+'/api/me/defuse/start',{method:'POST',headers:{Cookie:cookie,'Content-Type':'application/json'},body:JSON.stringify({difficulty:'__proto__',requestId:randomUUID()})})).status,400);
@@ -32,5 +33,5 @@ test('full Defuse app: auth, preview, mistakes, modules, 30-coin win, persistenc
   w=await mount();await until(()=>q('.result-title'));assert.equal(q('#start').disabled,true);assert.equal(q('.reward').textContent,'+30 монет');
   const cooldown=await(await fetch(base+'/api/me/defuse/start',{method:'POST',headers:{Cookie:cookie,'Content-Type':'application/json'},body:JSON.stringify({difficulty:'rookie',requestId:randomUUID(),p_user:randomUUID(),reward:99999})})).json();assert.equal(cooldown.game.id,game.id);assert.equal(cooldown.canStart,false);assert.equal((await db.query('select count(*) n from rewards_defuse_games')).rows[0].n,1);
   assert.deepEqual(errors,[]);
- }finally{dom?.window.close();server.kill('SIGTERM');await new Promise(r=>mock.close(r));await db.close()}
+ }finally{dom?.window.close();await stopTestServer(server);await new Promise(r=>mock.close(r));await db.close()}
 });

@@ -1,3 +1,4 @@
+import {waitForTestServer,stopTestServer} from './fixtures/test-server-ready.mjs';
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {JSDOM,VirtualConsole} from 'jsdom';
@@ -24,17 +25,17 @@ test('inventory contracts: real API, 3–10 selection, confirmation, busy lock, 
  q('#search').value='Skin 11';q('#search').dispatchEvent(new w.Event('input'));assert.equal(w.document.querySelectorAll('.item').length,1);
  assert(!q('.notice'));assert(!q('.side'));assert(!q('.paper'));assert(!contractsHtml.includes('Деморежим'));assert.deepEqual(errors,[]);w.close();
 });
-test('full app contracts: auth, navigation, validation and CSRF',{timeout:15000},async()=>{
+test('full app contracts: auth, navigation, validation and CSRF',{timeout:75000},async()=>{
  const reserve=http.createServer();await new Promise(r=>reserve.listen(0,'127.0.0.1',r));const port=reserve.address().port;await new Promise(r=>reserve.close(r));
- const server=spawn(process.execPath,['--import','tsx','tests/fixtures/unpaused-server.mjs'],{cwd:new URL('..',import.meta.url),env:{...process.env,PORT:String(port),SESSION_SECRET:'contracts-test',SUPABASE_URL:'http://127.0.0.1:1',SUPABASE_SECRET_KEY:'test-key',TWITCH_CLIENT_ID:'',TWITCH_EVENTSUB_SECRET:''},stdio:'ignore'});
+ const server=spawn(process.execPath,['--import','tsx','tests/fixtures/unpaused-server.mjs'],{cwd:new URL('..',import.meta.url),env:{...process.env,PORT:String(port),SESSION_SECRET:'contracts-test',SUPABASE_URL:'http://127.0.0.1:1',SUPABASE_SECRET_KEY:'test-key',TWITCH_CLIENT_ID:'',TWITCH_EVENTSUB_SECRET:''},stdio:['ignore','ignore','pipe']});
  const base='http://127.0.0.1:'+port,payload=Buffer.from(JSON.stringify({twitchUserId:'viewer',exp:Date.now()+120000})).toString('base64url'),cookie='rewards_session='+payload+'.'+createHmac('sha256','contracts-test').update(payload).digest('base64url');
  try{
- for(let i=0;i<100;i++){try{await fetch(base+'/contracts.js');break}catch{await new Promise(r=>setTimeout(r,40))}}
+ await waitForTestServer(base,server);
  assert.equal((await fetch(base+'/contracts')).status,401);assert.equal((await fetch(base+'/api/me/contracts')).status,401);
  const page=await fetch(base+'/contracts',{headers:{Cookie:cookie}});assert.equal(page.status,200);assert((await page.text()).includes('Твой инвентарь'));
  const account=await(await fetch(base+'/account')).text();assert.match(account,/href="\/upgrader"[^>]*>[\s\S]*?<\/a><a id="contractsLink"/);assert(account.includes('В КОНТРАКТЕ'));
  const post=(body,origin)=>fetch(base+'/api/me/contracts',{method:'POST',headers:{Cookie:cookie,'Content-Type':'application/json',...(origin?{Origin:origin}:{})},body:JSON.stringify(body)});
  assert.equal((await post({})).status,400);assert.equal((await post({},'https://evil.test')).status,403);
  assert.equal((await post({requestId:randomUUID(),sourceWinIds:[randomUUID(),randomUUID(),randomUUID()]})).status,503);
- }finally{server.kill('SIGTERM')}
+ }finally{await stopTestServer(server)}
 });

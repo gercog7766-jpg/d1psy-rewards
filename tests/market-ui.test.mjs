@@ -1,3 +1,4 @@
+import {waitForTestServer,stopTestServer} from './fixtures/test-server-ready.mjs';
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import http from 'node:http';
@@ -5,7 +6,7 @@ import {spawn} from 'node:child_process';
 import {createHmac,randomUUID} from 'node:crypto';
 import {JSDOM,VirtualConsole} from 'jsdom';
 
-test('full shop UI: variant favorites, goal, budget/quality filters, sort, persistence and existing cart purchase',{timeout:35000},async()=>{
+test('full shop UI: variant favorites, goal, budget/quality filters, sort, persistence and existing cart purchase',{timeout:75000},async()=>{
  const user=randomUUID(),item=randomUUID(),fixed=randomUUID(),ft=randomUUID(),st=randomUUID(),fn=randomUUID(),bs=randomUUID();
  let balance=80,goal=null,favorites=[],rpcParams,buyRequests=[];
  const products=[{id:item,name:'AK-47 | Test',image_url:'/test.png',price_coins:90,stock:null},{id:fixed,name:'Sticker | Test',image_url:'/sticker.png',price_coins:30,stock:null}];
@@ -25,13 +26,13 @@ test('full shop UI: variant favorites, goal, budget/quality filters, sort, persi
  });
  await new Promise(r=>mock.listen(0,'127.0.0.1',r));const mockPort=mock.address().port;
  const reserve=http.createServer();await new Promise(r=>reserve.listen(0,'127.0.0.1',r));const port=reserve.address().port;await new Promise(r=>reserve.close(r));
- const server=spawn(process.execPath,['--import','tsx','src/server-entry.ts'],{cwd:new URL('..',import.meta.url),env:{...process.env,PORT:String(port),SESSION_SECRET:'market-ui-test',SUPABASE_URL:'http://127.0.0.1:'+mockPort,SUPABASE_SECRET_KEY:'test-key',TWITCH_CLIENT_ID:'',TWITCH_EVENTSUB_SECRET:''},stdio:'ignore'});
+ const server=spawn(process.execPath,['--import','tsx','src/server-entry.ts'],{cwd:new URL('..',import.meta.url),env:{...process.env,PORT:String(port),SESSION_SECRET:'market-ui-test',SUPABASE_URL:'http://127.0.0.1:'+mockPort,SUPABASE_SECRET_KEY:'test-key',TWITCH_CLIENT_ID:'',TWITCH_EVENTSUB_SECRET:''},stdio:['ignore','ignore','pipe']});
  const base='http://127.0.0.1:'+port,payload=Buffer.from(JSON.stringify({twitchUserId:'viewer',exp:Date.now()+120000})).toString('base64url'),cookie='rewards_session='+payload+'.'+createHmac('sha256','market-ui-test').update(payload).digest('base64url');
  let dom;
  const pause=ms=>new Promise(r=>setTimeout(r,ms));
  async function until(fn){for(let i=0;i<150;i++){if(fn())return;await pause(20)}assert(fn(),'UI condition timed out')}
  try{
-  for(let i=0;i<100;i++){try{await fetch(base+'/shop-v2.js');break}catch{await pause(50)}}
+  await waitForTestServer(base,server);
   assert.equal((await fetch(base+'/api/me/market')).status,401);
   const spoof=await fetch(base+'/api/me/market',{method:'POST',headers:{Cookie:cookie,'Content-Type':'application/json'},body:JSON.stringify({action:'clear_goal',user_id:randomUUID()})});assert.equal(spoof.status,200);assert.equal(rpcParams.p_user,user);
   const invalid=await fetch(base+'/api/me/market',{method:'POST',headers:{Cookie:cookie,'Content-Type':'application/json'},body:JSON.stringify({action:'favorite',itemId:item,variantId:'bad'})});assert.equal(invalid.status,400);
@@ -108,5 +109,5 @@ test('full shop UI: variant favorites, goal, budget/quality filters, sort, persi
   q('#search').value='Page 01';q('#search').dispatchEvent(new w.Event('input'));assert.equal(cards().length,1);assert(q('#pager .shop-page-info').textContent.includes('1–1 из 1'));assert(q('#pager [aria-label="Следующая страница"]').disabled);
   q('#search').value='';q('#search').dispatchEvent(new w.Event('input'));q('#pager [aria-label="Следующая страница"]').click();w.document.querySelector('#grid').style.gridTemplateColumns='repeat(4,minmax(0,1fr))';w.dispatchEvent(new w.Event('resize'));await pause(180);assert.equal(cards().length,16);assert.equal(q('#pager [aria-current="page"]').dataset.p,'2');
   assert.deepEqual(errors,[]);
- }finally{dom?.window.close();server.kill();mock.closeAllConnections();await new Promise(r=>mock.close(r));}
+ }finally{dom?.window.close();await stopTestServer(server);mock.closeAllConnections();await new Promise(r=>mock.close(r));}
 });

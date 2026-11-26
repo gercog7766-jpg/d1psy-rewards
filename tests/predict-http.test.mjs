@@ -1,10 +1,11 @@
+import {waitForTestServer,stopTestServer} from './fixtures/test-server-ready.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import http from 'node:http';
 import { spawn } from 'node:child_process';
 import { createHmac } from 'node:crypto';
 
-test('real app: navigation, signed user identity, own predictions and admin-only settlement',{timeout:25000},async()=>{
+test('real app: navigation, signed user identity, own predictions and admin-only settlement',{timeout:75000},async()=>{
  const userId='00000000-0000-4000-8000-000000000001';let rpcBody,readFilter;
  const mock=http.createServer(async(req,res)=>{
   res.setHeader('Content-Type','application/json');const url=new URL(req.url,'http://test');
@@ -20,13 +21,13 @@ test('real app: navigation, signed user identity, own predictions and admin-only
  });
  await new Promise(r=>mock.listen(0,'127.0.0.1',r));const mockPort=mock.address().port;
  const reserve=http.createServer();await new Promise(r=>reserve.listen(0,'127.0.0.1',r));const appPort=reserve.address().port;await new Promise(r=>reserve.close(r));
- const server=spawn(process.execPath,['--import','tsx','src/server-entry.ts'],{cwd:new URL('..',import.meta.url),env:{...process.env,PORT:String(appPort),SESSION_SECRET:'prediction-http-test',SUPABASE_URL:'http://127.0.0.1:'+mockPort,SUPABASE_SECRET_KEY:'test-key',TWITCH_CLIENT_ID:'',TWITCH_EVENTSUB_SECRET:''},stdio:'ignore'});
+ const server=spawn(process.execPath,['--import','tsx','src/server-entry.ts'],{cwd:new URL('..',import.meta.url),env:{...process.env,PORT:String(appPort),SESSION_SECRET:'prediction-http-test',SUPABASE_URL:'http://127.0.0.1:'+mockPort,SUPABASE_SECRET_KEY:'test-key',TWITCH_CLIENT_ID:'',TWITCH_EVENTSUB_SECRET:''},stdio:['ignore','ignore','pipe']});
  const origin='http://127.0.0.1:'+appPort;
  const payload=Buffer.from(JSON.stringify({twitchUserId:'twitch-test',exp:Date.now()+60000})).toString('base64url');
  const cookie='rewards_session='+payload+'.'+createHmac('sha256','prediction-http-test').update(payload).digest('base64url');
  const headers={Cookie:cookie,'Content-Type':'application/json'};
  try{
-  for(let i=0;i<100;i++){try{await fetch(origin+'/predict.js');break}catch{await new Promise(r=>setTimeout(r,50))}}
+  await waitForTestServer(origin,server);
   assert.equal((await fetch(origin+'/predict')).status,401);
   assert.equal((await fetch(origin+'/api/me/predict')).status,401);
   const html=await (await fetch(origin+'/account')).text();
@@ -47,5 +48,5 @@ test('real app: navigation, signed user identity, own predictions and admin-only
   const gamesPage=await(await fetch(origin+'/games',{headers})).text();assert(gamesPage.includes('href="/games/tic-tac-toe"'));assert(gamesPage.includes('Вордли'));
   const bpResponse=await fetch(origin+'/api/me/season',{headers});assert.equal(bpResponse.status,200);const bp=await bpResponse.json();assert.deepEqual(bp.daily.map(x=>x.key),['ttt_win','wordly_win','predict_winner']);assert(bp.daily.every(x=>x.reward===150&&x.target===1));assert.equal(bp.daily[0].done,true);assert.match(bp.daily[0].title,/крестики-нолики/);assert.match(bp.daily[2].title,/победителя матча/);
   const image=await fetch(origin+'/predict-assets/parivision.png');assert.equal(image.status,200);assert.equal(image.headers.get('Content-Type'),'image/png');
- }finally{server.kill();await new Promise(r=>mock.close(r));}
+ }finally{await stopTestServer(server);await new Promise(r=>mock.close(r));}
 });

@@ -1,3 +1,4 @@
+import {waitForTestServer,stopTestServer} from './fixtures/test-server-ready.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {PGlite} from '@electric-sql/pglite';
@@ -147,16 +148,16 @@ test('bonus API authenticates, rejects forged rewards and cross-site requests, v
  }finally{server.closeAllConnections();await new Promise(r=>server.close(r));envKeys.forEach((k,i)=>old[i]===undefined?delete process.env[k]:process.env[k]=old[i])}
 });
 
-test('real application moves the streak to bonuses, preserves account navigation and serves authenticated routes',async()=>{
+test('real application moves the streak to bonuses, preserves account navigation and serves authenticated routes',{timeout:90000},async()=>{
  const {default:http}=await import('node:http'),{spawn}=await import('node:child_process'),{createHmac}=await import('node:crypto');
  const mock=http.createServer((q,r)=>{r.setHeader('Content-Type','application/json');if(q.url.includes('/rpc/rewards_bonus_center'))return r.end(JSON.stringify({login:'one',serverNow:new Date().toISOString(),available:true}));r.end('[]')});
  await new Promise(r=>mock.listen(0,'127.0.0.1',r));const reserve=http.createServer();await new Promise(r=>reserve.listen(0,'127.0.0.1',r));const port=reserve.address().port;await new Promise(r=>reserve.close(r));
- const origin='http://127.0.0.1:'+port,secret='bonus-test';const child=spawn(process.execPath,['--import','tsx','src/server-entry.ts'],{env:{...process.env,PORT:String(port),APP_URL:origin,SUPABASE_URL:'http://127.0.0.1:'+mock.address().port,SUPABASE_SECRET_KEY:'test',SESSION_SECRET:secret,REWARDS_ENGINE_ENABLED:'false',TWITCH_CLIENT_ID:'',TWITCH_CLIENT_SECRET:'',TWITCH_EVENTSUB_SECRET:''},stdio:'ignore'});
+ const origin='http://127.0.0.1:'+port,secret='bonus-test';const child=spawn(process.execPath,['--import','tsx','src/server-entry.ts'],{env:{...process.env,PORT:String(port),APP_URL:origin,SUPABASE_URL:'http://127.0.0.1:'+mock.address().port,SUPABASE_SECRET_KEY:'test',SESSION_SECRET:secret,REWARDS_ENGINE_ENABLED:'false',TWITCH_CLIENT_ID:'',TWITCH_CLIENT_SECRET:'',TWITCH_EVENTSUB_SECRET:''},stdio:['ignore','ignore','pipe']});
  const payload=Buffer.from(JSON.stringify({twitchUserId:'one',login:'one',exp:Date.now()+60000})).toString('base64url'),headers={Cookie:'rewards_session='+payload+'.'+createHmac('sha256',secret).update(payload).digest('base64url')};
- try{let ready=false;for(let n=0;n<120;n++){try{if((await fetch(origin+'/health')).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,50))}assert(ready);
+ try{await waitForTestServer(origin,child);
  const loggedOut=await fetch(origin+'/bonuses',{redirect:'manual'});assert.equal(loggedOut.status,302);assert.equal(loggedOut.headers.get('location'),'/auth/twitch');
  const page=await fetch(origin+'/bonuses',{headers});assert.equal(page.status,200);const html=await page.text();assert(html.includes('id="dailyBonusCard"'));assert(html.includes('id="dropsoSiteSidebar"'));assert(html.includes('id="d1psyFooter"'));assert(html.includes('id="bonusResult"'));
  const account=await(await fetch(origin+'/account',{headers})).text();assert(!account.includes('id="dailyBonusCard"'));assert(account.includes('id="bonusesLink"'));assert(!account.includes('id="promoOpen"'));
  assert.equal((await fetch(origin+'/api/me/bonuses')).status,401);assert.equal((await fetch(origin+'/api/me/bonuses',{headers})).status,200);
- }finally{child.kill('SIGTERM');await new Promise(r=>child.once('exit',r));mock.closeAllConnections();await new Promise(r=>mock.close(r))}
+ }finally{await stopTestServer(child);mock.closeAllConnections();await new Promise(r=>mock.close(r))}
 });

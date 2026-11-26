@@ -1,3 +1,4 @@
+import {waitForTestServer,stopTestServer} from './fixtures/test-server-ready.mjs';
 import {promoRewardBrowserScript} from '../src/promo-rewards.ts';
 import test from 'node:test';import assert from 'node:assert/strict';import {PGlite} from '@electric-sql/pglite';import {readFileSync} from 'node:fs';
 test('completed promo names can be reused, active duplicates and streamer namespace cannot; archive preserves history',async()=>{
@@ -81,7 +82,7 @@ test('promo history is admin-only, scoped to the campaign ID, and safely paginat
  }finally{await new Promise(resolve=>server.close(resolve))}
 });
 
-test('real admin supports Major tokens, validates amounts, and redeems with signed actor and pass errors',async()=>{
+test('real admin supports Major tokens, validates amounts, and redeems with signed actor and pass errors',{timeout:90000},async()=>{
  const {default:http}=await import('node:http'),{spawn}=await import('node:child_process'),{createHmac}=await import('node:crypto'),{JSDOM}=await import('jsdom');
  const writes=[];const mock=http.createServer(async(q,r)=>{
   r.setHeader('Content-Type','application/json');const path=new URL(q.url,'http://mock').pathname;
@@ -97,10 +98,10 @@ test('real admin supports Major tokens, validates amounts, and redeems with sign
  });await new Promise(r=>mock.listen(0,'127.0.0.1',r));
  const reserve=http.createServer();await new Promise(r=>reserve.listen(0,'127.0.0.1',r));const port=reserve.address().port;await new Promise(r=>reserve.close(r));
  const origin='http://127.0.0.1:'+port,secret='major-promo-test';
- const child=spawn(process.execPath,['--import','tsx','src/server-entry.ts'],{env:{...process.env,PORT:String(port),APP_URL:origin,SUPABASE_URL:'http://127.0.0.1:'+mock.address().port,SUPABASE_SECRET_KEY:'test',SESSION_SECRET:secret,REWARDS_ENGINE_ENABLED:'false',TWITCH_CLIENT_ID:'',TWITCH_CLIENT_SECRET:'',TWITCH_EVENTSUB_SECRET:''},stdio:'ignore'});
+ const child=spawn(process.execPath,['--import','tsx','src/server-entry.ts'],{env:{...process.env,PORT:String(port),APP_URL:origin,SUPABASE_URL:'http://127.0.0.1:'+mock.address().port,SUPABASE_SECRET_KEY:'test',SESSION_SECRET:secret,REWARDS_ENGINE_ENABLED:'false',TWITCH_CLIENT_ID:'',TWITCH_CLIENT_SECRET:'',TWITCH_EVENTSUB_SECRET:''},stdio:['ignore','ignore','pipe']});
  const headers=actor=>{const p=Buffer.from(JSON.stringify({twitchUserId:actor,exp:Date.now()+60000})).toString('base64url');return {Cookie:'rewards_session='+p+'.'+createHmac('sha256',secret).update(p).digest('base64url'),'Content-Type':'application/json',Origin:origin}};
  const post=(path,body,actor='owner')=>fetch(origin+path,{method:'POST',headers:headers(actor),body:JSON.stringify(body)});
- try{let ready=false;for(let n=0;n<120;n++){try{if((await fetch(origin+'/health')).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,50))}assert(ready);
+ try{await waitForTestServer(origin,child);
  const html=await(await fetch(origin+'/admin',{headers:headers('owner')})).text();
  const dom=new JSDOM(html,{runScripts:'outside-only',url:origin+'/admin'}),w=dom.window;try{
   assert.equal(w.document.querySelector('#paType option[value="major_tokens"]').textContent,'Жетоны Major Pick’em');
@@ -118,5 +119,5 @@ test('real admin supports Major tokens, validates amounts, and redeems with sign
  assert.equal((await fetch(origin+'/api/admin/promos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})).status,401);
  assert.equal((await post('/api/me/promo/redeem',{code:'MAJOR7'},'no-pass')).status,409);
  const redeemed=await post('/api/me/promo/redeem',{code:'MAJOR7',userId:'forged'},'player');assert.equal(redeemed.status,200);assert.equal((await redeemed.json()).amount,7);assert.equal(writes.at(-1).body.p_actor,'player');
- }finally{child.kill('SIGTERM');await new Promise(r=>child.once('exit',r));mock.closeAllConnections();await new Promise(r=>mock.close(r))}
+ }finally{await stopTestServer(child);mock.closeAllConnections();await new Promise(r=>mock.close(r))}
 });

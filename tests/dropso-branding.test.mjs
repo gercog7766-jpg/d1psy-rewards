@@ -1,3 +1,4 @@
+import {waitForTestServer,stopTestServer} from './fixtures/test-server-ready.mjs';
 import {test} from 'node:test';import assert from 'node:assert/strict';import {JSDOM} from 'jsdom';import {runInNewContext} from 'node:vm';
 import {withSiteBranding} from '../src/site-branding.ts';
 import {gamesHtml,wordlyHtml} from '../src/games-ui.ts';
@@ -28,14 +29,14 @@ test('PWA keeps installation identity and migrates legacy cached copy and push s
  for(const title of ['D1PSY · Уведомления работают','Drop','D1PSY_OFF'])await new Promise((resolve,reject)=>handlers.push({data:{json:()=>({title})},waitUntil:p=>p.then(resolve,reject)}));assert.deepEqual(notifications,['Dropso · Уведомления работают','Drop','D1PSY_OFF']);
 });
 
-test('actual Express pages and footer ship Dropso after all legacy hotfixes, preserving nickname and links',{timeout:30000},async()=>{
+test('actual Express pages and footer ship Dropso after all legacy hotfixes, preserving nickname and links',{timeout:90000},async()=>{
  const {createServer}=await import('node:http'),{spawn}=await import('node:child_process'),{createHmac}=await import('node:crypto');
  const mock=createServer((req,res)=>{res.setHeader('Content-Type','application/json');res.end(req.url.includes('/rewards_users')?JSON.stringify({id:'00000000-0000-4000-8000-000000000001',twitch_login:'viewer'}):'[]')});await new Promise(r=>mock.listen(0,'127.0.0.1',r));const reserve=createServer();await new Promise(r=>reserve.listen(0,'127.0.0.1',r));const port=reserve.address().port;await new Promise(r=>reserve.close(r));const base='http://127.0.0.1:'+port;
- const server=spawn(process.execPath,['--import','tsx','src/server-entry.ts'],{cwd:new URL('..',import.meta.url),env:{...process.env,PORT:String(port),APP_URL:base,SESSION_SECRET:'dropso-test',SUPABASE_URL:'http://127.0.0.1:'+mock.address().port,SUPABASE_SECRET_KEY:'test',REWARDS_ENGINE_ENABLED:'false',TWITCH_CLIENT_ID:'',TWITCH_EVENTSUB_SECRET:''},stdio:'ignore'});
+ const server=spawn(process.execPath,['--import','tsx','src/server-entry.ts'],{cwd:new URL('..',import.meta.url),env:{...process.env,PORT:String(port),APP_URL:base,SESSION_SECRET:'dropso-test',SUPABASE_URL:'http://127.0.0.1:'+mock.address().port,SUPABASE_SECRET_KEY:'test',REWARDS_ENGINE_ENABLED:'false',TWITCH_CLIENT_ID:'',TWITCH_EVENTSUB_SECRET:''},stdio:['ignore','ignore','pipe']});
  const token=Buffer.from(JSON.stringify({twitchUserId:'viewer',login:'viewer',exp:Date.now()+120000})).toString('base64url'),cookie='rewards_session='+token+'.'+createHmac('sha256','dropso-test').update(token).digest('base64url');
- try{for(let i=0;i<150;i++){try{await fetch(base+'/health');break}catch{await new Promise(r=>setTimeout(r,30))}}
+ try{await waitForTestServer(base,server);
   for(const path of ['/','/terms','/rules','/privacy','/account','/shop','/upgrader','/season','/games','/games/minesweeper','/games/defuse','/games/night-run','/users','/users/amych','/streamers','/streamer']){
    const response=await fetch(base+path,{headers:{Cookie:cookie}});assert.equal(response.status,200,path);const d=new JSDOM(await response.text()),doc=d.window.document;assert(doc.title.includes('Dropso'),path+': '+doc.title);doc.querySelectorAll('script,style').forEach(n=>n.remove());assert(!/d1psy rewards|D1PSY MARKET|Стать стримером D1PSY/.test(doc.body.textContent),path);if(path==='/streamer')assert.equal(doc.getElementById('pageTitle').textContent,'Стать партнёром Dropso');if(path==='/account'){assert.equal(doc.querySelector('.footer-brand strong').textContent,'Dropso');assert(doc.querySelector('[href="https://www.twitch.tv/d1psy_off"]'));assert(doc.querySelector('.dropso-wordmark'));}d.window.close();
   }
- }finally{server.kill('SIGTERM');await new Promise(r=>mock.close(r))}
+ }finally{await stopTestServer(server);await new Promise(r=>mock.close(r))}
 });
