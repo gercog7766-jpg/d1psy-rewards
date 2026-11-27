@@ -31,5 +31,8 @@ test('challenge pilot reserves once, settles both outcomes and excludes uninvite
   await call('1','fail',{id:failed});await call('1','fail',{id:failed});assert.equal(await balance(),500);
   assert.equal((await call('1','admin_state')).rows.length,3);
   assert.equal((await call('2','state')).rows.find(r=>r.id===failed).status,'failed');
+  await db.exec(await readFile(new URL('../supabase/migrations/20261127202000_open_owner_challenges_to_players.sql',import.meta.url),'utf8'));
+  assert.equal((await call('3','state')).owner,'owner');
+  await assert.rejects(call('3','admin_state'),/owner_required/);
  }finally{await db.close()}
 });
