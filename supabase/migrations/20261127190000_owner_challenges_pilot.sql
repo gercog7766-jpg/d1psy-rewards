@@ -46,7 +46,7 @@ begin
   select * into u from public.rewards_users where id=c.user_id for update;
   if p_action='accept' then
    if coalesce(u.banned,false) then raise exception 'user_required'; end if;
-   select coalesce(sum(amount),0) into balance from public.rewards_coin_transactions where user_id=c.user_id;
+   select coalesce(sum(tx.amount),0) into balance from public.rewards_coin_transactions tx where tx.user_id=c.user_id;
    if balance<c.stake then raise exception 'insufficient_coins'; end if;
    insert into public.rewards_coin_transactions(user_id,amount,transaction_type,note) values(c.user_id,-c.stake,'adjustment','Челлендж · резерв · '||c.id);
   elsif p_action='fail' then
