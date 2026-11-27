@@ -314,3 +314,36 @@ test('launch readiness is admin-only, read-only and never declares manual approv
   assert.match(d.getElementById('summary').textContent,/9 из 13/);
  }finally{dom.window.close()}
 });
+
+test('welcome coins cover first LITE, PLUS upgrade, renewals and refund reconciliation',async()=>{
+ const db=new PGlite();try{
+  await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;
+  create table rewards_users(id uuid primary key default gen_random_uuid(),twitch_user_id text,banned boolean default false);
+  create table rewards_admins(twitch_user_id text);
+  create table rewards_bonus_telegram_links(user_id uuid,telegram_id text);
+  create table rewards_monetization_draft(id boolean,config jsonb);
+  create table rewards_coin_transactions(user_id uuid,amount integer,transaction_type text,note text);
+  insert into rewards_users(twitch_user_id) values('admin'),('player');
+  insert into rewards_admins values('admin');
+  insert into rewards_bonus_telegram_links select id,case twitch_user_id when 'admin' then '123' else '456' end from rewards_users;
+  insert into rewards_monetization_draft values(true,'{"lite":{"stars":249,"visibility":"admin_test"},"plus":{"stars":399,"visibility":"admin_test"}}');
+  grant select,update on rewards_users to service_role;grant select on rewards_admins,rewards_bonus_telegram_links,rewards_monetization_draft to service_role;
+  grant select,insert on rewards_coin_transactions to service_role;`);
+  for(const m of ['20261126180000_stars_pilot.sql','20261126190000_stars_entitlements.sql','20261128010000_membership_player_checkout.sql','20261128030000_membership_welcome_coins.sql'])await db.exec(await readFile(new URL('../supabase/migrations/'+m,import.meta.url),'utf8'));
+  await db.exec("update rewards_stars_pilot_control set enabled=true,fulfillment_ready=true,support_url='https://example.test/support';set role service_role");
+  const action=async(who,a,b)=>(await db.query('select rewards_stars_pilot_action($1,$2,$3) r',[who,a,b])).rows[0].r;
+  const total=async(actor='player')=>Number((await db.query('select coalesce(sum(t.amount),0) n from rewards_coin_transactions t join rewards_users u on u.id=t.user_id where u.twitch_user_id=$1',[actor])).rows[0].n);
+  const pay=async(product,who='456')=>{const o=await action(who,'create',{product,requestId:randomUUID()});const proof={orderId:o.id,stars:o.stars,currency:'XTR'};await action(who,'precheckout',{...proof,precheckoutId:o.id});const receipt={...proof,chargeId:o.id};await action(who,'receipt',receipt);await action(who,'receipt',receipt);return receipt};
+  await assert.rejects(pay('lite'),/product_not_in_test/);
+  await pay('lite','123');assert.equal(await total('admin'),0);
+  await db.exec("reset role;update rewards_monetization_draft set config=jsonb_set(jsonb_set(config,'{lite,visibility}',to_jsonb('players'::text)),'{plus,visibility}',to_jsonb('players'::text));set role service_role");
+  const lite=await pay('lite');assert.equal(await total(),50);
+  const renewal=await pay('lite');assert.equal(await total(),50);
+  const plus=await pay('plus');assert.equal(await total(),100);
+  await action('456','refund',plus);await action('456','refund',plus);assert.equal(await total(),50);
+  await action('456','refund',lite);assert.equal(await total(),50);
+  await action('456','refund',renewal);assert.equal(await total(),0);
+  const directPlus=await pay('plus');assert.equal(await total(),100);
+  await action('456','refund',directPlus);assert.equal(await total(),0);
+ }finally{await db.close()}
+});
