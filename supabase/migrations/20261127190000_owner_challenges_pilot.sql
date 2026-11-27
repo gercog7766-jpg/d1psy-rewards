@@ -34,7 +34,7 @@ begin
  end if;
  if p_action='admin_state' then
   select coalesce(jsonb_agg(to_jsonb(t) order by t.created_at desc),'[]'::jsonb) into rows from
-   (select c.*,u.twitch_login from public.rewards_challenges c join public.rewards_users u on u.id=c.user_id where c.owner_twitch_id=owner_id order by c.created_at desc limit 200)t;
+   (select ch.*,usr.twitch_login from public.rewards_challenges ch join public.rewards_users usr on usr.id=ch.user_id where ch.owner_twitch_id=owner_id order by ch.created_at desc limit 200)t;
   return jsonb_build_object('rows',rows,'owner',owner_login);
  end if;
  if p_action in ('accept','decline','complete','fail') then
