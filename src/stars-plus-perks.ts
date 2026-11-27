@@ -2,9 +2,9 @@ import type {Express,RequestHandler} from 'express';
 import type {SupabaseClient} from '@supabase/supabase-js';
 
 const path='/api/admin/monetization/plus/statistics';
-export function installStarsPlusPerks(app:Express,db:SupabaseClient,admin:RequestHandler,user?:RequestHandler){
+export function installStarsPlusPerks(app:Express,db:SupabaseClient,admin:RequestHandler|undefined,user?:RequestHandler){
  const noStore:RequestHandler=(_q,r,n)=>{r.set('Cache-Control','private,no-store');n()};
- for(const route of [{page:'/admin/monetization/plus/statistics',api:path,auth:admin},...(user?[{page:'/membership/statistics',api:'/api/me/membership/statistics',auth:user}]:[])]){
+ for(const route of [...(admin?[{page:'/admin/monetization/plus/statistics',api:path,auth:admin}]:[]),...(user?[{page:'/membership/statistics',api:'/api/me/membership/statistics',auth:user}]:[])]){
   app.get(route.page,noStore,route.auth,(_q,r)=>r.type('html').send(html.replaceAll(path,route.api)));
   app.get(route.api+'-script',noStore,route.auth,(_q,r)=>r.type('application/javascript').send(js.replaceAll(path,route.api)));
   app.get(route.api,noStore,route.auth,async(q,r)=>{if(Object.keys(q.query).some(k=>k!=='days')||typeof q.query.days!=='string'||!['7','30','90'].includes(q.query.days))return void r.status(400).json({error:'invalid_period'});const {data,error}=await db.rpc('rewards_stars_plus_statistics',{p_actor:r.locals.session.twitchUserId,p_days:Number(q.query.days)});if(error)return void r.status(error.message==='plus_required'?403:503).json({error:error.message==='plus_required'?'plus_required':'statistics_unavailable'});r.json(data)});
