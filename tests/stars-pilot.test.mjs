@@ -190,3 +190,104 @@ test('real rights follow verified receipts, renewals, PLUS priority, refund, exp
   await db.exec('reset role;set role anon');await assert.rejects(rights(),/permission denied/);
  }finally{await db.close()}
 });
+
+
+test('membership preview reflects live entitlements and only opens explicitly enabled administrator checkout',async()=>{
+ const {membershipPageHtml,membershipPageJs}=await import('../src/membership-page.ts');
+ const {JSDOM}=await import('jsdom');
+ for(const scenario of [
+  {tier:'free'},
+  {tier:'lite'},
+  {tier:'plus'},
+  {tier:'lite',visibility:'hidden'},
+  {tier:'free',linked:false},
+  {tier:'free',enabled:false},
+  {tier:'free',fulfillment:false},
+  {tier:'free',relay:false},
+  {tier:'free',demo:true}
+ ]){
+  const dom=new JSDOM(membershipPageHtml,{url:'https://dropso.site/admin/monetization/membership-page',runScripts:'outside-only'});
+  try{
+   const w=dom.window,d=w.document;
+   const draft={config:{lite:{stars:249,visibility:scenario.visibility??'admin_test'},plus:{stars:399,visibility:scenario.visibility??'admin_test'}}};
+   const stars={entitlements:{tier:scenario.tier,expiresAt:new Date(Date.now()+30*86400000).toISOString()},control:{enabled:scenario.enabled??true,fulfillment_ready:scenario.fulfillment??true,support_url:'https://t.me/dropso_cs2'},linked:scenario.linked??true,relayConfigured:scenario.relay??true,botUsername:'dropso_test_bot'};
+   w.fetch=async url=>({ok:true,json:async()=>url.endsWith('/draft')?draft:stars});
+   if(scenario.demo)w.__DROPSO_MEMBERSHIP_DEMO__={draft,stars};
+   w.eval(membershipPageJs);
+   await new Promise(resolve=>setImmediate(resolve));
+   const el=id=>d.getElementById(id);
+   assert.equal(el('currentTier').textContent,scenario.tier==='free'?'FREE':'DROPSO '+scenario.tier.toUpperCase());
+   assert.equal(el('currentActions').hidden,scenario.tier==='free');
+   assert.equal(el('cta-lite').disabled,scenario.tier==='plus');
+   if(scenario.tier!=='free'){
+    assert.equal(el('renew').dataset.buy,scenario.tier);
+    assert.equal(el('upgrade').hidden,scenario.tier==='plus');
+   }
+   el('cta-plus').click();
+   const ready=!scenario.demo&&scenario.visibility!=='hidden'&&scenario.linked!==false&&scenario.enabled!==false&&scenario.fulfillment!==false&&scenario.relay!==false;
+   assert.equal(el('telegramCheckout').hidden,!ready);
+   assert.equal(el('telegramCheckout').getAttribute('href'),ready?'https://t.me/dropso_test_bot?start=stars_plus':null);
+   if(scenario.tier==='lite')assert.match(el('dialogCopy').textContent,/оставшийся срок LITE не отменяется/);
+   if(scenario.tier==='plus')assert.match(el('dialogCopy').textContent,/Продление добавляет 30 дней/);
+  }finally{dom.window.close()}
+ }
+});
+
+
+test('S2 design preview reads saved catalog, displays actual rewards and uses only TEST claims',async()=>{
+ const {s2DesignHtml,s2DesignJs,installS2Design}=await import('../src/s2-design-preview.ts');
+ const {JSDOM}=await import('jsdom');
+ const routes=[];installS2Design({get:(path,...handlers)=>routes.push({path,handlers})},{},()=>{});
+ assert.deepEqual(routes.map(x=>x.path),['/admin/monetization/s2-design','/api/admin/monetization/s2-design-script','/api/admin/monetization/s2-design']);
+ assert(routes.every(x=>x.handlers.length===3));
+ const rows=Array.from({length:50},(_,i)=>['free','premium'].map(track=>({level:i+1,track,kind:'skin',label:'Saved '+track+' '+(i+1),value:i===49?(track==='free'?550:2527):10,image:'https://example.test/skin.png'}))).flat();
+ const catalog={testOnly:true,rows,thresholds:Array.from({length:50},(_,i)=>(i+1)*1000),startsAt:'2026-12-14T21:00:00Z',endsAt:'2027-03-14T21:00:00Z',tier:'plus',prices:{free:499,lite:489,plus:474}};
+ const task={label:'Mission',sp:100,target:3,unit:'count'},group={tasks:[task],mask:0,replaced:false};
+ const state={testOnly:true,revision:3,day:1,premium:true,progress:{level:1,sp:1325,weekly:2,challenges:0,remainingDaily:90,remainingWeekly:109,remainingChallenges:9},state:{receipts:[],days:{1:group},weeks:{1:{...group,mask:1}},months:[group],metrics:{d1:[{progress:1}],w1:[{progress:3}],m1:[{progress:0}]}}};
+ const dom=new JSDOM(s2DesignHtml,{url:'https://dropso.site/admin/monetization/s2-design',runScripts:'outside-only'}),w=dom.window,d=w.document,actions=[];
+ try{
+  w.setInterval=()=>0;
+  w.fetch=async(url,options)=>{
+   if(url==='/api/admin/monetization/s2-design')return {ok:true,json:async()=>catalog};
+   assert.equal(url,'/api/admin/monetization/s2-real');
+   const action=JSON.parse(options.body);actions.push(action);
+   if(action.action==='claim')state.state.receipts.push({level:action.level,track:action.track});
+   return {ok:true,json:async()=>state};
+  };
+  const flush=()=>new Promise(resolve=>setImmediate(resolve));w.eval(s2DesignJs);await flush();
+  assert.equal(d.querySelectorAll('#levels .level').length,50);
+  assert.equal(d.querySelectorAll('#levels .reward').length,100);
+  assert.match(d.querySelector('#heroCta').textContent,/474/);
+  assert.equal(d.querySelector('#heroArt img').getAttribute('src'),'https://example.test/skin.png');
+  assert.match(d.querySelector('#final').textContent,/Saved premium 50/);
+  assert(d.querySelector('[data-level="1"] .premium button').disabled);
+  d.querySelector('#sync').click();await flush();
+  assert.equal(d.querySelector('.level.current').dataset.level,'1');
+  d.querySelector('[data-group="weekly"]').click();assert.equal(d.querySelectorAll('.task.done').length,1);
+  d.querySelector('[data-level="1"] .premium button').click();await flush();
+  assert.deepEqual(actions.at(-1),{action:'claim',track:'premium',level:1,revision:3});
+  assert(d.querySelector('[data-level="1"] .premium.claimed'));
+  assert(d.querySelector('[data-level="2"] .premium button').disabled);
+ }finally{dom.window.close()}
+});
+
+
+test('launch readiness is admin-only, read-only and never declares manual approval complete',async()=>{
+ const {readinessHtml,readinessJs,installMonetizationReadiness}=await import('../src/monetization-readiness.ts');
+ const {JSDOM}=await import('jsdom');
+ const routes=[],admin=()=>{};installMonetizationReadiness({get:(path,...handlers)=>routes.push({path,handlers})},admin);
+ assert.equal(routes.length,2);assert(routes.every(x=>x.handlers[1]===admin));
+ const dom=new JSDOM(readinessHtml,{url:'https://dropso.site/admin/monetization/readiness',runScripts:'outside-only'}),w=dom.window,d=w.document;
+ const slots=Array.from({length:100},(_,i)=>({level:Math.floor(i/2)+1,track:i%2?'premium':'free',kind:i<42||i>=98?'skin':'coins'}));
+ const saved=slots.filter(x=>x.kind==='skin').map(x=>({...x,name:'skin',price:x.level===50?(x.track==='free'?550:2527):10}));
+ const values={'/api/admin/monetization/draft':{config:{lite:{stars:249,visibility:'hidden'},plus:{stars:399,visibility:'hidden'},battlePass:{stars:499,visibility:'hidden'}}},'/api/admin/monetization/stars':{relayConfigured:true,linked:true,control:{support_url:'https://t.me/dropso_cs2'},entitlements:{tier:'free'}},'/api/admin/monetization/s2-setup':{start:'2026-12-15',slots,saved,enabled:false}};
+ try{
+  w.fetch=async(url,options)=>{assert(!options.method||options.method==='GET');assert(url in values);return {ok:true,json:async()=>values[url]}};
+  w.eval(readinessJs);await new Promise(resolve=>setImmediate(resolve));
+  assert.match(d.getElementById('summary').textContent,/10 из 13/);
+  assert.equal(d.querySelectorAll('#manual .ok').length,0);
+  values['/api/admin/monetization/draft'].config.plus.visibility='admin_test';
+  d.getElementById('refresh').click();await new Promise(resolve=>setImmediate(resolve));
+  assert.match(d.getElementById('summary').textContent,/9 из 13/);
+ }finally{dom.window.close()}
+});
