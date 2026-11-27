@@ -11,6 +11,7 @@ begin
   raise exception 'unexpected_stars_pilot_definition';
  end if;
  definition := replace(definition,admin_join,'');
+ definition := replace(definition,$s$if actor_id is null then raise exception 'admin_required';end if;$s$,$s$if actor_id is null or (p_action='prepare_refund' and not exists(select 1 from public.rewards_admins a where a.twitch_user_id=actor_id)) then raise exception 'admin_required';end if;$s$);
  definition := replace(definition,old_create,$s$if not coalesce(
   (cfg->>'visibility'='admin_test' and exists(select 1 from public.rewards_admins a where a.twitch_user_id=actor_id))
   or (cfg->>'visibility'='players' and product_key in ('lite','plus')),false) then$s$);
