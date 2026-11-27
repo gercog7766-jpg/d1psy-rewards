@@ -3,10 +3,13 @@ on:
   push:
     branches:
       - codex/monetization-closed-preview-20261127
+  pull_request:
+    branches: [main]
 permissions:
   contents: read
 jobs:
   build-and-test:
+    if: github.event_name == 'push' || github.head_ref == 'codex/monetization-closed-preview-20261127'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
