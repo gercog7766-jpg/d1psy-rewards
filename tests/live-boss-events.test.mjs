@@ -26,6 +26,10 @@ test('donation mapping and gift subscription de-duplication by event type',()=>{
  assert.equal(donationAlertEvent({...row,is_test:true}),null);
  assert.equal(donationAlertEvent({...row,is_manual:1}),null);
  assert.equal(donationAlertEvent({...row,currency:'USD'}),null);
+ assert.equal(donationAlertEvent({...row,name:undefined}).p_event,'5');
+ assert.equal(donationAlertEvent({...row,name:'custom-alert'}),null);
+ assert.equal(donationAlertEvent({...row,is_test:'1'}),null);
+ assert.equal(donationAlertEvent({...row,name:undefined,currency:'rub',created_at:'2026-11-21T12:00:00.123'}).p_at,'2026-11-21T12:00:00.123Z');
  assert.equal(twitchBossEvent('channel.subscribe',{broadcaster_user_id:'11',user_id:'22',is_gift:true},'a',new Date().toISOString()),null);
  assert.equal(twitchBossEvent('channel.subscription.gift',{broadcaster_user_id:'11',user_id:'22',total:3,is_anonymous:false},'b',new Date().toISOString()).p_gifts,3);
 });
