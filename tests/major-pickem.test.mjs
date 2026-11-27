@@ -385,3 +385,19 @@ test('Major Pick’em admin lists paid players and saved stages with pagination 
     } finally {window.close();}
   } finally {await new Promise(resolve=>server.close(resolve));}
 });
+
+test('Stage 2 seed order matches HLTV higher-seed simulator and completes every bracket',async()=>{
+ const db=new PGlite();try{
+  await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;create table rewards_users(id uuid primary key default gen_random_uuid(),twitch_user_id text,banned boolean default false,participation_restricted boolean default false);create table rewards_coin_transactions(user_id uuid,amount int,transaction_type text,note text);insert into rewards_users(twitch_user_id) values('test');`);
+  for(const m of ['20261115150000_major_pickem.sql','20261115160000_major_pickem_medals.sql'])await db.exec(await readFile(new URL('../supabase/migrations/'+m,import.meta.url),'utf8'));
+  await db.exec("update rewards_major_pickem_stages set open_at=now()-interval '2 days',lock_at=now()-interval '1 day',first_match_at=now()-interval '12 hours' where stage=1;insert into rewards_major_pickem_entries(user_id,paid) select id,250 from rewards_users;insert into rewards_major_pickem_picks(stage,user_id,selections,saved_at) select 1,id,'{\"nip\":\"3:0\",\"flyquest\":\"3:0\",\"bcgame\":\"0:3\",\"dendele\":\"0:3\",\"eternal-fire\":\"3:1\",\"liquid\":\"3:1\",\"parivision\":\"3:1\",\"faze\":\"1:3\",\"9z\":\"1:3\",\"chinggis\":\"1:3\",\"imperial\":\"3:2\",\"wildcard\":\"2:3\",\"100t\":\"3:2\",\"m80\":\"2:3\",\"lynn-vision\":\"3:2\",\"heroic\":\"2:3\"}',now()-interval '36 hours' from rewards_users");
+  const migration=await readFile(new URL('../supabase/migrations/20261127213000_major_pickem_stage_two.sql',import.meta.url),'utf8');await db.exec(migration);await db.exec(migration);
+  assert.equal((await db.query('select tokens from rewards_major_pickem_entries')).rows[0].tokens,16);
+  const pairs=(await db.query('select team_a a,team_b b from rewards_major_pickem_pairs where stage=2 order by slot')).rows;const seeds=[...pairs.map(p=>p.a),...pairs.map(p=>p.b)];
+  assert.deepEqual(seeds,["fut","nemiga","g2","1win","navi","astralis","mongolz","mibr","flyquest","nip","liquid","eternal-fire","parivision","imperial","lynn-vision","100t"]);
+  const {swissBracketScript}=await import('../src/major-pickem-swiss.ts');const build=new Function(swissBracketScript+'\nreturn buildSwiss')();
+  const high={};for(let round=0;round<5;round++){const matches=build(pairs,seeds,high).rounds[round];assert.equal(matches.length,[8,8,8,6,3][round]);for(const m of matches)high[m.id]=seeds.indexOf(m.a)<seeds.indexOf(m.b)?m.a:m.b}
+  assert.deepEqual(build(pairs,seeds,high).terminal,{"fut":"3:0","nemiga":"3:0","100t":"0:3","lynn-vision":"0:3","g2":"3:1","1win":"3:1","navi":"3:1","imperial":"1:3","parivision":"1:3","eternal-fire":"1:3","astralis":"3:2","nip":"2:3","mongolz":"3:2","flyquest":"2:3","mibr":"3:2","liquid":"2:3"});
+  for(let initial=1;initial<=256;initial++){let random=initial;const selected={},seen=new Set();for(let round=0;round<5;round++){const matches=build(pairs,seeds,selected).rounds[round];assert.equal(matches.length,[8,8,8,6,3][round]);for(const m of matches){const pair=[m.a,m.b].sort().join('/');assert(!seen.has(pair));seen.add(pair);random=(Math.imul(1664525,random)+1013904223)>>>0;selected[m.id]=random<2**31?m.a:m.b}}assert.equal(Object.keys(build(pairs,seeds,selected).terminal).length,16)}
+ }finally{await db.close()}
+});
