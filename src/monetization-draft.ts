@@ -18,7 +18,8 @@ import {installS2Design} from './s2-design-preview.js';
 import {installMonetizationReadiness} from './monetization-readiness.js';
 
 const visibility=z.enum(['hidden','admin_test']); // No public state exists in this release.
-const plan=z.object({stars:z.number().int().min(1).max(100000),visibility,coins:z.number().int().min(0).max(10000),skins:z.number().int().min(0).max(10000),title:z.string().trim().max(80),description:z.string().trim().max(600)}).strict();
+const membershipVisibility=z.enum(['hidden','admin_test','players']);
+const plan=z.object({stars:z.number().int().min(1).max(100000),visibility:membershipVisibility,coins:z.number().int().min(0).max(10000),skins:z.number().int().min(0).max(10000),title:z.string().trim().max(80),description:z.string().trim().max(600)}).strict();
 const reward=z.object({kind:z.enum(['none','title','frame','background','badge','coins','skin','other']),label:z.string().trim().max(120),value:z.number().int().min(0).max(500000)}).strict();
 const level=z.object({free:reward,premium:reward}).strict();
 export const draftSchema=z.object({lite:plan,plus:plan,battlePass:z.object({stars:z.number().int().min(1).max(100000),visibility,season:z.string().trim().min(1).max(80),days:z.number().int().min(1).max(365),levels:z.array(level).length(50)}).strict()}).strict();
