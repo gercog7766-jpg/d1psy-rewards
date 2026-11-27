@@ -2,14 +2,14 @@ name: Closed monetization preview checks
 on:
   push:
     branches:
-      - codex/monetization-closed-preview-20261127
+      - codex/membership-player-launch
   pull_request:
     branches: [main]
 permissions:
   contents: read
 jobs:
   build-and-test:
-    if: github.event_name == 'push' || github.head_ref == 'codex/monetization-closed-preview-20261127'
+    if: github.event_name == 'push' || github.head_ref == 'codex/membership-player-launch'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
