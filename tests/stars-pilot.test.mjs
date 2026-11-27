@@ -270,3 +270,24 @@ test('S2 design preview reads saved catalog, displays actual rewards and uses on
   assert(d.querySelector('[data-level="2"] .premium button').disabled);
  }finally{dom.window.close()}
 });
+
+
+test('launch readiness is admin-only, read-only and never declares manual approval complete',async()=>{
+ const {readinessHtml,readinessJs,installMonetizationReadiness}=await import('../src/monetization-readiness.ts');
+ const {JSDOM}=await import('jsdom');
+ const routes=[],admin=()=>{};installMonetizationReadiness({get:(path,...handlers)=>routes.push({path,handlers})},admin);
+ assert.equal(routes.length,2);assert(routes.every(x=>x.handlers[1]===admin));
+ const dom=new JSDOM(readinessHtml,{url:'https://dropso.site/admin/monetization/readiness',runScripts:'outside-only'}),w=dom.window,d=w.document;
+ const slots=Array.from({length:100},(_,i)=>({level:Math.floor(i/2)+1,track:i%2?'premium':'free',kind:i<42||i>=98?'skin':'coins'}));
+ const saved=slots.filter(x=>x.kind==='skin').map(x=>({...x,name:'skin',price:x.level===50?(x.track==='free'?550:2527):10}));
+ const values={'/api/admin/monetization/draft':{config:{lite:{stars:249,visibility:'hidden'},plus:{stars:399,visibility:'hidden'},battlePass:{stars:499,visibility:'hidden'}}},'/api/admin/monetization/stars':{relayConfigured:true,linked:true,control:{support_url:'https://t.me/dropso_cs2'},entitlements:{tier:'free'}},'/api/admin/monetization/s2-setup':{start:'2026-12-15',slots,saved,enabled:false}};
+ try{
+  w.fetch=async(url,options)=>{assert(!options.method||options.method==='GET');assert(url in values);return {ok:true,json:async()=>values[url]}};
+  w.eval(readinessJs);await new Promise(resolve=>setImmediate(resolve));
+  assert.match(d.getElementById('summary').textContent,/10 из 13/);
+  assert.equal(d.querySelectorAll('#manual .ok').length,0);
+  values['/api/admin/monetization/draft'].config.plus.visibility='admin_test';
+  d.getElementById('refresh').click();await new Promise(resolve=>setImmediate(resolve));
+  assert.match(d.getElementById('summary').textContent,/9 из 13/);
+ }finally{dom.window.close()}
+});
