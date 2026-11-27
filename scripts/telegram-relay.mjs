@@ -3,6 +3,15 @@ import {createHash,timingSafeEqual} from 'node:crypto';
 import {pathToFileURL} from 'node:url';
 
 const DROPSO='https://dropso.site';
+const menuRows = [['⚡ DROPSO LITE', '💎 DROPSO PLUS'], ['🌃 Battle Pass'], ['👤 Профиль', '🎁 Бонусы', '💬 Помощь']];
+const menuCards = new Map([
+ [menuRows[0][0], ['⚡ <b>DROPSO LITE</b> · 249 ⭐ за 30 дней', 'Оформление профиля, скидка 1% в магазине и 2% на Battle Pass. Лимит передачи монет — 100 в сутки.']],
+ [menuRows[0][1], ['💎 <b>DROPSO PLUS</b> · 399 ⭐ за 30 дней', 'Анимированная рамка, расширенная статистика и оформление клана. Скидка 2% в магазине и 5% на Battle Pass.']],
+ [menuRows[1][0], ['🌃 <b>NIGHT SHIFT · Сезон 02</b>', '50 уровней за 90 дней. В финале FREE — Tec-9 «Оранжевое Мурано», в PREMIUM — ★ Водительские перчатки «Гоночный зелёный». Базовая цена PREMIUM — 499 ⭐ за сезон.']],
+ [menuRows[2][0], ['👤 <b>Мой профиль</b>', '<a href="https://dropso.site/account">Открыть личный кабинет Dropso</a>']],
+ [menuRows[2][1], ['🎁 <b>Бонусы</b>', '<a href="https://dropso.site/bonuses">Перейти к бонусам Dropso</a>']],
+ [menuRows[2][2], ['💬 <b>Помощь</b>', 'По вопросам оплаты отправь /paysupport. Чтобы вернуться в меню, отправь /start.']]
+]);
 const CHANNEL='@dropso_cs2';
 const noncePattern=/^[A-Za-z0-9_-]{32}$/;
 const hash=s=>createHash('sha256').update(s).digest('hex');
@@ -80,6 +89,15 @@ export function createRelay({token='',webhookSecret='',relaySecret='',webhookUrl
   const message=update?.message,callback=update?.callback_query;
   let nonce,id,chat;
   if(message?.chat?.type==='private'&&!message.from?.is_bot&&idOk(message.from?.id)&&message.chat.id===message.from.id){
+   const welcome = /^\/start(?:@[A-Za-z0-9_]+)?$/.test(message.text);
+   const card = welcome ? ['👋 <b>Добро пожаловать в Dropso!</b>', 'Выбери подписку, чтобы посмотреть её возможности, или загляни в Battle Pass за наградами сезона.'] : menuCards.get(message.text);
+   if (card) {
+    await tg('sendMessage', {
+     chat_id: message.chat.id, text: card.join('\n\n'), parse_mode: 'HTML',
+     reply_markup: {keyboard: menuRows.map(row => row.map(text => ({text}))), resize_keyboard: true}
+    });
+    return;
+   }
    const match=typeof message.text==='string'&&/^\/start(?:@[A-Za-z0-9_]+)? ([A-Za-z0-9_-]{32})$/.exec(message.text);if(!match)return;
    nonce=match[1];id=message.from.id;chat=message.chat.id;
   }else if(callback?.message?.chat?.type==='private'&&!callback.from?.is_bot&&idOk(callback.from?.id)&&callback.message.chat.id===callback.from.id&&typeof callback.data==='string'&&callback.data.startsWith('check:')){
