@@ -125,7 +125,7 @@ export function startBossDonationAlerts(db:SupabaseClient,getToken:()=>Promise<s
    if(error)throw Error('da_battle_lookup_failed');
    const window=run?.active_since?run.id+':'+run.active_since:'';
    if(window!==activeWindow){activeWindow=window;seen.clear()}
-   if(window){
+   if(run?.active_since){
     const since=Date.parse(run.active_since);
     for(const event of events){
      if(Date.parse(event.p_at)<since||Date.parse(event.p_at)>Date.now()+30000)continue;
