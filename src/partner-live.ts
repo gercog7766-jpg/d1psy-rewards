@@ -23,6 +23,12 @@ button,input,select{font:inherit;border:1px solid #76569a;border-radius:10px;pad
 .obs-url{display:flex;gap:8px;align-items:center;background:#140f1c;border:1px solid #4f3963;border-radius:10px;padding:8px}.obs-url code{min-width:0;flex:1;overflow-wrap:anywhere;font-size:12px;color:#d6b9fa}.obs-url button{font-size:12px;padding:7px 10px;min-height:34px}
 #raids{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:16px}body[data-mode=admin] #raids{grid-template-columns:1fr}article img{display:block;width:min(100%,240px);height:180px;object-fit:contain;margin:auto}article p{color:#dfcbea}progress{width:100%;height:17px;accent-color:#b166e8}.actions{display:flex;gap:8px;flex-wrap:wrap}#status:not(:empty){padding:12px 16px;border:1px solid #77509d;background:#2a193b;border-radius:12px;margin:16px 0}
 body[data-mode=obs]{background:transparent}body[data-mode=obs] .live-back,body[data-mode=obs] .live-hero,body[data-mode=obs] #status{display:none}body[data-mode=obs] #raids{grid-template-columns:1fr}body[data-mode=obs] main{padding:8px}
+html:has(body[data-mode=obs]),body[data-mode=obs]{background:transparent!important}
+body[data-mode=obs] #raids{margin:0}
+body[data-mode=obs] #raids article{background:transparent;border:0;border-radius:0;box-shadow:none;padding:8px;text-align:center}
+body[data-mode=obs] #raids article img{width:min(100%,380px);height:min(52vh,360px);filter:drop-shadow(0 0 3px #e8d2ffbd) drop-shadow(0 0 13px #b57bff9c)}
+body[data-mode=obs] #raids article p,body[data-mode=obs] #raids article h2{color:#fff;text-shadow:0 2px 5px #170524}
+body[data-mode=obs] #raids progress{display:block;width:min(100%,300px);height:12px;margin:auto}
 @media(max-width:800px){.live-grid,#raids{grid-template-columns:1fr}.live-hero{padding:20px}.live-panel{padding:17px}}@media(max-width:420px){.wallet-cell{padding:12px}.boss-preview{grid-template-columns:88px minmax(0,1fr)}.boss-preview img{width:88px;height:88px}.token-row{flex-wrap:wrap}.token-row input{width:100%}.token-row button{width:100%}}
 </style></head><body data-mode="${mode}"><main>
 <a class="live-back" href="${mode==='admin'?'/streamer':'/bosses'}">← ${mode==='admin'?'Стримерский кабинет':'Все боссы'}</a>

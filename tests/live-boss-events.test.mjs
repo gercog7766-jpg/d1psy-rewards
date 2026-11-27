@@ -26,6 +26,10 @@ test('donation mapping and gift subscription de-duplication by event type',()=>{
  assert.equal(donationAlertEvent({...row,is_test:true}),null);
  assert.equal(donationAlertEvent({...row,is_manual:1}),null);
  assert.equal(donationAlertEvent({...row,currency:'USD'}),null);
+ assert.equal(donationAlertEvent({...row,name:undefined}).p_event,'5');
+ assert.equal(donationAlertEvent({...row,name:'custom-alert'}),null);
+ assert.equal(donationAlertEvent({...row,is_test:'1'}),null);
+ assert.equal(donationAlertEvent({...row,name:undefined,currency:'rub',created_at:'2026-11-21T12:00:00.123'}).p_at,'2026-11-21T12:00:00.123Z');
  assert.equal(twitchBossEvent('channel.subscribe',{broadcaster_user_id:'11',user_id:'22',is_gift:true},'a',new Date().toISOString()),null);
  assert.equal(twitchBossEvent('channel.subscription.gift',{broadcaster_user_id:'11',user_id:'22',total:3,is_anonymous:false},'b',new Date().toISOString()).p_gifts,3);
 });
@@ -61,4 +65,10 @@ test('partner subscription webhook verifies signature, approval and channel rout
  installPartnerBossWebhook(app,db,secret);const server=app.listen(0),url='http://127.0.0.1:'+server.address().port+'/eventsub/partner-boss';
  const send=async(channel,eventChannel,valid=true)=>{const raw=JSON.stringify({subscription:{type:'channel.subscribe',condition:{broadcaster_user_id:channel}},event:{broadcaster_user_id:eventChannel,user_id:'33',is_gift:false}}),at=new Date().toISOString(),id='partner-event',signature='sha256='+createHmac('sha256',valid?secret:'wrong').update(id+at+raw).digest('hex');return fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Twitch-Eventsub-Message-Id':id,'Twitch-Eventsub-Message-Timestamp':at,'Twitch-Eventsub-Message-Signature':signature,'Twitch-Eventsub-Message-Type':'notification'},body:raw})};
  try{assert.equal((await send('22','22',false)).status,403);assert.equal((await send('99','99')).status,403);assert.equal((await send('22','99')).status,204);assert.equal(calls.length,0);assert.equal((await send('22','22')).status,204);assert.equal(calls.length,1);assert.equal(calls[0].name,'rewards_partner_boss_provider_hit');assert.equal(calls[0].args.p_channel,'22');assert.equal(calls[0].args.p_actor,'33')}finally{await new Promise(r=>server.close(r))}
+});
+
+test('DonationAlerts catches an event from the active raid before process restart and excludes earlier donations',async()=>{
+ const original=globalThis.fetch;let stop;const hits=[];const before=Date.now();const rows=[{id:21,name:'donation',username:'Alpha',currency:'RUB',amount:100,created_at:new Date(before-300000).toISOString()},{id:22,name:'donation',username:'Beta',currency:'RUB',amount:100,created_at:new Date(before-900000).toISOString()}];
+ const db={from(){return {select(){return this},eq(){return this},maybeSingle:async()=>({data:{id:'raid',active_since:new Date(before-600000).toISOString()},error:null})}},rpc:async(_name,event)=>{hits.push(event);return {error:null}}};
+ try{globalThis.fetch=async()=>new Response(JSON.stringify({data:rows}));stop=startBossDonationAlerts(db,async()=>'mock-token');for(let i=0;i<100&&!hits.length;i++)await new Promise(r=>setTimeout(r,5));assert.deepEqual(hits.map(e=>e.p_event),['21']);assert.match(bossDonationAlertsStatus().details,/в бою: 1/);}finally{stop?.();globalThis.fetch=original}
 });

@@ -1,0 +1,20 @@
+name: Owner challenges pilot checks
+on:
+  pull_request:
+    branches: [main]
+    paths: ['src/challenges.ts', 'supabase/migrations/*owner_challenges_pilot.sql', 'tests/challenges-db.test.mjs']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: node --import tsx --test tests/challenges-db.test.mjs

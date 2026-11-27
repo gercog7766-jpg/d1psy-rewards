@@ -81,10 +81,10 @@ test('all sidebar pages share the account order, separated social, activity and 
  const expected=[
   ['/account','/level','/bonuses','/statistics','/profile/customize','/referrals','/savings'],
   ['/users','/community','/notifications'],
-  ['/shop','/upgrader','/games/battles','/games/three-doors','/games/pick','/games','/predict','/bosses','/streamers','/suggestions','/clans','/black-box','/games/red-button'],
+  ['/shop','/upgrader','/games/battles','/games/three-doors','/games/pick','/games','/predict','/bosses','/challenges','/streamers','/suggestions','/clans','/black-box','/games/red-button'],
   ['/predict/major-pickem','/advent','/vault','/season'],
  ];
- for(const path of ['/vault','/bosses','/level','/users/player','/profile/customize','/notifications','/predict/major-pickem']){
+ for(const path of ['/vault','/bosses','/challenges','/level','/users/player','/profile/customize','/notifications','/predict/major-pickem']){
   const dom=new JSDOM(withSiteNavigation(page,path));
   try{
    const d=dom.window.document,groups=[...d.querySelectorAll('#dropsoSiteSidebar .dropso-nav-group')];

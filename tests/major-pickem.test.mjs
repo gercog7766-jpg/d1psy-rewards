@@ -229,6 +229,8 @@ test('confirmed results are read-only and do not replace personal predictions', 
     assert.equal(doc.querySelectorAll('[data-round="2"] button[data-team]').length,16);
     assert.deepEqual([...doc.querySelectorAll('[data-round="2"] [aria-pressed="true"]')].map(b=>b.dataset.team).sort(),['9z','chinggis','eternal-fire','flyquest','lynn-vision','m80','nip','parivision']);
     assert.equal(doc.querySelectorAll('[data-round="3"] button[data-team]').length,12);
+    assert.equal(doc.querySelectorAll('[data-round="4"] button[data-team]').length,6);
+    assert.deepEqual([...doc.querySelectorAll('[data-round="4"] [aria-pressed="true"]')].map(b=>b.dataset.team).sort(),['100t','imperial','lynn-vision']);
     assert.equal(doc.querySelector('#majorShop'),null);
     assert(doc.querySelector('#majorCases'));
     assert.deepEqual(JSON.parse(window.localStorage.getItem(key)),draft);

@@ -13,19 +13,27 @@ export function twitchBossEvent(type:string,event:any,eventId:string,at:string){
  if(type==='channel.subscription.gift'&&Number.isInteger(event.total)&&event.total>0&&event.total<=1000)return {p_source:'gift',p_event:eventId,p_actor:event.is_anonymous?null:id.test(event.user_id||'')?event.user_id:null,p_gifts:event.total,p_at:at};
  return null;
 }
-export function donationAlertEvent(row:any){
- if(!row||row.name!=='donation'||!/^\d{1,30}$/.test(String(row.id))||row.currency!=='RUB'||row.is_test===true||row.is_test===1||row.is_manual===true||row.is_manual===1)return null;
- const amount=Number(row.amount);if(!Number.isFinite(amount)||amount<0.5||amount>10000000)return null;
- const date=String(row.created_at||'');const at=/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/.test(date)?date.replace(' ','T')+'Z':date;
- if(!Number.isFinite(Date.parse(at))||!/^\d{4}-\d\d-\d\dT/.test(at)||!/(?:Z|[+-]\d\d:\d\d)$/.test(at))return null;
- return {p_source:'donationalerts',p_event:String(row.id),p_actor:null,p_donor:String(row.username||'').slice(0,100),p_rub:amount,p_code:donationCode(row.message),p_at:new Date(at).toISOString(),p_confirmed:false};
+function parseDonationAlert(row:any){
+ const flagged=(value:unknown)=>value===true||value===1||value==='1'||value==='true';
+ if(!row||typeof row!=='object'||Array.isArray(row)||!/^\d{1,30}$/.test(String(row.id)))return {reason:'ID' as const};
+ // Both callers read the authenticated donations endpoint. Some responses omit
+ // the redundant resource name; still reject explicitly different event types.
+ if(row.name!=null&&row.name!=='donation')return {reason:'тип' as const};
+ if(flagged(row.is_test)||flagged(row.is_manual))return {reason:'тест/ручной' as const};
+ if(typeof row.currency!=='string'||row.currency.toUpperCase()!=='RUB')return {reason:'валюта' as const};
+ const amount=Number(row.amount);if(!Number.isFinite(amount)||amount<0.5||amount>10000000)return {reason:'сумма' as const};
+ const date=String(row.created_at||'').trim().replace(' ','T');
+ const at=/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?$/.test(date)?date+'Z':date;
+ if(!Number.isFinite(Date.parse(at))||!/^\d{4}-\d\d-\d\dT/.test(at)||!/(?:Z|[+-]\d\d:\d\d)$/.test(at))return {reason:'дата' as const};
+ return {event:{p_source:'donationalerts',p_event:String(row.id),p_actor:null,p_donor:String(row.username||'').slice(0,100),p_rub:amount,p_code:donationCode(row.message),p_at:new Date(at).toISOString(),p_confirmed:false}};
 }
+export function donationAlertEvent(row:any){return parseDonationAlert(row).event??null;}
 const ignored=new Set(['boss_inactive','event_outside_battle']);
 async function apply(db:SupabaseClient,args:any){const {error}=await db.rpc('rewards_boss_hit',args);if(error&&!ignored.has(error.message))throw Error(error.code||'boss_hit_failed')}
 type ProviderState='not_configured'|'not_connected'|'checking'|'connected'|'disconnected'|'partial'|'pending'|'reconnect_required';
 type ProviderStatus={status:ProviderState;checkedAt:string|null;details?:string};
 let daStatus:ProviderStatus={status:'not_configured',checkedAt:null};
-function setDaStatus(status:ProviderState){daStatus={status,checkedAt:new Date().toISOString()}}
+function setDaStatus(status:ProviderState,details?:string){daStatus={status,checkedAt:new Date().toISOString(),details}}
 export function bossDonationAlertsStatus(){return daStatus.status==='connected'&&Date.now()-Date.parse(daStatus.checkedAt||'')>45000?{...daStatus,status:'disconnected' as const}:daStatus}
 const twitchTypes=['channel.subscribe','channel.subscription.gift'] as const;
 export async function inspectBossTwitchSubscriptions(actor:string,callback:string,headers:Record<string,string>,request:typeof fetch=fetch):Promise<ProviderStatus>{
@@ -112,17 +120,33 @@ export function installBossTwitchConnect(app:Express,db:SupabaseClient,admin:Req
 // DonationAlerts list access is opt-in; use a server-only OAuth access token.
 // Never poll widget URLs. API provides alerts, not a settlement guarantee.
 export function startBossDonationAlerts(db:SupabaseClient,getToken:()=>Promise<string|null>){
- let busy=false,watermark=Date.now();
+ let busy=false,activeWindow='',seen=new Set<string>();
  const tick=async()=>{if(busy)return;busy=true;try{
   const accessToken=await getToken();if(!accessToken){setDaStatus('not_connected');return}
   const response=await fetch('https://www.donationalerts.com/api/v1/alerts/donations',{headers:{Authorization:'Bearer '+accessToken},signal:AbortSignal.timeout(10000)});
   if(response.status===401||response.status===403){setDaStatus('reconnect_required');return}
   if(!response.ok)throw Error('da_api_unavailable');const payload:any=await response.json();if(!Array.isArray(payload.data))throw Error('da_api_invalid');
-  const events=payload.data.map(donationAlertEvent).filter(Boolean).filter((e:any)=>Date.parse(e.p_at)>=watermark).sort((a:any,b:any)=>Date.parse(a.p_at)-Date.parse(b.p_at));
-  for(const event of events)await apply(db,event);
-  // Overlap to catch alerts with identical second timestamps; SQL deduplicates by provider ID.
-  watermark=Math.max(watermark,Date.now()-120000);setDaStatus('connected');
- }catch{setDaStatus('disconnected');console.error('live_boss_donation_alerts_unavailable')}finally{busy=false}};
+  const parsed=payload.data.map(parseDonationAlert);const rejected:Record<string,number>={};for(const item of parsed)if(item.reason)rejected[item.reason]=(rejected[item.reason]||0)+1;
+  const events=parsed.flatMap((item:any)=>item.event?[item.event]:[]).sort((a:any,b:any)=>Date.parse(a.p_at)-Date.parse(b.p_at));
+  let eligible=0,processed=0;
+  if(events.length){
+   const {data:run,error}=await db.from('rewards_boss_runs').select('id,active_since').eq('status','active').maybeSingle();
+   if(error)throw Error('da_battle_lookup_failed');
+   const window=run?.active_since?run.id+':'+run.active_since:'';
+   if(window!==activeWindow){activeWindow=window;seen.clear()}
+   if(run?.active_since){
+    const since=Date.parse(run.active_since);
+    for(const event of events){
+     if(Date.parse(event.p_at)<since||Date.parse(event.p_at)>Date.now()+30000)continue;
+     eligible++;
+     if(seen.has(event.p_event))continue;
+     await apply(db,event);seen.add(event.p_event);processed++;
+    }
+    if(seen.size>1000)seen=new Set(events.map((e:any)=>e.p_event).filter((id:string)=>seen.has(id)));
+   }
+  }
+  setDaStatus('connected','API: '+payload.data.length+' · RUB: '+events.length+' · в бою: '+eligible+' · проверено: '+processed+(Object.keys(rejected).length?' · отклонено: '+Object.entries(rejected).map(([reason,count])=>reason+' '+count).join(', '):''));
+ }catch(e){setDaStatus('disconnected');console.error('live_boss_donation_alerts_unavailable',e instanceof Error?e.message:'unknown')}finally{busy=false}};
  const t=setInterval(()=>void tick(),10000);t.unref();void tick();return ()=>clearInterval(t);
 }
 type DaOptions={clientId:string;clientSecret:string;encryptionKey:string;redirect:string;poll?:boolean};

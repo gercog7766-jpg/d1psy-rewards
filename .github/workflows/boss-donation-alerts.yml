@@ -1,0 +1,20 @@
+name: Deployment regression checks
+on:
+  pull_request:
+    branches: [main]
+    paths: ['src/live-boss-events.ts', 'tests/live-boss-events.test.mjs', 'tests/minesweeper-ui.test.mjs', 'tests/account-logo-menu.test.mjs', 'tests/site-navigation.test.mjs', 'tests/major-pickem.test.mjs', 'src/account-logo-menu.ts', 'src/site-navigation.ts', 'src/major-pickem-results.ts', '.github/workflows/boss-donation-alerts.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: node --import tsx --test --test-concurrency=1 tests/live-boss-events.test.mjs tests/minesweeper-ui.test.mjs tests/account-logo-menu.test.mjs tests/site-navigation.test.mjs tests/major-pickem.test.mjs

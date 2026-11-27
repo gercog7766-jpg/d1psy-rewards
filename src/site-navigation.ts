@@ -4,7 +4,7 @@ import {accountFooterHtml,accountFooterStyles} from './account-footer-hotfix.js'
 const destinationGroups: ReadonlyArray<{label:string;links:ReadonlyArray<readonly [string,string]>}> = [
   {label:'Аккаунт', links:[['/account','Главная'], ['/level','Dropso LEVEL'], ['/bonuses','Бонусы'], ['/statistics','Статистика'], ['/profile/customize','Оформление профиля'], ['/referrals','Рефералы'], ['/savings','Накопления']]},
   {label:'Общение', links:[['/users','Пользователи'], ['/community','Сообщения'], ['/notifications','Уведомления']]},
-  {label:'Игры и активности', links:[['/shop','Магазин'], ['/upgrader','Апгрейдер'], ['/games/battles','Сражения'], ['/games/three-doors','Три двери'], ['/games/pick','Pick'], ['/games','Игры'], ['/predict','Предикты'], ['/bosses','Боссы'], ['/streamers','Стримеры'], ['/suggestions','Предложения'], ['/clans','Кланы'], ['/black-box','Чёрный ящик'], ['/games/red-button','Красная кнопка']]},
+  {label:'Игры и активности', links:[['/shop','Магазин'], ['/upgrader','Апгрейдер'], ['/games/battles','Сражения'], ['/games/three-doors','Три двери'], ['/games/pick','Pick'], ['/games','Игры'], ['/predict','Предикты'], ['/bosses','Боссы'], ['/challenges','Челленджи'], ['/streamers','Стримеры'], ['/suggestions','Предложения'], ['/clans','Кланы'], ['/black-box','Чёрный ящик'], ['/games/red-button','Красная кнопка']]},
   {label:'События', links:[['/predict/major-pickem','Major Pick’em'], ['/advent','Адвент-календарь'], ['/vault','THE VAULT'], ['/season','NIGHT SHIFT']]},
 ];
 const destinations = destinationGroups.flatMap(group=>group.links);
