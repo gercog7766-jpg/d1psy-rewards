@@ -157,7 +157,7 @@ test('paid transfer limits preserve free limits, snapshot skin prices and reject
   const playerPayment={...playerProof,chargeId:'player-charge'};await playerAction('receipt',playerPayment);
   assert.equal(await call('stars_gift_tier',[b]),'plus');
   assert.equal((await call('stars_profile_style',['player','save',{...equip,frame:'plus_frame'}])).equipment.frame,'plus_frame');
-  assert.equal((await visible('admin')).find(x=>x.login==='bravo').equipment.frame,'plus_frame');
+  assert.equal((await call('stars_profile_styles',['admin',['bravo']])).find(x=>x.login==='bravo').equipment.frame,'plus_frame');
   assert.equal((await call('stars_plus_statistics',['player',7])).daily.length,7);
   assert.equal((await appearance('player',otherClan,'save','royal')).theme,'royal');
   await assert.rejects(appearance('player',clan,'save','royal'),/leader_required/);
