@@ -15,10 +15,10 @@ export function installClans(app:Express,db:SupabaseClient,user:RequestHandler,a
   const b=q.body;if(!b||Object.keys(b).length!==1||typeof b.clanId!=='string'||!uuid.test(b.clanId))return void r.status(400).json({error:'invalid_request'});
   try{if(!await isClanSiteOwner(db,r.locals.session.twitchUserId))return void r.status(403).json({error:'owner_required'});const view=await readClanOwnerView(db,b.clanId);if(!view)return void r.status(404).json({error:'not_found'});r.json(view)}catch{r.status(503).json({error:'clan_unavailable'})}
  });
- app.post('/api/admin/monetization/plus/clan',noStore,admin,originCheck,async(q,r)=>{
+ for(const [path,auth] of [['/api/admin/monetization/plus/clan',admin],['/api/me/membership/clan',user]] as const)app.post(path,noStore,auth,originCheck,async(q,r)=>{
   if(q.get('origin')!==origin)return void r.sendStatus(403);
   const b=q.body;if(!b||Object.keys(b).length!==2||typeof b.clanId!=='string'||!uuid.test(b.clanId)||!(b.theme===null||['aurora','royal','nebula'].includes(b.theme)))return void r.status(400).json({error:'invalid_request'});
-  const {data,error}=await db.rpc('rewards_stars_clan_style',{p_actor:r.locals.session.twitchUserId,p_clan:b.clanId,p_action:'save',p_theme:b.theme});if(error)return void r.status(['leader_required','plus_required','admin_required'].includes(error.message)?403:409).json({error:['leader_required','plus_required','admin_required','not_found','invalid_theme'].includes(error.message)?error.message:'clan_unavailable'});r.json(data);
+  const {data,error}=await db.rpc('rewards_stars_clan_style',{p_actor:r.locals.session.twitchUserId,p_clan:b.clanId,p_action:'save',p_theme:b.theme});if(error)return void r.status(['leader_required','plus_required','admin_required','user_required'].includes(error.message)?403:409).json({error:['leader_required','plus_required','admin_required','user_required','not_found','invalid_theme'].includes(error.message)?error.message:'clan_unavailable'});r.json(data);
  });
  app.post('/api/me/clans/:action',noStore,user,originCheck,handle(false));app.post('/api/admin/clans/:action',noStore,admin,originCheck,handle(true));
  app.use((q,r,n)=>{if(q.path==='/admin'){const send=r.send.bind(r);r.send=function(body){if(typeof body==='string'&&!body.includes('id="adminClansLink"'))body=body.replace(/(<div\b[^>]*class="tabs"[^>]*>)/,'$1<a id="adminClansLink" href="/admin/clans" style="padding:10px 14px;color:#efdcff">Кланы</a>');return send(body)}}n()});
