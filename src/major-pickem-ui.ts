@@ -320,7 +320,7 @@ export const majorPickemScript = String.raw`(() => {
       } : {cache:'no-store'});
       const data=await res.json().catch(()=>({}));
       if(!res.ok)throw Error(data.error);
-      state=data;offset=Date.parse(data.now)-Date.now();
+      const firstLoad=!state;state=data;offset=Date.parse(data.now)-Date.now();if(firstLoad){const current=state.stages.find(open);if(current){stageId=current.id;showActual=false;}}
       if(action==='enter')el('notice').textContent='Пропуск куплен. Бронзовая медаль добавлена в профиль.';
     }catch(error){
       el('notice').textContent=errors[error.message] || 'Не удалось выполнить действие. Попробуй ещё раз.';
