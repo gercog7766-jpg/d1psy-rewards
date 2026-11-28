@@ -1,3 +1,4 @@
+import {withDropsoRedesign} from './dropso-redesign.js';
 import {withSiteNavigation} from './site-navigation.js';
 import {withDropsoDashboard} from './dropso-dashboard.js';
 import {withDropsoPagePolish} from './dropso-page-polish.js';
@@ -27,7 +28,7 @@ export function withSiteScrollbars(body:string,path=''){
 /** Express HTML goes through send; legal/home pages also write directly to HTTP. */
 export function installSiteScrollbars(){
  const response:any=(express as any).response,send=response.send;
- response.send=function(body:any){if(typeof body==='string')body=withAccountLogoMenu(withSiteScrollbars(withMobileLayout(withSiteBranding(body,this.req?.path||''),this.req?.path||''),this.req?.path||''),this.req?.path||'');if(typeof body==='string')body=withDropsoPagePolish(withDropsoDashboard(withSiteNavigation(body,this.req?.path||''),this.req?.path||''),this.req?.path||'');return send.call(this,body)};
+ response.send=function(body:any){if(typeof body==='string')body=withAccountLogoMenu(withSiteScrollbars(withMobileLayout(withSiteBranding(body,this.req?.path||''),this.req?.path||''),this.req?.path||''),this.req?.path||'');if(typeof body==='string')body=withDropsoPagePolish(withDropsoDashboard(withSiteNavigation(body,this.req?.path||''),this.req?.path||''),this.req?.path||'');if(typeof body==='string')body=withDropsoRedesign(body,this.req?.path||'');return send.call(this,body)};
 }
 export function installRawPageScrollbars(){
  const emit=http.Server.prototype.emit;
@@ -36,7 +37,7 @@ export function installRawPageScrollbars(){
    const req=args[0],res=args[1],end=res.end,path=String(req.url||'').split('?')[0];
    res.end=function(this:any,chunk:any,...rest:any[]){
     if(!res.headersSent&&String(res.getHeader('content-type')||'').includes('text/html')&&(typeof chunk==='string'||Buffer.isBuffer(chunk))){
-     const original=typeof chunk==='string'?chunk:chunk.toString('utf8'),styled=withDropsoPagePolish(withDropsoDashboard(withSiteNavigation(withAccountLogoMenu(withSiteScrollbars(withMobileLayout(withSiteBranding(original,path),path),path),path),path),path),path);
+     const original=typeof chunk==='string'?chunk:chunk.toString('utf8'),styled=withDropsoRedesign(withDropsoPagePolish(withDropsoDashboard(withSiteNavigation(withAccountLogoMenu(withSiteScrollbars(withMobileLayout(withSiteBranding(original,path),path),path),path),path),path),path),path);
      if(styled!==original){chunk=styled;if(res.hasHeader('content-length'))res.setHeader('content-length',Buffer.byteLength(styled));res.removeHeader('etag')}
     }
     return end.call(this,chunk,...rest);

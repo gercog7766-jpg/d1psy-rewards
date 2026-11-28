@@ -1,3 +1,4 @@
+import {brandLogoUrl} from './site-branding.js';
 const styles = `
 *{box-sizing:border-box}body{margin:0;background:#0c0911;color:#faf5ff;font:16px system-ui,sans-serif}
 main{max-width:1180px;margin:auto;padding:28px 18px}a{color:#dfb9ff}h1{font-size:clamp(32px,6vw,55px);margin-bottom:10px}
@@ -40,8 +41,8 @@ li{padding:8px 0;border-bottom:1px solid #453251}ol{padding-left:23px;max-height
 
 export function blackBoxPage(admin: boolean) {
   return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Чёрный ящик · Dropso</title><style>${styles}</style></head>
-  <body data-admin="${admin}"><main><a href="${admin ? '/admin' : '/account'}">← ${admin ? 'Админка' : 'На главную'}</a>
-  <h1>Чёрный ящик</h1>${admin ? `
+  <body data-admin="${admin}"><main class="${admin?'':'black-box-player'}"><a href="${admin ? '/admin' : '/account'}">← ${admin ? 'Админка' : 'На главную'}</a>
+  ${admin?'<h1>Чёрный ящик</h1>':`<header class="black-box-heading"><a class="black-box-brand" href="/account"><img src="${brandLogoUrl}" alt="">Dropso</a><h1>Чёрный ящик</h1><p>BLACK BOX</p></header>`}${admin ? `
   <section class="panel admin"><h2>Запустить аукцион</h2><p>Торги состоятся при участии минимум 5 разных игроков. При меньшем количестве все ставки возвращаются.</p>
   <form id="create"><label>Стартовая цена<input id="start" type="number" min="1" required></label>
   <div class="duration-fields"><label>Длительность, часов<input id="durationHours" type="number" min="0" max="168" value="24" required></label><label>Дополнительно, минут<input id="durationMinutes" type="number" min="0" max="59" value="0" required></label></div>
@@ -50,7 +51,7 @@ export function blackBoxPage(admin: boolean) {
   <label id="skinField">Скин<input id="prizeSearch" type="search" placeholder="Поиск по названию"><select id="prize"></select></label>
   <label id="coinsField" hidden>Монет в ящике<input id="coins" type="number" min="1"></label>
   <button>Запустить торги</button></form><p id="notice" role="status"></p></section>` : `
-  <div class="grid"><aside class="panel"><h2>Предыдущий победитель</h2><div id="previous"></div></aside>
+  <div class="grid"><aside class="panel black-box-previous"><h2>Предыдущий победитель</h2><div id="previous"></div></aside>
   <section class="panel stage"><div id="price">Загрузка…</div><div id="timer" class="auction-clock" role="timer" aria-label="До окончания торгов" hidden>
     <span class="clock-unit"><b id="clockHours">00</b><small>часы</small></span><span class="clock-separator" aria-hidden="true">:</span>
     <span class="clock-unit"><b id="clockMinutes">00</b><small>минуты</small></span><span class="clock-separator" aria-hidden="true">:</span>
@@ -60,7 +61,7 @@ export function blackBoxPage(admin: boolean) {
   <div class="case" id="case" aria-hidden="true"><div class="case-body"></div><div class="case-glow"></div><div class="case-lid"></div></div>
   <p id="reveal" role="status"></p><form id="bid" hidden><label>Твоя ставка в монетах<input id="amount" type="number" required></label>
   <button id="submit">Сделать ставку</button></form><p id="notice" role="status"></p></section>
-  <div class="auction-side"><aside class="panel"><h2>Участники</h2><ol id="participants"></ol><p id="empty">Ставок пока нет</p></aside>
+  <div class="auction-side"><aside class="panel black-box-participants"><h2>Участники</h2><ol id="participants"></ol><p id="empty">Ставок пока нет</p></aside>
   <section class="panel chat-panel" aria-labelledby="chatHeading"><h2 id="chatHeading">Чат торгов</h2>
     <div class="chat-log" id="chatLog" role="log" aria-labelledby="chatHeading" tabindex="0">
       <p id="chatEmpty">Загружаем чат…</p><div id="chatMessages"></div>
@@ -313,16 +314,18 @@ export const blackBoxScript = String.raw`
     });
     el('submit').disabled = submitting || !seconds || minimum(current) > 1000000000;
   }
+  function makeNode(tag,cls,text) {const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=text;return node;}
   function previous(result) {
-    const panel = el('previous');
-    panel.textContent = result ? result.winner + ' · ' + result.amount + ' мон. · ' + result.prize : 'Пока нет победителей';
-    if (result && typeof result.image === 'string' && /^https:\/\//i.test(result.image)) {
-      const img = document.createElement('img');
-      img.src = result.image;
-      img.alt = '';
-      panel.append(document.createElement('br'), img);
-    }
+    const panel=el('previous');panel.replaceChildren();
+    if(!result){panel.textContent='Пока нет победителей';return;}
+    const winner=makeNode('div','black-winner');
+    const crest=makeNode('span','black-crest');crest.setAttribute('aria-hidden','true');
+    const info=makeNode('div','black-winner-info');info.append(makeNode('strong','black-winner-name',result.winner),makeNode('span','black-coin-value',result.amount+' мон.'));
+    winner.append(crest,info);panel.append(winner);
+    if(typeof result.image==='string'&&/^https:\/\//i.test(result.image)){const img=makeNode('img','black-prize-image');img.src=result.image;img.alt='';panel.append(img);}
+    panel.append(makeNode('p','black-prize-name',result.prize));
   }
+  function price(label,amount){const node=el('price');node.replaceChildren(makeNode('span','black-price-label',label),makeNode('strong','black-coin-value',amount+' мон.'));}
   async function refresh() {
     if (loading || revealing) return;
     loading = true;
@@ -338,7 +341,7 @@ export const blackBoxScript = String.raw`
       const list = document.createDocumentFragment();
       for (const entry of state.participants) {
         const item = document.createElement('li');
-        item.textContent = entry.name + ' · ' + entry.amount + ' мон.';
+        const crest=makeNode('span','black-crest');crest.setAttribute('aria-hidden','true');item.append(crest,makeNode('span','black-participant-name',entry.name),makeNode('strong','black-coin-value',entry.amount+' мон.'));
         list.append(item);
       }
       el('participants').replaceChildren(list);
@@ -353,7 +356,7 @@ export const blackBoxScript = String.raw`
         amount.min = next;
         el('case').classList.remove('open');
         el('reveal').textContent = '';
-        el('price').textContent = (current.highBid == null ? 'Стартовая цена ' : 'Текущая ставка ') + (current.highBid ?? current.startPrice) + ' мон.';
+        price(current.highBid==null?'Стартовая цена':'Текущая ставка',current.highBid??current.startPrice);
         timer();
       } else {
         el('price').textContent = 'Сейчас нет открытых торгов';

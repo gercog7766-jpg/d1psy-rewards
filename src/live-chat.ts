@@ -44,7 +44,7 @@ export function installLiveChat(app:Express,db:SupabaseClient,user:RequestHandle
   });
 }
 
-const chatCss=`
+export const chatCss=`
 .dropso-live-chat{padding:16px;border:1px solid #593579;border-radius:16px;background:#171022;margin-block:14px;color:#f7edff}
 .dropso-live-chat h2{margin:0 0 10px;font-size:18px}.dropso-live-chat ol{height:clamp(180px,42dvh,420px);overflow:auto;padding:0;margin:0;list-style:none}
 .dropso-live-chat li{padding:8px 4px;border-bottom:1px solid #422b56;overflow-wrap:anywhere}.dropso-live-chat time{font-size:12px;color:#c3a9d6;margin-right:8px}
@@ -56,7 +56,7 @@ const chatCss=`
 [data-chat-panel][hidden],#communityPrivate[hidden]{display:none!important}
 `;
 
-const chatScript=String.raw`
+export const chatScript=String.raw`
 (()=>{
  const panel=document.querySelector('[data-chat-panel]');
  if(!panel)return;
