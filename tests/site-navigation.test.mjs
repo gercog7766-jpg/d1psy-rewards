@@ -79,7 +79,7 @@ test('mobile page navigation uses an icon in the header and keeps all links acce
 
 test('all sidebar pages share the account order, separated social, activity and event groups',()=>{
  const expected=[
-  ['/account','/level','/bonuses','/statistics','/profile/customize','/referrals','/savings'],
+  ['/account','/level','/bonuses','/statistics','/profile/customize','/referrals','/savings','/account#inventory'],
   ['/users','/community','/notifications'],
   ['/shop','/upgrader','/games/battles','/games/three-doors','/games/pick','/games','/predict','/bosses','/challenges','/streamers','/suggestions','/clans','/black-box','/games/red-button'],
   ['/predict/major-pickem','/advent','/vault','/season'],
