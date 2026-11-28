@@ -3,6 +3,15 @@ import {createHash,timingSafeEqual} from 'node:crypto';
 import {pathToFileURL} from 'node:url';
 
 const DROPSO='https://dropso.site';
+const menuRows = [['⚡ DROPSO LITE', '💎 DROPSO PLUS'], ['🌃 Battle Pass'], ['👤 Профиль', '🎁 Бонусы', '💬 Помощь']];
+const menuCards = new Map([
+ [menuRows[0][0], ['⚡ <b>DROPSO LITE</b> · 249 ⭐ за 30 дней', '50 приветственных монет при первой покупке. Оформление профиля, скидка 1% в магазине и 2% на Battle Pass. Лимит передачи монет — 100 в сутки.']],
+ [menuRows[0][1], ['💎 <b>DROPSO PLUS</b> · 399 ⭐ за 30 дней', '100 приветственных монет суммарно (при переходе с LITE ещё 50). Анимированная рамка, расширенная статистика и оформление клана. Скидка 2% в магазине и 5% на Battle Pass.']],
+ [menuRows[1][0], ['🌃 <b>NIGHT SHIFT · Сезон 02</b>', '50 уровней за 90 дней. В финале FREE — Tec-9 «Оранжевое Мурано», в PREMIUM — ★ Водительские перчатки «Гоночный зелёный». Базовая цена PREMIUM — 499 ⭐ за сезон.']],
+ [menuRows[2][0], ['👤 <b>Мой профиль</b>', '<a href="https://dropso.site/account">Открыть личный кабинет Dropso</a>']],
+ [menuRows[2][1], ['🎁 <b>Бонусы</b>', '<a href="https://dropso.site/bonuses">Перейти к бонусам Dropso</a>']],
+ [menuRows[2][2], ['💬 <b>Помощь</b>', 'По вопросам оплаты отправь /paysupport. Чтобы вернуться в меню, отправь /start.']]
+]);
 const CHANNEL='@dropso_cs2';
 const noncePattern=/^[A-Za-z0-9_-]{32}$/;
 const hash=s=>createHash('sha256').update(s).digest('hex');
@@ -71,7 +80,7 @@ export function createRelay({token='',webhookSecret='',relaySecret='',webhookUrl
   if(/^\/paysupport(?:@[A-Za-z0-9_]+)?$/.test(m.text)){const result=await stars('support',m.chat.id).catch(()=>null);await tg('sendMessage',{chat_id:m.chat.id,text:'Поддержка платежей Dropso: '+(result?.url||DROPSO)});return true;}
   const refund=/^\/refund_stars ([0-9a-f-]{36})$/i.exec(m.text);
   if(refund&&orderId('stars_'+refund[1])){const result=await stars('prepare_refund',m.chat.id,{orderId:refund[1]});if(!result.ok||result.order.state==='refunded'){await tg('sendMessage',{chat_id:m.chat.id,text:'Возврат недоступен или уже выполнен.'});return true;}
-   const o=result.order;await tg('refundStarPayment',{user_id:m.chat.id,telegram_payment_charge_id:o.charge_id});const saved=await stars('refund',m.chat.id,{orderId:o.id,chargeId:o.charge_id,stars:o.stars,currency:o.currency});if(!saved.ok)throw Error('refund_not_recorded');return true;
+   const o=result.order;const target=String(o.telegram_id||m.chat.id);if(!/^[1-9][0-9]{0,15}$/.test(target))throw Error('refund_target_invalid');await tg('refundStarPayment',{user_id:Number(target),telegram_payment_charge_id:o.charge_id});const saved=await stars('refund',target,{orderId:o.id,chargeId:o.charge_id,stars:o.stars,currency:o.currency});if(!saved.ok)throw Error('refund_not_recorded');await tg('sendMessage',{chat_id:m.chat.id,text:'Возврат подтверждён · '+o.stars+' Stars.'});return true;
   }
   return false;
  }
@@ -80,6 +89,15 @@ export function createRelay({token='',webhookSecret='',relaySecret='',webhookUrl
   const message=update?.message,callback=update?.callback_query;
   let nonce,id,chat;
   if(message?.chat?.type==='private'&&!message.from?.is_bot&&idOk(message.from?.id)&&message.chat.id===message.from.id){
+   const welcome = /^\/start(?:@[A-Za-z0-9_]+)?$/.test(message.text);
+   const card = welcome ? ['👋 <b>Добро пожаловать в Dropso!</b>', 'Выбери подписку, чтобы посмотреть её возможности, или загляни в Battle Pass за наградами сезона.'] : menuCards.get(message.text);
+   if (card) {
+    await tg('sendMessage', {
+     chat_id: message.chat.id, text: card.join('\n\n'), parse_mode: 'HTML',
+     reply_markup: {keyboard: menuRows.map(row => row.map(text => ({text}))), resize_keyboard: true}
+    });
+    return;
+   }
    const match=typeof message.text==='string'&&/^\/start(?:@[A-Za-z0-9_]+)? ([A-Za-z0-9_-]{32})$/.exec(message.text);if(!match)return;
    nonce=match[1];id=message.from.id;chat=message.chat.id;
   }else if(callback?.message?.chat?.type==='private'&&!callback.from?.is_bot&&idOk(callback.from?.id)&&callback.message.chat.id===callback.from.id&&typeof callback.data==='string'&&callback.data.startsWith('check:')){
