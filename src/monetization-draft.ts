@@ -22,7 +22,7 @@ const membershipVisibility=z.enum(['hidden','admin_test','players']);
 const plan=z.object({stars:z.number().int().min(1).max(100000),visibility:membershipVisibility,coins:z.number().int().min(0).max(10000),skins:z.number().int().min(0).max(10000),title:z.string().trim().max(80),description:z.string().trim().max(600)}).strict();
 const reward=z.object({kind:z.enum(['none','title','frame','background','badge','coins','skin','other']),label:z.string().trim().max(120),value:z.number().int().min(0).max(500000)}).strict();
 const level=z.object({free:reward,premium:reward}).strict();
-export const draftSchema=z.object({lite:plan,plus:plan,battlePass:z.object({stars:z.number().int().min(1).max(100000),visibility,season:z.string().trim().min(1).max(80),days:z.number().int().min(1).max(365),levels:z.array(level).length(50)}).strict()}).strict();
+export const draftSchema=z.object({lite:plan,plus:plan,battlePass:z.object({stars:z.number().int().min(1).max(100000),visibility:membershipVisibility,season:z.string().trim().min(1).max(80),days:z.number().int().min(1).max(365),levels:z.array(level).length(50)}).strict()}).strict();
 export type MonetizationDraft=z.infer<typeof draftSchema>;
 export function initialMonetizationDraft():MonetizationDraft {
  return {lite:{stars:249,visibility:'hidden',coins:100,skins:150,title:'DROPSO LITE',description:'Значок подписчика, эксклюзивное оформление профиля и повышенные лимиты передачи.'},plus:{stars:399,visibility:'hidden',coins:200,skins:300,title:'DROPSO PLUS',description:'Преимущества LITE, анимированная рамка, расширенная статистика и оформление клана.'},battlePass:{stars:499,visibility:'hidden',season:'NIGHT SHIFT · Season 2',days:90,levels:seasonTwoRewardDraft()}};

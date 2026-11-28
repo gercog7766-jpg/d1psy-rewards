@@ -3,13 +3,14 @@ on:
   push:
     branches:
       - codex/membership-player-launch
+      - codex/s2-membership-presale
   pull_request:
     branches: [main]
 permissions:
   contents: read
 jobs:
   build-and-test:
-    if: github.event_name == 'push' || github.head_ref == 'codex/membership-player-launch'
+    if: github.event_name == 'push' || github.head_ref == 'codex/membership-player-launch' || github.head_ref == 'codex/s2-membership-presale'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
