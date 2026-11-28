@@ -185,10 +185,10 @@ body[data-dropso-redesign=shop] .dropso-shop-filter-extra[open]{display:block;pa
 body[data-dropso-redesign=shop][data-market-design=cards] #grid{grid-template-columns:repeat(8,minmax(0,1fr))!important;gap:10px!important}
 body[data-dropso-redesign=shop][data-market-design=cards] #grid .item{min-height:155px!important;display:flex!important;flex-direction:column!important;align-items:stretch!important;background:linear-gradient(155deg,#382344,#21192e 48%,#1a1828)!important;border:1px solid #44324e!important;border-radius:12px!important;overflow:hidden;box-shadow:inset 0 1px 0 #b46be677!important}
 body[data-dropso-redesign=shop][data-market-design=cards] #grid .item:before{height:3px!important;background:var(--skin-color,#bd72f4)!important}
-body[data-dropso-redesign=shop][data-market-design=cards] #grid .item>img{height:92px!important;padding:22px 7px 4px!important;object-fit:contain!important}
+body[data-dropso-redesign=shop][data-market-design=cards] #grid .item>img{height:105px!important;padding:22px 7px 4px!important;object-fit:contain!important}
 body[data-dropso-redesign=shop][data-market-design=cards] #grid .item .name{padding:2px 10px 0!important;align-self:stretch!important;min-height:36px;line-height:1.25!important}
-body[data-dropso-redesign=shop] #grid .mkt-model{font-size:9px!important;margin:0 0 2px!important;letter-spacing:.02em;color:#c8bbd5}
-body[data-dropso-redesign=shop] #grid .mkt-finish{font-size:12px!important;font-weight:800!important;line-height:1.2!important;color:#fff!important}
+body[data-dropso-redesign=shop] #grid .mkt-model{font-size:11px!important;margin:0 0 2px!important;letter-spacing:.02em;color:#c8bbd5}
+body[data-dropso-redesign=shop] #grid .mkt-finish{font-size:13px!important;font-weight:800!important;line-height:1.2!important;color:#fff!important}
 body[data-dropso-redesign=shop][data-market-design=cards] #grid .item .coins{color:#ffdb77!important;text-align:left!important;display:flex;align-items:center;gap:4px;padding:5px 10px 9px!important;white-space:nowrap!important;width:100%!important;font-size:15px!important;font-weight:850!important}
 body[data-dropso-redesign=shop] #grid .item .coins:before{content:'◉';font-size:15px;color:#ffcf62}
 body[data-dropso-redesign=shop] #grid .mkt-currency{font-size:12px!important;color:#ffdb77!important;margin:0!important;font-weight:750}
