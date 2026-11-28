@@ -54,7 +54,7 @@ function render(html,path){
  if(path==='/account')html=html.replace('</body>',desktopAccountSidebar+'</body>');
  if(path==='/bonuses')html=html.replace('</body>','<script src="/bonuses.js" defer></script></body>');
  if(path==='/streamers')html=html.replace('</body>','<script src="/streamers.js" defer></script></body>');
- if(path==='/black-box')html=html.replace('</body>','<script src="/black-box.js" defer></script></body>');
+ if(path==='/black-box')html=html.replace('</head>','<style>#previous .black-prize-image{mix-blend-mode:lighten}</style></head>').replace('</body>','<script src="/black-box.js" defer></script></body>');
  if(path==='/bosses')html=html.replace('<main class="boss-main">','<main class="boss-main">'+bossRaidStripHtml).replace('</body>','<script src="/live-boss.js" defer></script></body>');
  return withDropsoRedesign(withDropsoPagePolish(withDropsoDashboard(withSiteNavigation(withMobileLayout(withSiteBranding(html,path),path),path),path),path),path);
 }
