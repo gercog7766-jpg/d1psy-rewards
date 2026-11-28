@@ -1,0 +1,20 @@
+name: Upgrade streak checks
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  streak:
+    if: github.head_ref == 'codex/upgrade-streak-2pct-10pct'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: node --import tsx --test tests/upgrader-balance.test.mjs
