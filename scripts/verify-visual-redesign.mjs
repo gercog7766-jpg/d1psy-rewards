@@ -10,7 +10,8 @@ import {withDropsoRedesign} from '../src/dropso-redesign.ts';
 import {withMobileLayout} from '../src/mobile-layout.ts';
 import {playerMembershipPreview} from '../src/player-membership.ts';
 import {bonusesHtml,bonusesJs} from '../src/bonuses-ui.ts';
-import {liveBossPage} from '../src/live-boss.ts';
+import {liveBossPage,liveBossScript} from '../src/live-boss.ts';
+import {bossRaidStripHtml,directoryScript} from '../src/partner-live.ts';
 import {streamersHtml} from '../src/streamers-directory-ui.ts';
 import {blackBoxPage} from '../src/black-box-ui.ts';
 import {redButtonPage} from '../src/red-button-ui.ts';
@@ -47,6 +48,7 @@ function render(html,path){
  html=html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'');
  if(path==='/account')html=html.replace('</body>',desktopAccountSidebar+'</body>');
  if(path==='/bonuses')html=html.replace('</body>','<script src="/bonuses.js" defer></script></body>');
+ if(path==='/bosses')html=html.replace('<main class="boss-main">','<main class="boss-main">'+bossRaidStripHtml).replace('</body>','<script src="/live-boss.js" defer></script></body>');
  return withDropsoRedesign(withDropsoPagePolish(withDropsoDashboard(withSiteNavigation(withMobileLayout(withSiteBranding(html,path),path),path),path),path),path);
 }
 const browser=await chromium.launch({headless:true});await mkdir('redesign-screenshots',{recursive:true});
@@ -55,7 +57,7 @@ try{
   const context=await browser.newContext({viewport:{width,height}});
   for(const [path,html] of Object.entries(pages)){
    if(width===1717&&path!=='/shop')continue;
-   if(width===1920&&path!=='/bonuses')continue;
+   if(width===1920&&!['/bonuses','/bosses'].includes(path))continue;
    if(width===1441&&!['/account','/bonuses'].includes(path))continue;
    if(path==='/account'&&width!==1441)continue;
    const page=await context.newPage();const issues=[];
@@ -64,6 +66,10 @@ try{
     if(new URL(route.request().url()).hostname!=='preview.test'){await route.abort();return}
     const p=new URL(route.request().url()).pathname;
     if(p===path){await route.fulfill({contentType:'text/html; charset=utf-8',body:render(html,path)});return}
+    if(p==='/live-boss.js'){await route.fulfill({contentType:'application/javascript; charset=utf-8',body:liveBossScript});return}
+    if(p==='/partner-raid-directory.js'){await route.fulfill({contentType:'application/javascript; charset=utf-8',body:directoryScript});return}
+    if(p==='/api/me/boss'){await route.fulfill({json:{boss:{id:'demo-titan',name:'ABYSS TITAN',image:'/live-boss/758.webp',kind:'titan',hp:16188,max_hp:25000,status:'paused',coins:3000,xp:15000},damage:303,cooldown:0,live:false,present:false,streamLogin:'d1psy_off'}});return}
+    if(p==='/api/public/partner-bosses'){await route.fulfill({json:[{login:'exsainc3',kind:'dropsy',hp:4902,max_hp:5000,coins:500,participants:2,status:'active'}]});return}
     if(p==='/bonuses.js'){await route.fulfill({contentType:'application/javascript; charset=utf-8',body:bonusesJs});return}
     if(p==='/api/me/bonuses'){await route.fulfill({json:{login:'demo',serverNow:new Date().toISOString(),nextAt:new Date(Date.now()+34915000).toISOString(),telegramConfigured:true,telegramClaimed:true,telegramRelay:true,telegramLinked:true}});return}
     if(p==='/api/me/daily-bonus'){await route.fulfill({json:{claimed:true,currentDay:2,nextDay:2,nextAmount:3,rewards:[1,3,5,10,15,25,40]}});return}
@@ -86,7 +92,7 @@ try{
    if(path==='/bonuses'){await page.locator('#dailyBonusDays .dailyDay').first().waitFor();assert.equal(await page.locator('#dailyBonusDays .dailyDay').count(),7);assert.equal(await page.locator('#dailyBonusDays [data-day-status=claimed]').count(),2);assert.equal(await page.locator('#dailyBonusDays [data-day-status=locked]').count(),5);assert.equal(await page.locator('#dailyBonusClaim').getAttribute('data-claimed'),'true');assert(await page.locator('#claimTelegram').isDisabled());assert(await page.locator('#telegramActions').isVisible());if(width===1920)await page.locator('main.bonus-page').screenshot({path:'redesign-screenshots/bonuses-designer.png'})}
    assert.equal(issues.length,0,path+': '+issues.join('; '));
    if(path==='/shop'){assert.equal(await page.locator('.dropso-shop-filter-row #search').count(),1);assert.equal(await page.locator('.dropso-shop-filter-row #lo').count(),1);assert.equal(await page.locator('.dropso-shop-header-nav #cartTop').count(),1);assert.equal(await page.locator('#grid .item>img').count(),18);assert.equal(await page.locator('#marketToolbar .marketTab').count(),5);assert.equal(await page.locator('#marketToolbar .marketTab:visible').count(),4);assert.equal(await page.locator('#marketGoal .marketGoalActions button').count(),3);const card=await page.locator('#grid .item').first().boundingBox();assert(card&&card.height>=140,'shop cards must have space for images and price')}
-   if(path==='/bosses'){assert.equal(await page.locator('.dropso-raid-link').count(),1)}
+   if(path==='/bosses'){await page.locator('#arena').waitFor({state:'visible'});await page.locator('.boss-raid-row').first().waitFor();assert.equal(await page.locator('.dropso-raid-link').count(),1);assert.equal(await page.locator('.boss-raid-row').count(),1);assert.equal(await page.locator('#health').getAttribute('aria-valuenow'),'16188');assert.equal(await page.locator('#fund').textContent(),'3000 монет · 15000 XP');assert(await page.locator('#attack').isDisabled());assert.equal(await page.locator('#code').count(),0);if(width===1920)await page.locator('main.boss-main').screenshot({path:'redesign-screenshots/bosses-designer.png'})}
    if(width===1440&&path!=='/shop'){const toggle=page.locator('.dropso-redesign-collapse');assert.equal(await toggle.count(),1);await toggle.click();assert(await page.locator('body').evaluate(el=>el.classList.contains('dropso-redesign-collapsed')));await toggle.click()}
    if(width===1441){const side=page.locator('[data-ref-menu]');assert.equal(await side.locator('.dropso-menu-row').count(),30);assert.equal(await side.locator('.dropso-menu-row svg').count(),30);assert.equal(await side.locator('.dropso-menu-event').count(),4);await side.screenshot({path:'redesign-screenshots/sidebar-'+(path==='/account'?'account':'other-page')+'.png'});const toggle=side.locator('.dropso-redesign-collapse');await toggle.click();assert(await side.locator('.dropso-menu-row').first().isVisible());await side.screenshot({path:'redesign-screenshots/sidebar-'+(path==='/account'?'account':'other-page')+'-collapsed.png'});await toggle.click();}
    const main=page.locator('main').first();if(await main.count()){const b=await main.boundingBox();assert(b&&b.width<=width+2,path+' main exceeds viewport')};
