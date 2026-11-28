@@ -15,6 +15,19 @@ test('Stars relay end-to-end with a local ledger, protected readiness check, inv
   const message=(id,text,update_id=1)=>({update_id,message:{chat:{id,type:'private'},from:{id},text}});await relay.process(message(123,'/start stars_check'));assert.match(calls.at(-1).body.text,/Оплаты закрыты/);await relay.process(message(456,'/start stars_check'));assert.match(calls.at(-1).body.text,/администратору/);await relay.process(message(123,'/start stars_lite',2));assert(!calls.some(c=>c.method==='sendInvoice'));
   await db.exec("update rewards_stars_pilot_control set enabled=true,fulfillment_ready=true,support_url='https://example.test/support'");await relay.process(message(123,'/start stars_lite',3));const invoice=calls.find(c=>c.method==='sendInvoice').body;assert.equal(invoice.currency,'XTR');assert.equal(invoice.prices[0].amount,249);assert.equal(invoice.chat_id,123);assert.equal(invoice.provider_token,undefined);const query={pre_checkout_query:{id:'checkout',from:{id:123},invoice_payload:invoice.payload,currency:'XTR',total_amount:249}};await relay.process({...query,pre_checkout_query:{...query.pre_checkout_query,total_amount:1}});assert.equal(calls.at(-1).body.ok,false);await relay.process(query);assert.equal(calls.at(-1).body.ok,true);
   const paid={message:{chat:{id:123,type:'private'},from:{id:123},successful_payment:{invoice_payload:invoice.payload,currency:'XTR',total_amount:249,telegram_payment_charge_id:'fake-test-charge'}}};await relay.process(paid);await relay.process(paid);assert.equal((await db.query("select count(*)::int n from rewards_stars_pilot_orders where state='paid'")).rows[0].n,1);assert.equal((await db.query("select rewards_stars_entitlements('admin') r")).rows[0].r.tier,'lite');await relay.process(message(123,'/refund_stars '+invoice.payload.slice(6),4));assert.equal(calls.filter(c=>c.method==='refundStarPayment').length,1);assert.equal((await db.query("select rewards_stars_entitlements('admin') r")).rows[0].r.tier,'free');
+  for(const m of ['20261128010000_membership_player_checkout.sql','20261128040000_membership_admin_refunds.sql'])await db.exec(await readFile(new URL('../supabase/migrations/'+m,import.meta.url),'utf8'));
+  await db.exec("update rewards_monetization_draft set config=jsonb_set(config,'{lite,visibility}',to_jsonb('players'::text))");
+  await relay.process(message(456,'/start stars_lite',5));
+  const playerInvoice=calls.filter(c=>c.method==='sendInvoice').at(-1).body;assert.equal(playerInvoice.chat_id,456);
+  await relay.process({pre_checkout_query:{id:'player-checkout',from:{id:456},invoice_payload:playerInvoice.payload,currency:'XTR',total_amount:249}});assert.equal(calls.at(-1).body.ok,true);
+  await relay.process({message:{chat:{id:456,type:'private'},from:{id:456},successful_payment:{invoice_payload:playerInvoice.payload,currency:'XTR',total_amount:249,telegram_payment_charge_id:'player-test-charge'}}});
+  assert.equal((await db.query("select rewards_stars_entitlements('player') r")).rows[0].r.tier,'lite');
+  await relay.process(message(456,'/refund_stars '+playerInvoice.payload.slice(6),6));assert.equal(calls.filter(c=>c.method==='refundStarPayment').length,1);
+  await relay.process(message(123,'/refund_stars '+playerInvoice.payload.slice(6),7));
+  assert.equal(calls.filter(c=>c.method==='refundStarPayment').length,2);assert.equal(calls.filter(c=>c.method==='refundStarPayment').at(-1).body.user_id,456);
+  assert.equal((await db.query("select rewards_stars_entitlements('player') r")).rows[0].r.tier,'free');
+  await relay.process(message(123,'/refund_stars '+playerInvoice.payload.slice(6),8));assert.equal(calls.filter(c=>c.method==='refundStarPayment').length,2);
+
  }finally{if(server)await new Promise(r=>server.close(r));await db.close();env.forEach((k,i)=>old[i]===undefined?delete process.env[k]:process.env[k]=old[i])}
 });
 
