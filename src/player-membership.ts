@@ -61,4 +61,22 @@ export function installPlayerMembership(app:Express,user:RequestHandler,db:any){
    res.json({config,stars:{linked:!!link.data,entitlements:{tier:rights.data.tier,expiresAt:rights.data.expiresAt},control:control.data,botUsername,relayConfigured:!!process.env.BONUS_TELEGRAM_RELAY_SECRET&&!!botUsername}});
   }catch{res.status(503).json({error:'membership_unavailable'})}
  });
+ app.get('/battle-pass/s2',noStore,user,async(_req,res)=>{
+  try{
+   const actor=String(res.locals.session.twitchUserId);
+   const [draft,rights,control]=await Promise.all([db.from('rewards_monetization_draft').select('config').eq('id',true).single(),db.rpc('rewards_stars_entitlements',{p_actor:actor}),db.from('rewards_stars_pilot_control').select('enabled,fulfillment_ready,support_url').eq('id',true).single()]);
+   if(draft.error||rights.error||control.error)throw Error();
+   const p=draft.data.config.battlePass,tier=rights.data.tier;
+   const quote=await db.rpc('rewards_stars_s2_sale_discount',{p_actor:actor,p_season:p.season,p_at:new Date().toISOString()});
+   if(quote.error)throw Error();
+   const bot=(process.env.BONUS_TELEGRAM_BOT_USERNAME||'').replace(/^@/,'');
+   const ready=p.visibility==='players'&&control.data.enabled&&control.data.fulfillment_ready&&control.data.support_url&&quote.data!==null&&Number.isInteger(quote.data)&&/^[A-Za-z0-9_]{5,32}$/.test(bot)&&!!process.env.BONUS_TELEGRAM_RELAY_SECRET;
+   const owned=rights.data.battlePasses?.some((pass:any)=>pass.season===p.season);
+   const price=Math.max(1,Math.round(p.stars*(100-(quote.data??0))/100));
+   const status=owned?'PREMIUM уже приобретён':ready?'Доступно к покупке':'Продажи пока закрыты';
+   const button=ready&&!owned?'<a class="buy" href="https://t.me/'+bot+'?start=stars_battlePass">Купить PREMIUM · '+price+' ⭐</a>':'';
+   res.type('html').send('<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NIGHT SHIFT S2 · Dropso</title><style>body{background:#100c1b;color:#f5edff;font:16px system-ui;margin:0}main{max-width:760px;padding:24px;margin:auto}section{background:radial-gradient(ellipse at 90% 0,#6b32a8,transparent 60%),#21162e;border:1px solid #77539e;border-radius:20px;padding:24px}h1{font-size:clamp(32px,7vw,58px);margin:0}a{color:#d6b6ff}.buy{display:block;background:#f7cd72;color:#211509;text-align:center;font-weight:800;border-radius:12px;padding:15px;text-decoration:none}table{width:100%;border-collapse:collapse}td,th{padding:12px;text-align:left;border-bottom:1px solid #ffffff24}</style></head><body><main><a href="/account">← Профиль</a><section><p>DROPSO · SEASON 02</p><h1>NIGHT SHIFT</h1><p>15.12.2026 — 15.03.2027 · МСК · 50 уровней · 100 наград</p><h2>PREMIUM</h2><p>Твой тариф: '+(tier==='plus'?'PLUS':tier==='lite'?'LITE':'FREE')+' · '+status+'</p><table><thead><tr><th>Тариф</th><th>10–14 декабря</th><th>С 15 декабря</th></tr></thead><tbody><tr><td>LITE</td><td>−15%</td><td>−2%</td></tr><tr><td>PLUS</td><td>−20%</td><td>−5%</td></tr><tr><td>FREE</td><td>Закрыто</td><td>Полная цена</td></tr></tbody></table><p>Задания и получение наград начнутся 15 декабря в 00:00 МСК.</p>'+button+'</section></main></body></html>');
+  }catch{res.status(503).send('Battle Pass временно недоступен')}
+ });
+
 }
