@@ -9,7 +9,7 @@ import {withDropsoPagePolish} from '../src/dropso-page-polish.ts';
 import {withDropsoRedesign} from '../src/dropso-redesign.ts';
 import {withMobileLayout} from '../src/mobile-layout.ts';
 import {playerMembershipPreview} from '../src/player-membership.ts';
-import {bonusesHtml} from '../src/bonuses-ui.ts';
+import {bonusesHtml,bonusesJs} from '../src/bonuses-ui.ts';
 import {liveBossPage} from '../src/live-boss.ts';
 import {streamersHtml} from '../src/streamers-directory-ui.ts';
 import {blackBoxPage} from '../src/black-box-ui.ts';
@@ -46,14 +46,16 @@ function render(html,path){
  // Remove feature scripts to avoid live requests; the real shared UI scripts remain.
  html=html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'');
  if(path==='/account')html=html.replace('</body>',desktopAccountSidebar+'</body>');
+ if(path==='/bonuses')html=html.replace('</body>','<script src="/bonuses.js" defer></script></body>');
  return withDropsoRedesign(withDropsoPagePolish(withDropsoDashboard(withSiteNavigation(withMobileLayout(withSiteBranding(html,path),path),path),path),path),path);
 }
 const browser=await chromium.launch({headless:true});await mkdir('redesign-screenshots',{recursive:true});
 try{
- for(const [width,height] of [[1441,1450],[1717,916],[1440,1000],[390,844]]){
+ for(const [width,height] of [[1920,1180],[1441,1450],[1717,916],[1440,1000],[390,844]]){
   const context=await browser.newContext({viewport:{width,height}});
   for(const [path,html] of Object.entries(pages)){
    if(width===1717&&path!=='/shop')continue;
+   if(width===1920&&path!=='/bonuses')continue;
    if(width===1441&&!['/account','/bonuses'].includes(path))continue;
    if(path==='/account'&&width!==1441)continue;
    const page=await context.newPage();const issues=[];
@@ -62,6 +64,9 @@ try{
     if(new URL(route.request().url()).hostname!=='preview.test'){await route.abort();return}
     const p=new URL(route.request().url()).pathname;
     if(p===path){await route.fulfill({contentType:'text/html; charset=utf-8',body:render(html,path)});return}
+    if(p==='/bonuses.js'){await route.fulfill({contentType:'application/javascript; charset=utf-8',body:bonusesJs});return}
+    if(p==='/api/me/bonuses'){await route.fulfill({json:{login:'demo',serverNow:new Date().toISOString(),nextAt:new Date(Date.now()+34915000).toISOString(),telegramConfigured:true,telegramClaimed:true,telegramRelay:true,telegramLinked:true}});return}
+    if(p==='/api/me/daily-bonus'){await route.fulfill({json:{claimed:true,currentDay:2,nextDay:2,nextAmount:3,rewards:[1,3,5,10,15,25,40]}});return}
     if(p.startsWith('/api/me/economy')){await route.fulfill({json:{balance:10}});return}
     if(p.startsWith('/pwa/icon/')){const data=pwaIcons[p.split('/').pop().replace(/\.png$/,'')];if(data){await route.fulfill({body:Buffer.from(data,'base64'),contentType:'image/png'});return}}
     if(p==='/black-box/case.jpg'||p==='/games/red-button/button-v1.webp'){const asset=p.endsWith('.jpg')?'public/black-box/dropso-case.jpg':'assets/games/red-button/button-v1.webp';try{await route.fulfill({body:await readFile(asset),contentType:p.endsWith('.jpg')?'image/jpeg':'image/webp'});return}catch{}}
@@ -73,12 +78,12 @@ try{
    });
    await page.goto('http://preview.test'+path);await page.waitForTimeout(100);
    // Fill visual-only test data for dynamic portions. Do not call any financial or game APIs.
-   await page.evaluate(path=>{const el=id=>document.getElementById(id);if(path==='/bonuses'){el('randomClock').textContent='09:41:55';el('dailyBonusText').textContent='Серия 2/7';el('dailyBonusDays').innerHTML=[1,3,5,10,15,25,40].map((v,i)=>'<div class="dailyDay '+(i===1?'on':'')+'">День '+(i+1)+'<strong>+'+v+'</strong></div>').join('')}
-    if(path==='/streamers'){el('streamerGrid').innerHTML=Array.from({length:7},(_,i)=>'<a class="streamer-card" href="#"><div class="streamer-avatar"><span>DS</span></div><div class="streamer-info"><strong>Streamer '+(i+1)+'</strong><div class="streamer-login">twitch.tv/demo'+(i+1)+'</div><div class="streamer-status">Офлайн</div></div><span class="streamer-arrow">↗</span></a>').join('')}
+   await page.evaluate(path=>{const el=id=>document.getElementById(id);if(path==='/streamers'){el('streamerGrid').innerHTML=Array.from({length:7},(_,i)=>'<a class="streamer-card" href="#"><div class="streamer-avatar"><span>DS</span></div><div class="streamer-info"><strong>Streamer '+(i+1)+'</strong><div class="streamer-login">twitch.tv/demo'+(i+1)+'</div><div class="streamer-status">Офлайн</div></div><span class="streamer-arrow">↗</span></a>').join('')}
     if(path==='/clans'){el('content').innerHTML='<section class="panel"><h2>Сезон кланов · CLAN POINTS</h2><div class="clan-podium"><div class="clan-podium-place"><b>1</b><span>1 500 монет</span></div><div class="clan-podium-place"><b>2</b><span>750 монет</span></div><div class="clan-podium-place"><b>3</b><span>250 монет</span></div></div><div class="clan-list-grid">'+['Demo Clan A','Demo Clan B'].map(n=>'<article class="card clan-list-row"><img class="avatar" src="/pwa/icon/brand-logo.png" alt=""><strong>'+n+'</strong><span class="clan-lvl">LVL 1</span><div class="clan-row-actions"><button>Открыть</button></div></article>').join('')+'</div></section>'}
    },path);
    assert.equal(await page.locator('body').getAttribute('data-dropso-redesign'),path==='/membership'?'premium':await page.locator('body').getAttribute('data-dropso-page'));
    assert.equal(await page.locator('#dropsoRedesign').count(),1);
+   if(path==='/bonuses'){await page.locator('#dailyBonusDays .dailyDay').first().waitFor();assert.equal(await page.locator('#dailyBonusDays .dailyDay').count(),7);assert.equal(await page.locator('#dailyBonusDays [data-day-status=claimed]').count(),2);assert.equal(await page.locator('#dailyBonusDays [data-day-status=locked]').count(),5);assert.equal(await page.locator('#dailyBonusClaim').getAttribute('data-claimed'),'true');assert(await page.locator('#claimTelegram').isDisabled());assert(await page.locator('#telegramActions').isVisible());if(width===1920)await page.locator('main.bonus-page').screenshot({path:'redesign-screenshots/bonuses-designer.png'})}
    assert.equal(issues.length,0,path+': '+issues.join('; '));
    if(path==='/shop'){assert.equal(await page.locator('.dropso-shop-filter-row #search').count(),1);assert.equal(await page.locator('.dropso-shop-filter-row #lo').count(),1);assert.equal(await page.locator('.dropso-shop-header-nav #cartTop').count(),1);assert.equal(await page.locator('#grid .item>img').count(),18);assert.equal(await page.locator('#marketToolbar .marketTab').count(),5);assert.equal(await page.locator('#marketToolbar .marketTab:visible').count(),4);assert.equal(await page.locator('#marketGoal .marketGoalActions button').count(),3);const card=await page.locator('#grid .item').first().boundingBox();assert(card&&card.height>=140,'shop cards must have space for images and price')}
    if(path==='/bosses'){assert.equal(await page.locator('.dropso-raid-link').count(),1)}
