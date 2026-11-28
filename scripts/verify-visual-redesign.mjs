@@ -19,6 +19,7 @@ import {clansHtml} from '../src/clans-ui.ts';
 import {customizationHtml} from '../src/profile-customization-ui.ts';
 import {shopDesignCss} from '../src/shop-design.ts';
 import {pwaIcons} from '../src/pwa-icons.ts';
+import {desktopAccountSidebar} from '../src/desktop-account-sidebar.ts';
 // Local-only fixture. No production routes, data, sessions or purchases are used.
 import {html as shopPageHtml} from '../src/shop-page-v2.ts';
 import {marketCss,marketToolbar} from '../src/market-ui.ts';
@@ -39,18 +40,22 @@ const shop=shopDesignHtml(shopPageHtml(true)
  .replace('<div class="empty">Загрузка магазина…</div>',demoCards)
  .replace('id="marketFavCount">0','id="marketFavCount">2')
  .replace('id="marketCount" class="marketCount"></span>','id="marketCount" class="marketCount">Найдено: 1964</span>'));
-const pages={'/membership':playerMembershipPreview(),'/shop':shop,'/bonuses':bonusesHtml,'/bosses':liveBossPage('player'),'/streamers':streamersHtml,'/black-box':blackBoxPage(false),'/games/red-button':redButtonPage,'/vault':vaultHtml,'/profile/customize':customizationHtml,'/clans':clansHtml(false)};
+const accountFixture='<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#11111d;color:#fff;font:15px system-ui}main{min-height:1100px}</style></head><body data-account-design="neon"><main><div class="top"><div class="economybar"><a href="/shop">Магазин</a><a href="/games">Игры</a><button id="d1PwaOpen">Приложение</button></div></div><div id="accountLogoMenuPanel" hidden><button class="logo-menu-balance"><span class="account-menu-label">Баланс</span><strong>10 монет</strong></button><a href="/bonuses" id="bonusesLink">Бонусы</a><a href="/statistics" id="accountStatisticsLink">Статистика</a><a href="/community" id="messagesTopLink">Сообщения</a></div><h1>Личный кабинет</h1></main></body></html>';
+const pages={'/account':accountFixture,'/membership':playerMembershipPreview(),'/shop':shop,'/bonuses':bonusesHtml,'/bosses':liveBossPage('player'),'/streamers':streamersHtml,'/black-box':blackBoxPage(false),'/games/red-button':redButtonPage,'/vault':vaultHtml,'/profile/customize':customizationHtml,'/clans':clansHtml(false)};
 function render(html,path){
  // Remove feature scripts to avoid live requests; the real shared UI scripts remain.
  html=html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'');
+ if(path==='/account')html=html.replace('</body>',desktopAccountSidebar+'</body>');
  return withDropsoRedesign(withDropsoPagePolish(withDropsoDashboard(withSiteNavigation(withMobileLayout(withSiteBranding(html,path),path),path),path),path),path);
 }
 const browser=await chromium.launch({headless:true});await mkdir('redesign-screenshots',{recursive:true});
 try{
- for(const [width,height] of [[1717,916],[1440,1000],[390,844]]){
+ for(const [width,height] of [[1441,1450],[1717,916],[1440,1000],[390,844]]){
   const context=await browser.newContext({viewport:{width,height}});
   for(const [path,html] of Object.entries(pages)){
    if(width===1717&&path!=='/shop')continue;
+   if(width===1441&&!['/account','/bonuses'].includes(path))continue;
+   if(path==='/account'&&width!==1441)continue;
    const page=await context.newPage();const issues=[];
    page.on('pageerror',e=>issues.push(e.message));
    await page.route('**/*',async route=>{
@@ -78,6 +83,7 @@ try{
    if(path==='/shop'){assert.equal(await page.locator('.dropso-shop-filter-row #search').count(),1);assert.equal(await page.locator('.dropso-shop-filter-row #lo').count(),1);assert.equal(await page.locator('.dropso-shop-header-nav #cartTop').count(),1);assert.equal(await page.locator('#grid .item>img').count(),16);assert.equal(await page.locator('#marketToolbar .marketTab').count(),5);assert.equal(await page.locator('#marketGoal .marketGoalActions button').count(),3);const card=await page.locator('#grid .item').first().boundingBox();assert(card&&card.height>=140,'shop cards must have space for images and price')}
    if(path==='/bosses'){assert.equal(await page.locator('.dropso-raid-link').count(),1)}
    if(width===1440&&path!=='/shop'){const toggle=page.locator('.dropso-redesign-collapse');assert.equal(await toggle.count(),1);await toggle.click();assert(await page.locator('body').evaluate(el=>el.classList.contains('dropso-redesign-collapsed')));await toggle.click()}
+   if(width===1441){const side=page.locator('[data-ref-menu]');assert.equal(await side.locator('.dropso-menu-row').count(),30);assert.equal(await side.locator('.dropso-menu-row svg').count(),30);assert.equal(await side.locator('.dropso-menu-event').count(),4);await side.screenshot({path:'redesign-screenshots/sidebar-'+(path==='/account'?'account':'other-page')+'.png'});const toggle=side.locator('.dropso-redesign-collapse');await toggle.click();assert(await side.locator('.dropso-menu-row').first().isVisible());await side.screenshot({path:'redesign-screenshots/sidebar-'+(path==='/account'?'account':'other-page')+'-collapsed.png'});await toggle.click();}
    const main=page.locator('main').first();if(await main.count()){const b=await main.boundingBox();assert(b&&b.width<=width+2,path+' main exceeds viewport')};
    await page.screenshot({path:'redesign-screenshots/'+path.slice(1).replaceAll('/','-')+'-'+width+'.png',fullPage:true});await page.close();
   }
