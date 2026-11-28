@@ -20,7 +20,7 @@ import {customizationHtml} from '../src/profile-customization-ui.ts';
 import {shopDesignCss} from '../src/shop-design.ts';
 // Local-only fixture. No production routes, data, sessions or purchases are used.
 const shop='<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>'+shopDesignCss+'</style></head><body data-market-design="cards"><main><h1>Магазин</h1><section id="marketGoal"><h2>Моя главная цель</h2></section><div class="layout"><aside id="side"><h3>Цена</h3><div class="price"><input id="lo" placeholder="Цена от"><input id="hi" placeholder="Цена до"></div><h3>Износ</h3><div class="opts"><label><input type="checkbox"> FN</label></div><button id="reset">Сбросить</button></aside><section><div class="marketToolbar">Все скины · Мои желания</div><input id="search" placeholder="Поиск"><div id="grid">'+Array.from({length:12},(_,i)=>'<article class="item"><div class="name">Скин '+(i+1)+'</div><div class="coins">5 монет</div></article>').join('')+'</div></section></div></main></body></html>';
-const pages={'/membership':playerMembershipPreview(),'/shop':shop,'/bonuses':bonusesHtml,'/bosses':liveBossPage('player'),'/streamers':streamersHtml,'/black-box':blackBoxPage(false),'/games/red-button':redButtonPage,'/vault':vaultHtml,'/profile/customize':customizationHtml,'/clans':clansHtml};
+const pages={'/membership':playerMembershipPreview(),'/shop':shop,'/bonuses':bonusesHtml,'/bosses':liveBossPage('player'),'/streamers':streamersHtml,'/black-box':blackBoxPage(false),'/games/red-button':redButtonPage,'/vault':vaultHtml,'/profile/customize':customizationHtml,'/clans':clansHtml(false)};
 function render(html,path){
  // Remove feature scripts to avoid live requests; the real shared UI scripts remain.
  html=html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'');
@@ -33,7 +33,8 @@ try{
   for(const [path,html] of Object.entries(pages)){
    const page=await context.newPage();const issues=[];
    page.on('pageerror',e=>issues.push(e.message));
-   await page.route('http://preview.test/**',async route=>{
+   await page.route('**/*',async route=>{
+    if(new URL(route.request().url()).hostname!=='preview.test'){await route.abort();return}
     const p=new URL(route.request().url()).pathname;
     if(p===path){await route.fulfill({contentType:'text/html',body:render(html,path)});return}
     if(p.startsWith('/api/me/economy')){await route.fulfill({json:{balance:10}});return}
