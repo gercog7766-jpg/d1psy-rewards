@@ -1,0 +1,20 @@
+name: Dropso visual redesign checks
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  redesign:
+    if: github.head_ref == 'codex/dropso-visual-redesign-20261128'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: node --import tsx --test tests/dropso-redesign.test.mjs tests/site-navigation.test.mjs tests/account-logo-menu.test.mjs
