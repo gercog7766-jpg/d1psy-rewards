@@ -80,7 +80,7 @@ export function createRelay({token='',webhookSecret='',relaySecret='',webhookUrl
   if(/^\/paysupport(?:@[A-Za-z0-9_]+)?$/.test(m.text)){const result=await stars('support',m.chat.id).catch(()=>null);await tg('sendMessage',{chat_id:m.chat.id,text:'Поддержка платежей Dropso: '+(result?.url||DROPSO)});return true;}
   const refund=/^\/refund_stars ([0-9a-f-]{36})$/i.exec(m.text);
   if(refund&&orderId('stars_'+refund[1])){const result=await stars('prepare_refund',m.chat.id,{orderId:refund[1]});if(!result.ok||result.order.state==='refunded'){await tg('sendMessage',{chat_id:m.chat.id,text:'Возврат недоступен или уже выполнен.'});return true;}
-   const o=result.order;await tg('refundStarPayment',{user_id:m.chat.id,telegram_payment_charge_id:o.charge_id});const saved=await stars('refund',m.chat.id,{orderId:o.id,chargeId:o.charge_id,stars:o.stars,currency:o.currency});if(!saved.ok)throw Error('refund_not_recorded');return true;
+   const o=result.order;const target=String(o.telegram_id||m.chat.id);if(!/^[1-9][0-9]{0,15}$/.test(target))throw Error('refund_target_invalid');await tg('refundStarPayment',{user_id:Number(target),telegram_payment_charge_id:o.charge_id});const saved=await stars('refund',target,{orderId:o.id,chargeId:o.charge_id,stars:o.stars,currency:o.currency});if(!saved.ok)throw Error('refund_not_recorded');await tg('sendMessage',{chat_id:m.chat.id,text:'Возврат подтверждён · '+o.stars+' Stars.'});return true;
   }
   return false;
  }
